@@ -1,29 +1,41 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
 import { ErrorAlert, Field, SubmitButton } from '../components/ui'
 import { AppHeader } from '../components/AppHeader'
 
-const upcomingModules = [
+const SELLER_ROLES = ['Farmer', 'Supplier', 'AgroProcessor', 'Exporter', 'Distributor']
+const BUYER_ROLES = ['Buyer', 'Importer', 'Distributor']
+
+const quickActions = [
   {
-    title: 'Verified business profile',
-    phase: 'Phase 1',
-    body: 'Licenses, certifications, and documents that establish trust across borders.',
+    title: 'Marketplace',
+    phase: 'Live · Phase 1',
+    body: 'Browse verified export listings, filter by origin, destination, and price.',
+    to: '/marketplace',
+    cta: 'Explore supply',
   },
   {
-    title: 'Product listings & RFQs',
-    phase: 'Phase 1',
-    body: 'Export supply with HS codes, Incoterms, ports, and currency — plus importers’ requests for quotation.',
+    title: 'RFQ directory',
+    phase: 'Live · Phase 1',
+    body: 'Open importers’ sourcing requests. Verified suppliers quote with full trade terms.',
+    to: '/rfqs',
+    cta: 'Find requests',
   },
   {
-    title: 'Orders & trade documents',
+    title: 'Messages & RFQs',
+    phase: 'Live · Phase 1',
+    body: 'Negotiation threads per RFQ, plus RFQ/quotation/verification notifications.',
+    to: '/messages',
+    cta: 'Open messages',
+  },
+  {
+    title: 'Orders & payments',
     phase: 'Phase 2',
     body: 'Convert quotations to orders with agreed terms; verify invoices, COO, bills of lading.',
-  },
-  {
-    title: 'Payments & tracking',
-    phase: 'Phase 2',
-    body: 'Gateway payments where available, off-platform payment recording, and shipment tracking.',
+    to: null,
+    cta: 'Coming soon',
   },
 ]
 
@@ -129,15 +141,51 @@ export default function DashboardPage() {
         )}
 
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">What’s coming next</h2>
+          <h2 className="text-lg font-semibold">Trading workspace</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {upcomingModules.map((m) => (
-              <div key={m.title} className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{m.phase}</p>
-                <h3 className="mt-1.5 font-semibold">{m.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-stone-600">{m.body}</p>
-              </div>
-            ))}
+            {quickActions.map((m) =>
+              m.to ? (
+                <Link
+                  key={m.title}
+                  to={m.to}
+                  className="group rounded-xl border border-stone-200 bg-white p-5 shadow-sm transition hover:border-brand-300 hover:shadow"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{m.phase}</p>
+                  <h3 className="mt-1.5 font-semibold group-hover:text-brand-700">{m.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-stone-600">{m.body}</p>
+                  <p className="mt-3 text-sm font-semibold text-brand-700">{m.cta} →</p>
+                </Link>
+              ) : (
+                <div key={m.title} className="rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{m.phase}</p>
+                  <h3 className="mt-1.5 font-semibold">{m.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-stone-600">{m.body}</p>
+                  <p className="mt-3 text-sm font-semibold text-stone-400">{m.cta}</p>
+                </div>
+              ),
+            )}
+          </div>
+
+          <div className="mt-6 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-stone-700">Quick actions</h3>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link to="/business" className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-brand-700">
+                Manage business
+              </Link>
+              {user.roles.some((r) => SELLER_ROLES.includes(r)) ? (
+                <Link to="/products/new" className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50">
+                  New listing
+                </Link>
+              ) : null}
+              {user.roles.some((r) => BUYER_ROLES.includes(r)) ? (
+                <Link to="/rfqs/new" className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50">
+                  Publish RFQ
+                </Link>
+              ) : null}
+              <Link to="/notifications" className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50">
+                Notifications
+              </Link>
+            </div>
           </div>
         </section>
       </main>

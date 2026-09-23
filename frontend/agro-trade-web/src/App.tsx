@@ -6,7 +6,25 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import ConfirmEmailPage from './pages/ConfirmEmailPage'
 import DashboardPage from './pages/DashboardPage'
+import MarketplacePage from './pages/MarketplacePage'
+import ProductDetailPage from './pages/ProductDetailPage'
+import ProductFormPage from './pages/ProductFormPage'
+import MyProductsPage from './pages/MyProductsPage'
+import RfqDirectoryPage from './pages/RfqDirectoryPage'
+import RfqPublishPage from './pages/RfqPublishPage'
+import RfqDetailPage from './pages/RfqDetailPage'
+import MyRfqsPage from './pages/MyRfqsPage'
+import MessagesPage from './pages/MessagesPage'
+import NotificationsPage from './pages/NotificationsPage'
+import BusinessHubPage from './pages/BusinessHubPage'
+import BusinessOnboardingPage from './pages/BusinessOnboardingPage'
+import BusinessDetailPage from './pages/BusinessDetailPage'
+import PublicBusinessPage from './pages/PublicBusinessPage'
+import AdminVerificationPage from './pages/AdminVerificationPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { RequireRole } from './components/RequireRole'
+
+const ADMIN_ROLES = ['Administrator']
 
 export default function App() {
   return (
@@ -18,6 +36,14 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/confirm-email" element={<ConfirmEmailPage />} />
+
+        {/* Marketplace (public) */}
+        <Route path="/marketplace" element={<MarketplacePage />} />
+        <Route path="/products/:idOrSlug" element={<ProductDetailPage />} />
+        <Route path="/businesses/:id" element={<PublicBusinessPage />} />
+        <Route path="/rfqs" element={<RfqDirectoryPage />} />
+
+        {/* Authenticated */}
         <Route
           path="/dashboard"
           element={
@@ -26,6 +52,105 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/products/new"
+          element={
+            <ProtectedRoute>
+              <ProductFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/:id/edit"
+          element={
+            <ProtectedRoute>
+              <ProductFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my/products"
+          element={
+            <ProtectedRoute>
+              <MyProductsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rfqs/new"
+          element={
+            <ProtectedRoute>
+              <RfqPublishPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rfqs/:id"
+          element={
+            <ProtectedRoute>
+              <RfqDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my/rfqs"
+          element={
+            <ProtectedRoute>
+              <MyRfqsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/messages"
+          element={
+            <ProtectedRoute>
+              <MessagesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/business"
+          element={
+            <ProtectedRoute>
+              <BusinessHubPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/business/new"
+          element={
+            <ProtectedRoute>
+              <BusinessOnboardingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/business/:id"
+          element={
+            <ProtectedRoute>
+              <BusinessDetailPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin */}
+        <Route
+          path="/admin/verification"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminVerificationPage />
+            </RequireRole>
+          }
+        />
+
         <Route path="*" element={<LandingPage />} />
       </Routes>
     </BrowserRouter>
