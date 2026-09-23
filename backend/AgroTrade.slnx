@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgroTrade.Api/AgroTrade.Api.csproj" />
+    <Project Path="src/AgroTrade.Application/AgroTrade.Application.csproj" />
+    <Project Path="src/AgroTrade.Domain/AgroTrade.Domain.csproj" />
+    <Project Path="src/AgroTrade.Infrastructure/AgroTrade.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgroTrade.Tests/AgroTrade.Tests.csproj" />
+  </Folder>
+</Solution>

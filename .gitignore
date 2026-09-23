@@ -1,0 +1,35 @@
+# ---- OS ----
+Thumbs.db
+.DS_Store
+
+# ---- IDE ----
+.vs/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.user
+
+# ---- .NET / build artifacts ----
+bin/
+obj/
+artifacts/
+*.userprefs
+TestResults/
+coverage/
+
+# ---- Node ----
+node_modules/
+dist/
+*.local
+
+# ---- Secrets & local config ----
+appsettings.Local.json
+.env
+.env.*
+!.env.example
+
+# ---- Logs ----
+logs/
+*.log
+
+# ---- EF migrations snapshot of user-set secrets (these live outside the repo) ----
