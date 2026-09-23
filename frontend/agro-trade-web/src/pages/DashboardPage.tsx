@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { useAuth } from '../lib/auth'
+import { useAuth } from '../lib/auth-context'
 import { ErrorAlert, Field, SubmitButton } from '../components/ui'
 import { AppHeader } from '../components/AppHeader'
 

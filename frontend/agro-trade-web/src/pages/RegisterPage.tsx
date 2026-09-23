@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../lib/auth'
+import { useAuth } from '../lib/auth-context'
 import { ErrorAlert, Field, SubmitButton } from '../components/ui'
 import { AppHeader } from '../components/AppHeader'
 import { REGISTRABLE_ROLES } from '../types/auth'

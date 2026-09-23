@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   api,
@@ -7,25 +7,8 @@ import {
   problemFrom,
   saveTokens,
 } from './api'
-import type {
-  AuthResponse,
-  AuthUser,
-  LoginRequest,
-  RegisterRequest,
-  UpdateProfileRequest,
-} from '../types/auth'
-
-interface AuthContextValue {
-  user: AuthUser | null
-  /** True while the persisted session is being restored. */
-  initializing: boolean
-  login: (payload: LoginRequest) => Promise<AuthResponse>
-  register: (payload: RegisterRequest) => Promise<AuthResponse>
-  logout: () => Promise<void>
-  updateProfile: (payload: UpdateProfileRequest) => Promise<AuthUser>
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null)
+import type { AuthResponse, AuthUser, LoginRequest, RegisterRequest, UpdateProfileRequest } from '../types/auth'
+import { AuthContext } from './auth-context'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -107,10 +90,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>')
-  return ctx
 }
