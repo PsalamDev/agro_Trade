@@ -132,6 +132,8 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .Build();
     options.AddPolicy(Policies.Administrator, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.Administrator));
+    options.AddPolicy(Policies.Seller, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.SellerRoles.ToArray()));
+    options.AddPolicy(Policies.Buyer, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.BuyerRoles.ToArray()));
 });
 
 // ---- Cross-cutting ----
@@ -188,6 +190,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.UseStaticFiles();
 // Liveness: the process is up. Readiness (with DB + other checks): container probes.
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
@@ -204,6 +207,10 @@ app.Run();
 public static partial class Policies
 {
     public const string Administrator = "Administrator";
+    /// <summary>Seller-side roles: Farmer, Supplier, AgroProcessor, Exporter, Distributor.</summary>
+    public const string Seller = "Seller";
+    /// <summary>Buyer-side roles: Buyer, Importer, Distributor.</summary>
+    public const string Buyer = "Buyer";
 }
 
 /// <summary>Factory entry point for WebApplicationFactory integration tests.</summary>

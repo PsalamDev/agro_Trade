@@ -32,4 +32,8 @@ appsettings.Local.json
 logs/
 *.log
 
+# ---- User uploads (runtime files, never committed) ----
+**/wwwroot/uploads/*
+!**/wwwroot/uploads/.gitkeep
+
 # ---- EF migrations snapshot of user-set secrets (these live outside the repo) ----

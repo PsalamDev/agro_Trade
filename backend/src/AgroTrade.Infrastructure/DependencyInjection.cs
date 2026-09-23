@@ -1,9 +1,14 @@
 using AgroTrade.Application.Auth;
 using AgroTrade.Application.Common;
+using AgroTrade.Application.Communication;
+using AgroTrade.Application.Trade;
 using AgroTrade.Infrastructure.Auth;
+using AgroTrade.Infrastructure.Communication;
 using AgroTrade.Infrastructure.Data;
 using AgroTrade.Infrastructure.Email;
 using AgroTrade.Infrastructure.Identity;
+using AgroTrade.Infrastructure.Storage;
+using AgroTrade.Infrastructure.Trade;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -22,8 +27,13 @@ public static class DependencyInjection
                 "dotnet user-secrets set \"ConnectionStrings:Default\" \"Server=localhost;Database=AgroTrade;Trusted_Connection=True;TrustServerCertificate=True;\" --project src/AgroTrade.Api");
 
         services.AddDbContext<AgroTradeDbContext>(options =>
+        {
             options.UseSqlServer(connectionString, sql =>
-                sql.MigrationsAssembly(typeof(AgroTradeDbContext).Assembly.FullName)));
+            {
+                sql.MigrationsAssembly(typeof(AgroTradeDbContext).Assembly.FullName);
+                sql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+            });
+        });
 
         services
             .AddIdentityCore<ApplicationUser>(options =>
@@ -56,6 +66,14 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailSender, ConsoleEmailSender>();
         services.AddScoped<DbSeeder>();
+
+        // Trade & communication (Phase 1)
+        services.AddScoped<IFileStorage, LocalFileStorage>();
+        services.AddScoped<ICatalogService, CatalogService>();
+        services.AddScoped<IBusinessService, BusinessService>();
+        services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<IRfqService, RfqService>();
+        services.AddScoped<ICommunicationService, CommunicationService>();
 
         return services;
     }
