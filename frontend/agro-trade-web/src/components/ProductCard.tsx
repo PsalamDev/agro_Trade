@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { ProductCardDto } from '../types/trade'
 import { PRICE_UNITS, labelOf } from '../types/trade'
 import { IncotermBadge, VerifiedBadge } from './badges'
+import { resolveProductImage } from '../lib/productImages'
 
 export function ProductCard({ product }: { product: ProductCardDto }) {
   const unit = labelOf(PRICE_UNITS, product.priceUnit).replace('Per ', '').toLowerCase()
@@ -17,7 +18,7 @@ export function ProductCard({ product }: { product: ProductCardDto }) {
       </div>
 
       <img
-        src={product.primaryImageUrl ?? '/ag-products/produce.svg'}
+        src={resolveProductImage(product.slug, product.primaryImageUrl)}
         alt={product.name}
         className="mt-3 h-36 w-full rounded-lg border border-stone-100 object-cover"
       />

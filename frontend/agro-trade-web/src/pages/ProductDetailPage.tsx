@@ -5,6 +5,7 @@ import { VerifiedBadge } from '../components/badges'
 import { Card, ErrorAlert, Spinner } from '../components/ui'
 import { getProduct } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { resolveProductImage } from '../lib/productImages'
 import { INCOTERMS, PRICE_UNITS, labelOf } from '../types/trade'
 import type { ProductDetailDto } from '../types/trade'
 
@@ -47,7 +48,9 @@ export default function ProductDetailPage() {
     }
   }, [idOrSlug])
 
-  const activeImage = product ? selectedImage ?? product.primaryImageUrl : null
+  const activeImage = product
+    ? selectedImage ?? resolveProductImage(product.slug, product.primaryImageUrl)
+    : null
 
   return (
     <div className="min-h-screen">
