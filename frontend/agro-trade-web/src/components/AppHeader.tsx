@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
 import { NotificationsBell } from './NotificationsBell'
@@ -14,6 +15,16 @@ export function AppHeader() {
   const roles = user?.roles ?? []
   const isSeller = roles.some((r) => SELLER_ROLES.includes(r))
   const isAdmin = roles.includes('Administrator')
+  const [tradingOpen, setTradingOpen] = useState(false)
+
+  const tradingLinks = [
+    { to: '/rfqs', label: 'Find RFQs', show: true },
+    { to: '/my/rfqs', label: 'My RFQs', show: true },
+    { to: '/messages', label: 'Messages', show: true },
+    { to: '/my/products', label: 'My listings', show: isSeller },
+    { to: '/business', label: 'Business', show: true },
+    { to: '/admin/verification', label: 'Admin', show: isAdmin },
+  ].filter((link) => link.show)
 
   return (
     <header className="sticky top-0 z-10 border-b border-stone-200 bg-white/90 backdrop-blur">
@@ -28,34 +39,50 @@ export function AppHeader() {
         </Link>
 
         <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
+          <NavLink to="/" className={linkClass} end>
+            Home
+          </NavLink>
           <NavLink to="/marketplace" className={linkClass}>
-            Marketplace
+            Products
           </NavLink>
-          <NavLink to="/rfqs" className={linkClass}>
-            RFQs
+          <NavLink to="/about" className={linkClass}>
+            About
           </NavLink>
-          {user ? (
-            <>
-              <NavLink to="/my/rfqs" className={linkClass}>
-                My RFQs
-              </NavLink>
-              <NavLink to="/messages" className={linkClass}>
-                Messages
-              </NavLink>
-              {isSeller ? (
-                <NavLink to="/my/products" className={linkClass}>
-                  My listings
-                </NavLink>
+          <NavLink to="/contact" className={linkClass}>
+            Contact
+          </NavLink>
+          {user && tradingLinks.length > 0 ? (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setTradingOpen((open) => !open)}
+                className="relative z-20 flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
+                aria-expanded={tradingOpen}
+              >
+                Trading <span className="text-xs text-stone-400">▾</span>
+              </button>
+              {tradingOpen ? (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setTradingOpen(false)} />
+                  <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-stone-200 bg-white p-1.5 shadow-lg">
+                    {tradingLinks.map((link) => (
+                      <NavLink
+                        key={link.to}
+                        to={link.to}
+                        onClick={() => setTradingOpen(false)}
+                        className={({ isActive }) =>
+                          `block rounded-md px-3 py-2 text-sm font-medium transition ${
+                            isActive ? 'bg-brand-50 text-brand-700' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+                          }`
+                        }
+                      >
+                        {link.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                </>
               ) : null}
-              <NavLink to="/business" className={linkClass}>
-                Business
-              </NavLink>
-              {isAdmin ? (
-                <NavLink to="/admin/verification" className={linkClass}>
-                  Admin
-                </NavLink>
-              ) : null}
-            </>
+            </div>
           ) : null}
         </nav>
 

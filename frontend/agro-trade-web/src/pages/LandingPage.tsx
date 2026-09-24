@@ -1,28 +1,7 @@
 import { Link } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
-
-const whatWeTrade = [
-  {
-    src: '/ag-products/cocoa.svg',
-    name: 'Cocoa',
-    blurb: 'Fermented cocoa beans — graded, tested, and export-ready.',
-  },
-  {
-    src: '/ag-products/cashew.svg',
-    name: 'Cashew nuts',
-    blurb: 'W320 / W180 kernels and raw nuts for processors worldwide.',
-  },
-  {
-    src: '/ag-products/palm-kernel.svg',
-    name: 'Palm kernel',
-    blurb: 'Palm kernel and PKC for the feed, oil, and oleochemical industries.',
-  },
-  {
-    src: '/ag-products/fishery.svg',
-    name: 'Fishery',
-    blurb: 'Frozen and dried fish for regional and international markets.',
-  },
-]
+import { SiteFooter } from '../components/SiteFooter'
+import { COMMODITIES } from '../lib/brand'
 
 const corridors = [
   { from: 'Nigeria', to: 'Netherlands', crop: 'Cocoa beans · FOB Lagos → CIF Rotterdam' },
@@ -97,7 +76,7 @@ export default function LandingPage() {
           </Link>
         </div>
         <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {whatWeTrade.map((p) => (
+          {COMMODITIES.map((p) => (
             <div key={p.name} className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
               <img src={p.src} alt={p.name} className="h-44 w-full object-cover" />
               <div className="p-4">
@@ -138,12 +117,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-stone-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-4 py-8 text-sm text-stone-500 sm:flex-row sm:justify-between">
-          <p>© {new Date().getFullYear()} Achievers Global Consult. Importer &amp; exporter of agro-allied products.</p>
-          <p>Cocoa · Cashew nut · Palm kernel · Fishery</p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }
