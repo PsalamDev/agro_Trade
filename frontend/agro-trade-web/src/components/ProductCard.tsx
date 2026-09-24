@@ -15,17 +15,11 @@ export function ProductCard({ product }: { product: ProductCardDto }) {
         <VerifiedBadge visible={product.isSellerVerifiedBadgeVisible} />
       </div>
 
-      {product.primaryImageUrl ? (
-        <img
-          src={product.primaryImageUrl}
-          alt={product.name}
-          className="mt-3 h-36 w-full rounded-lg border border-stone-100 object-cover"
-        />
-      ) : (
-        <div className="mt-3 grid h-36 w-full place-items-center rounded-lg bg-stone-100 text-sm text-stone-400">
-          No photo
-        </div>
-      )}
+      <img
+        src={product.primaryImageUrl ?? '/ag-products/produce.svg'}
+        alt={product.name}
+        className="mt-3 h-36 w-full rounded-lg border border-stone-100 object-cover"
+      />
 
       <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
         <div>

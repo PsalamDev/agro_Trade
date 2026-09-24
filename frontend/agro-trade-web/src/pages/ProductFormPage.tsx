@@ -3,10 +3,10 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { Card, ErrorAlert, Field, KeyValueEditor, SelectField, SubmitButton, TagInput, TextArea } from '../components/ui'
-import { createProduct, getBusiness, getCategoryTree, getMyBusinesses, getProduct, updateProduct } from '../lib/trade'
+import { createProduct, deleteProductImage, getBusiness, getCategoryTree, getMyBusinesses, getProduct, updateProduct, uploadProductImage } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import { INCOTERMS, LISTING_STATUS, LISTING_STATUSES, PRICE_UNITS, labelOf } from '../types/trade'
-import type { BusinessSummaryDto, CategoryDto } from '../types/trade'
+import type { BusinessSummaryDto, CategoryDto, ProductImageDto } from '../types/trade'
 
 export default function ProductFormPage() {
   const { id } = useParams<{ id: string }>()
@@ -37,6 +37,11 @@ export default function ProductFormPage() {
   const [certifications, setCertifications] = useState<string[]>([])
   const [listingStatus, setListingStatus] = useState(String(LISTING_STATUS.Active))
   const [businessId, setBusinessId] = useState('')
+  const [images, setImages] = useState<ProductImageDto[]>([])
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [makePrimary, setMakePrimary] = useState(false)
+  const [uploadPending, setUploadPending] = useState(false)
+  const [uploadError, setUploadError] = useState<{ code?: string; detail?: string; fieldErrors?: Record<string, string[]> } | null>(null)
 
   const [loaded, setLoaded] = useState(false)
   const [isOwner, setIsOwner] = useState(false)
@@ -92,6 +97,7 @@ export default function ProductFormPage() {
         setPackagingOptions(product.packagingOptions)
         setCertifications(product.certifications)
         setListingStatus(String(product.listingStatus))
+        setImages(product.images)
         setIsOwner(owned)
         setLoaded(true)
       })
@@ -132,6 +138,42 @@ export default function ProductFormPage() {
         </main>
       </div>
     )
+  }
+
+  async function refreshImages() {
+    if (!id) return
+    const updated = await getProduct(id)
+    setImages(updated.images)
+  }
+
+  async function handleUpload() {
+    if (!id || !uploadFile) return
+    setUploadPending(true)
+    setUploadError(null)
+    try {
+      await uploadProductImage(id, uploadFile, makePrimary)
+      setUploadFile(null)
+      setMakePrimary(false)
+      await refreshImages()
+    } catch (err) {
+      setUploadError(problemFrom(err))
+    } finally {
+      setUploadPending(false)
+    }
+  }
+
+  async function handleDeleteImage(imageId: string) {
+    if (!id) return
+    setUploadPending(true)
+    setUploadError(null)
+    try {
+      await deleteProductImage(id, imageId)
+      await refreshImages()
+    } catch (err) {
+      setUploadError(problemFrom(err))
+    } finally {
+      setUploadPending(false)
+    }
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -235,6 +277,74 @@ export default function ProductFormPage() {
               <TagInput label="Certifications" id="prod-certs" value={certifications} onChange={setCertifications} />
             </div>
           </Card>
+
+          {isEdit && id ? (
+            <Card>
+              <h2 className="text-lg font-semibold">Photos</h2>
+              <p className="mt-1 text-sm text-stone-500">
+                The cover photo appears on marketplace cards. Buyers can browse all photos on the
+                listing page.
+              </p>
+
+              {images.length > 0 ? (
+                <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
+                  {images.map((img) => (
+                    <div key={img.id} className="group relative overflow-hidden rounded-lg border border-stone-200">
+                      <img src={img.url} alt={img.altText ?? ''} className="h-20 w-full object-cover" />
+                      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-black/60 to-transparent p-1.5">
+                        {img.isPrimary ? (
+                          <span className="rounded-full bg-brand-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                            Cover
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteImage(img.id)}
+                          disabled={uploadPending}
+                          className="ml-auto rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-stone-500">
+                  No photos yet. Add one below — a photo helps buyers trust the listing.
+                </p>
+              )}
+
+              <div className="mt-4 space-y-3 rounded-lg bg-stone-50 p-4">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="block w-full text-sm text-stone-700 file:mr-3 file:rounded-md file:border-0 file:bg-brand-600 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-brand-700"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-sm text-stone-700">
+                  <input
+                    type="checkbox"
+                    checked={makePrimary}
+                    onChange={(e) => setMakePrimary(e.target.checked)}
+                    className="h-4 w-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  Set as cover photo
+                </label>
+                {uploadError ? <ErrorAlert title={uploadError.detail} /> : null}
+                <button
+                  type="button"
+                  onClick={() => void handleUpload()}
+                  disabled={!uploadFile || uploadPending}
+                  className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploadPending ? 'Uploading…' : 'Upload photo'}
+                </button>
+              </div>
+            </Card>
+          ) : null}
 
           <SubmitButton type="submit" pending={pending}>
             {isEdit ? 'Save listing' : 'Create listing'}

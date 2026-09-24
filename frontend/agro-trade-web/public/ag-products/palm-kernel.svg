@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" role="img" aria-label="Palm kernel fruit">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fdf1e4"/>
+      <stop offset="1" stop-color="#f2ddbd"/>
+    </linearGradient>
+    <radialGradient id="fruit" cx="0.4" cy="0.35" r="0.9">
+      <stop offset="0" stop-color="#f0793d"/>
+      <stop offset="1" stop-color="#c2401a"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="520" fill="url(#bg)"/>
+  <circle cx="680" cy="110" r="150" fill="#eed3a8" opacity="0.55"/>
+  <circle cx="110" cy="430" r="130" fill="#e3bd86" opacity="0.4"/>
+  <!-- stem -->
+  <path d="M320 150 C340 190 350 230 355 260" stroke="#7a5a2e" stroke-width="18" fill="none" stroke-linecap="round"/>
+  <!-- fruit bunch -->
+  <g>
+    <ellipse cx="400" cy="340" rx="150" ry="110" fill="url(#fruit)"/>
+    <ellipse cx="400" cy="340" rx="150" ry="110" fill="none" stroke="#a83212" stroke-width="6" opacity="0.4"/>
+    <circle cx="330" cy="290" r="34" fill="url(#fruit)"/>
+    <circle cx="400" cy="270" r="34" fill="url(#fruit)"/>
+    <circle cx="470" cy="290" r="34" fill="url(#fruit)"/>
+    <circle cx="300" cy="340" r="34" fill="url(#fruit)"/>
+    <circle cx="370" cy="345" r="34" fill="#e8692c"/>
+    <circle cx="440" cy="340" r="34" fill="url(#fruit)"/>
+    <circle cx="505" cy="345" r="34" fill="#e8692c"/>
+    <circle cx="330" cy="395" r="34" fill="#d9571f"/>
+    <circle cx="400" cy="405" r="34" fill="url(#fruit)"/>
+    <circle cx="470" cy="395" r="34" fill="#d9571f"/>
+  </g>
+  <!-- separated kernel -->
+  <ellipse cx="200" cy="330" rx="42" ry="56" fill="#8a5a2b" transform="rotate(14 200 330)"/>
+  <ellipse cx="200" cy="330" rx="26" ry="38" fill="#b07b3e" transform="rotate(14 200 330)"/>
+  <ellipse cx="600" cy="360" rx="42" ry="56" fill="#8a5a2b" transform="rotate(-8 600 360)"/>
+  <ellipse cx="600" cy="360" rx="26" ry="38" fill="#b07b3e" transform="rotate(-8 600 360)"/>
+  <text x="400" y="500" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-size="30" font-weight="700" fill="#7c4a12" letter-spacing="4">PALM KERNEL</text>
+</svg>

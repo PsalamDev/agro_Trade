@@ -34,7 +34,7 @@ export default function LoginPage() {
     <div className="min-h-screen">
       <AppHeader />
       <main className="mx-auto flex max-w-md flex-col px-4 py-16">
-        <h1 className="text-2xl font-bold tracking-tight">Sign in to AgroTrade</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Sign in to Achievers Global Consult</h1>
         <p className="mt-1 text-sm text-stone-500">Access your trading account.</p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">

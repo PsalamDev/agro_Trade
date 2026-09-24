@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" role="img" aria-label="Fishery products">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eaf4f7"/>
+      <stop offset="1" stop-color="#cfe6ee"/>
+    </linearGradient>
+    <linearGradient id="fish" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5c93ad"/>
+      <stop offset="1" stop-color="#3c6f8c"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="520" fill="url(#bg)"/>
+  <path d="M0 470 C200 430 300 450 400 455 C560 462 700 440 800 460 L800 520 L0 520 Z" fill="#b6d8e4" opacity="0.7"/>
+  <!-- fish 1 -->
+  <g transform="translate(330 250)">
+    <path d="M-160 0 C-120 -70 -30 -80 40 -50 C130 -25 180 10 210 0 C180 -10 130 25 40 50 C-30 80 -120 70 -160 0 Z" fill="url(#fish)"/>
+    <path d="M210 0 L270 -38 L270 38 Z" fill="#3c6f8c"/>
+    <circle cx="-80" cy="-6" r="12" fill="#1d3f56"/>
+    <path d="M-40 -20 C-20 -45 10 -50 30 -40" stroke="#a9cfe0" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.7"/>
+    <path d="M60 -20 C80 -35 110 -36 130 -26" stroke="#a9cfe0" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.5"/>
+  </g>
+  <!-- fish 2 -->
+  <g transform="translate(520 340) scale(-1 1)">
+    <path d="M-110 0 C-80 -50 -20 -58 30 -36 C90 -18 125 8 145 0 C125 -8 90 18 30 36 C-20 58 -80 50 -110 0 Z" fill="#79aabe" transform="scale(0.75)"/>
+    <path d="M145 0 L190 -26 L190 26 Z" fill="#4f809a" transform="scale(0.75)"/>
+    <circle cx="-50" cy="-5" r="8" fill="#1d3f56" transform="scale(0.75)"/>
+  </g>
+  <!-- ice blocks -->
+  <rect x="150" y="380" width="60" height="44" rx="8" fill="#dceef4" stroke="#bfe0ec" stroke-width="3" transform="rotate(-8 180 402)"/>
+  <rect x="240" y="396" width="50" height="36" rx="8" fill="#dceef4" stroke="#bfe0ec" stroke-width="3" transform="rotate(6 265 414)"/>
+  <text x="400" y="500" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-size="30" font-weight="700" fill="#2c5f7d" letter-spacing="4">FISHERY</text>
+</svg>

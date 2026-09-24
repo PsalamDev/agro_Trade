@@ -22,6 +22,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<ProductDetailDto | null>(null)
   const [error, setError] = useState<{ code?: string; detail?: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!idOrSlug) return
@@ -30,7 +31,10 @@ export default function ProductDetailPage() {
     setError(null)
     getProduct(idOrSlug)
       .then((data) => {
-        if (!cancelled) setProduct(data)
+        if (!cancelled) {
+          setProduct(data)
+          setSelectedImage(null)
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(problemFrom(err))
@@ -42,6 +46,8 @@ export default function ProductDetailPage() {
       cancelled = true
     }
   }, [idOrSlug])
+
+  const activeImage = product ? selectedImage ?? product.primaryImageUrl : null
 
   return (
     <div className="min-h-screen">
@@ -65,12 +71,26 @@ export default function ProductDetailPage() {
           <div className="mt-6 grid gap-6 lg:grid-cols-5">
             <div className="lg:col-span-3">
               <Card>
-                {product.primaryImageUrl ? (
-                  <img
-                    src={product.primaryImageUrl}
-                    alt={product.name}
-                    className="h-64 w-full rounded-lg border border-stone-100 object-cover"
-                  />
+                <img
+                  src={activeImage ?? '/ag-products/produce.svg'}
+                  alt={product.name}
+                  className="h-64 w-full rounded-lg border border-stone-100 object-cover"
+                />
+                {product.images.length > 1 ? (
+                  <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                    {product.images.map((img) => (
+                      <button
+                        key={img.id}
+                        type="button"
+                        onClick={() => setSelectedImage(img.url)}
+                        className={`h-16 w-24 shrink-0 overflow-hidden rounded-md border-2 transition ${
+                          activeImage === img.url ? 'border-brand-500' : 'border-transparent hover:border-stone-300'
+                        }`}
+                      >
+                        <img src={img.url} alt={img.altText ?? product.name} className="h-full w-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
                 ) : null}
                 <div className="mt-4 flex items-start justify-between gap-3">
                   <div>

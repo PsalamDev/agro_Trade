@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" role="img" aria-label="Agro produce">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2f0ea"/>
+      <stop offset="1" stop-color="#e2ddcf"/>
+    </linearGradient>
+    <linearGradient id="bag" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#faf7ef"/>
+      <stop offset="1" stop-color="#e8e1cf"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="520" fill="url(#bg)"/>
+  <circle cx="670" cy="110" r="150" fill="#d9d2c0" opacity="0.5"/>
+  <circle cx="110" cy="430" r="120" fill="#cfc7b2" opacity="0.35"/>
+  <!-- bag -->
+  <path d="M250 180 L360 150 L470 180 L490 420 L320 440 L250 420 Z" fill="url(#bag)" stroke="#b8ae92" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M360 150 C360 120 385 100 420 100 C455 100 475 125 470 160" fill="none" stroke="#b8ae92" stroke-width="8" stroke-linecap="round"/>
+  <g stroke="#b8ae92" stroke-width="5" opacity="0.7">
+    <path d="M290 250 L450 265"/>
+    <path d="M282 320 L458 330"/>
+  </g>
+  <!-- sprig -->
+  <path d="M560 400 C560 330 590 290 640 250" stroke="#6f9a4e" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <ellipse cx="600" cy="330" rx="34" ry="16" fill="#8fb869" transform="rotate(-24 600 330)"/>
+  <ellipse cx="630" cy="285" rx="34" ry="16" fill="#8fb869" transform="rotate(-10 630 285)"/>
+  <ellipse cx="665" cy="250" rx="30" ry="15" fill="#9ec477" transform="rotate(8 665 250)"/>
+  <!-- grain -->
+  <ellipse cx="440" cy="180" rx="60" ry="36" fill="#e0b367" transform="rotate(-6 440 180)"/>
+  <ellipse cx="418" cy="176" rx="9" ry="16" fill="#c9963f" transform="rotate(-12 418 176)"/>
+  <ellipse cx="452" cy="170" rx="9" ry="16" fill="#c9963f" transform="rotate(2 452 170)"/>
+  <ellipse cx="460" cy="198" rx="9" ry="16" fill="#c9963f" transform="rotate(16 460 198)"/>
+  <text x="400" y="500" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-size="30" font-weight="700" fill="#6b6350" letter-spacing="4">PRODUCE</text>
+</svg>

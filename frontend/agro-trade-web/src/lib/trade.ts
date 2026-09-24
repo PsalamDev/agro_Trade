@@ -142,6 +142,10 @@ export function uploadProductImage(id: string, file: File, isPrimary = false): P
   return unwrap(api.post<ProductImageDto>(`/products/${id}/images`, form))
 }
 
+export function deleteProductImage(id: string, imageId: string): Promise<void> {
+  return unwrap(api.delete(`/products/${id}/images/${imageId}`))
+}
+
 // ---- RFQs & quotations ----
 
 export function createRfq(request: CreateTradeRequestRequest): Promise<TradeRequestDetailDto> {

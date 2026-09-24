@@ -216,7 +216,7 @@ public sealed partial class ProductService(
 
     public async Task DeleteAsync(Guid id, Guid ownerUserId, CancellationToken ct = default)
     {
-        var product = await FindProductAsync(id.ToString(), ct: ct)
+        var product = await FindProductAsync(id.ToString(), includeSeller: true, ct)
             ?? throw ApiException.NotFound("PRODUCT_NOT_FOUND", "Product not found.");
         EnsureOwner(product, ownerUserId);
 
@@ -226,7 +226,7 @@ public sealed partial class ProductService(
 
     public async Task<ProductImageDto> UploadImageAsync(Guid id, Guid ownerUserId, string fileName, string contentType, Stream content, bool isPrimary, CancellationToken ct = default)
     {
-        var product = await FindProductAsync(id.ToString(), ct: ct)
+        var product = await FindProductAsync(id.ToString(), includeSeller: true, ct)
             ?? throw ApiException.NotFound("PRODUCT_NOT_FOUND", "Product not found.");
         EnsureOwner(product, ownerUserId);
 
@@ -260,7 +260,7 @@ public sealed partial class ProductService(
 
     public async Task DeleteImageAsync(Guid id, Guid imageId, Guid ownerUserId, CancellationToken ct = default)
     {
-        var product = await FindProductAsync(id.ToString(), ct: ct)
+        var product = await FindProductAsync(id.ToString(), includeSeller: true, ct)
             ?? throw ApiException.NotFound("PRODUCT_NOT_FOUND", "Product not found.");
         EnsureOwner(product, ownerUserId);
 

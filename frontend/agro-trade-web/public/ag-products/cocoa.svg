@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520" role="img" aria-label="Cocoa beans and pods">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f5eddd"/>
+      <stop offset="1" stop-color="#e8d9b8"/>
+    </linearGradient>
+    <linearGradient id="pod" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a4652f"/>
+      <stop offset="1" stop-color="#7a4418"/>
+    </linearGradient>
+    <linearGradient id="bean" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6b3a17"/>
+      <stop offset="1" stop-color="#4a2410"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="520" fill="url(#bg)"/>
+  <circle cx="650" cy="90" r="150" fill="#dfc69a" opacity="0.5"/>
+  <circle cx="120" cy="440" r="120" fill="#cfa96f" opacity="0.35"/>
+  <!-- pod -->
+  <g transform="translate(400 240) rotate(-18)">
+    <path d="M0 -150 C95 -150 150 -85 150 0 S95 150 0 150 C-95 150 -150 85 -150 0 S-95 -150 0 -150 Z" fill="url(#pod)"/>
+    <g stroke="#5c3010" stroke-width="6" opacity="0.55" fill="none">
+      <path d="M0 -150 C60 -120 80 -60 80 0 C80 60 60 120 0 150"/>
+      <path d="M-62 -138 C0 -105 0 105 -62 138" transform="rotate(0)"/>
+      <path d="M62 -138 C0 -105 0 105 62 138"/>
+      <path d="M-118 -86 C-60 -60 -60 60 -118 86"/>
+      <path d="M118 -86 C60 -60 60 60 118 86"/>
+    </g>
+  </g>
+  <!-- beans -->
+  <g>
+    <ellipse cx="180" cy="300" rx="46" ry="28" fill="url(#bean)" transform="rotate(-14 180 300)"/>
+    <ellipse cx="255" cy="342" rx="46" ry="28" fill="url(#bean)" transform="rotate(10 255 342)"/>
+    <ellipse cx="135" cy="362" rx="46" ry="28" fill="url(#bean)" transform="rotate(-30 135 362)"/>
+    <ellipse cx="228" cy="286" rx="42" ry="26" fill="#7a4418" transform="rotate(24 228 286)"/>
+    <ellipse cx="640" cy="330" rx="46" ry="28" fill="url(#bean)" transform="rotate(16 640 330)"/>
+    <ellipse cx="595" cy="380" rx="42" ry="26" fill="#7a4418" transform="rotate(-8 595 380)"/>
+  </g>
+  <!-- label -->
+  <text x="400" y="500" text-anchor="middle" font-family="system-ui, Arial, sans-serif" font-size="30" font-weight="700" fill="#4a2410" letter-spacing="4">COCOA</text>
+</svg>

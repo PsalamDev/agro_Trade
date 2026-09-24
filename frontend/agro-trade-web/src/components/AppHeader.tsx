@@ -20,10 +20,10 @@ export function AppHeader() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
         <Link to="/" className="flex shrink-0 items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white">
-            A
+            AG
           </span>
           <span className="text-lg font-semibold tracking-tight">
-            Agro<span className="text-brand-600">Trade</span>
+            Achievers <span className="text-brand-600">Global</span>
           </span>
         </Link>
 
