@@ -11,6 +11,7 @@ import type { CategoryDto, ProductCardDto } from '../types/trade'
 export default function MarketplacePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [products, setProducts] = useState<ProductCardDto[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<{ code?: string; detail?: string } | null>(null)
   const [categories, setCategories] = useState<CategoryDto[]>([])
@@ -42,7 +43,10 @@ export default function MarketplacePage() {
       pageSize: 24,
     })
       .then((result) => {
-        if (!cancelled) setProducts(result.items)
+        if (!cancelled) {
+          setProducts(result.items)
+          setTotal(result.total)
+        }
       })
       .catch((err) => {
         if (!cancelled) setError(problemFrom(err))
@@ -59,6 +63,8 @@ export default function MarketplacePage() {
     () => categories.flatMap(({ children }) => children.map((child) => ({ ...child, parentName: child.name }))),
     [categories],
   )
+
+  const hasFilters = Boolean(q || categoryId || originCountry || exportsToCountry || verifiedOnly || minPrice || maxPrice)
 
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams)
@@ -83,57 +89,80 @@ export default function MarketplacePage() {
       <main className="mx-auto max-w-6xl px-4 py-10">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Marketplace</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Products</h1>
             <p className="mt-1 text-sm text-stone-500">
-              Verified export listings from across corridors — filter by origin, destination, and price.
+              Browse export listings — search commodities, then compare price, quantity, and trade terms.
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-6 grid gap-4 rounded-xl border border-stone-200 bg-white p-5 shadow-sm lg:grid-cols-4">
-          <Field label="Search" id="marketplace-q" placeholder="e.g. cashew, arabica" value={q} onChange={(e) => void updateParam('q', e.target.value)} />
-          <SelectField
-            label="Category"
-            id="marketplace-category"
-            options={leafCategories.map((c) => c.name)}
-            values={leafCategories.map((c) => c.id)}
-            value={categoryId}
-            onChange={(e) => void updateParam('categoryId', e.target.value)}
-          />
-          <Field
-            label="Origin country (ISO-2)"
-            id="marketplace-origin"
-            maxLength={2}
-            placeholder="KE"
-            value={originCountry}
-            onChange={(e) => void updateParam('originCountry', e.target.value.toUpperCase())}
-          />
-          <Field
-            label="Exports to (destination)"
-            id="marketplace-dest"
-            maxLength={2}
-            placeholder="NG"
-            value={exportsToCountry}
-            onChange={(e) => void updateParam('exportsToCountry', e.target.value.toUpperCase())}
-          />
-          <Field label="Min price" id="marketplace-min" type="number" min="0" placeholder="0" value={minPrice} onChange={(e) => void updateParam('minPrice', e.target.value)} />
-          <Field label="Max price" id="marketplace-max" type="number" min="0" placeholder="100000" value={maxPrice} onChange={(e) => void updateParam('maxPrice', e.target.value)} />
-          <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium text-stone-700">
-            <input
-              type="checkbox"
-              checked={verifiedOnly}
-              onChange={(e) => updateParam('verifiedOnly', e.target.checked ? '1' : '')}
-              className="h-4 w-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500"
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label htmlFor="marketplace-q" className="mb-1 block text-sm font-medium text-stone-700">
+                Search products
+              </label>
+              <input
+                id="marketplace-q"
+                type="search"
+                placeholder="e.g. cocoa, cashew, maize…"
+                value={q}
+                onChange={(e) => void updateParam('q', e.target.value)}
+                className="w-full rounded-lg border border-stone-300 bg-white px-4 py-2.5 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+              />
+            </div>
+            <button
+              type="submit"
+              className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+            >
+              Search
+            </button>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <SelectField
+              label="Category"
+              id="marketplace-category"
+              options={leafCategories.map((c) => c.name)}
+              values={leafCategories.map((c) => c.id)}
+              value={categoryId}
+              onChange={(e) => void updateParam('categoryId', e.target.value)}
             />
-            Verified sellers only
-          </label>
-          <button
-            type="button"
-            onClick={clearAll}
-            className="self-end rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-50"
-          >
-            Clear filters
-          </button>
+            <Field
+              label="Origin country (ISO-2)"
+              id="marketplace-origin"
+              maxLength={2}
+              placeholder="KE"
+              value={originCountry}
+              onChange={(e) => void updateParam('originCountry', e.target.value.toUpperCase())}
+            />
+            <Field
+              label="Exports to (destination)"
+              id="marketplace-dest"
+              maxLength={2}
+              placeholder="NG"
+              value={exportsToCountry}
+              onChange={(e) => void updateParam('exportsToCountry', e.target.value.toUpperCase())}
+            />
+            <Field label="Min price" id="marketplace-min" type="number" min="0" placeholder="0" value={minPrice} onChange={(e) => void updateParam('minPrice', e.target.value)} />
+            <Field label="Max price" id="marketplace-max" type="number" min="0" placeholder="100000" value={maxPrice} onChange={(e) => void updateParam('maxPrice', e.target.value)} />
+            <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium text-stone-700">
+              <input
+                type="checkbox"
+                checked={verifiedOnly}
+                onChange={(e) => updateParam('verifiedOnly', e.target.checked ? '1' : '')}
+                className="h-4 w-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500"
+              />
+              Verified sellers only
+            </label>
+            <button
+              type="button"
+              onClick={clearAll}
+              className="self-end rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-50"
+            >
+              Clear filters
+            </button>
+          </div>
         </form>
 
         {error ? (
@@ -148,14 +177,20 @@ export default function MarketplacePage() {
           </div>
         ) : products.length === 0 ? (
           <div className="mt-8">
-            <EmptyState title="No listings match your filters" body="Try clearing filters or searching a broader commodity." />
+            <EmptyState title="No listings match your search" body="Try a broader commodity or clear the filters." />
           </div>
         ) : (
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          <>
+            <p className="mt-8 text-sm text-stone-500">
+              {total} product{total === 1 ? '' : 's'}
+              {hasFilters ? ' found' : ''}
+            </p>
+            <div className="mt-3 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </>
         )}
       </main>
     </div>

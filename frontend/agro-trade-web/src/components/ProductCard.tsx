@@ -4,7 +4,8 @@ import { PRICE_UNITS, labelOf } from '../types/trade'
 import { IncotermBadge, VerifiedBadge } from './badges'
 
 export function ProductCard({ product }: { product: ProductCardDto }) {
-  const priceLabel = `${product.currency} ${Number(product.price).toLocaleString()} / ${labelOf(PRICE_UNITS, product.priceUnit).replace('Per ', '').toLowerCase()}`
+  const unit = labelOf(PRICE_UNITS, product.priceUnit).replace('Per ', '').toLowerCase()
+  const priceLabel = `${product.currency} ${Number(product.price).toLocaleString()} / ${unit}`
   return (
     <Link
       to={`/products/${product.slug || product.id}`}
@@ -22,7 +23,19 @@ export function ProductCard({ product }: { product: ProductCardDto }) {
       />
 
       <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+        <div className="col-span-2">
+          <dt className="text-xs text-stone-500">Price</dt>
+          <dd className="font-semibold text-brand-700">{priceLabel}</dd>
+        </div>
         <div>
+          <dt className="text-xs text-stone-500">Available</dt>
+          <dd className="font-medium">{Number(product.availableQuantity).toLocaleString()} {unit}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-stone-500">MOQ</dt>
+          <dd className="font-medium">{Number(product.minimumOrderQuantity).toLocaleString()} {unit}</dd>
+        </div>
+        <div className="col-span-2">
           <dt className="text-xs text-stone-500">Origin</dt>
           <dd className="font-medium">{product.originCountry}{product.portOfLoading ? ` · ${product.portOfLoading}` : ''}</dd>
         </div>
@@ -31,16 +44,6 @@ export function ProductCard({ product }: { product: ProductCardDto }) {
           <dd>
             <IncotermBadge value={product.incoterms} />
             {product.incoterms === null || product.incoterms === undefined ? '—' : null}
-          </dd>
-        </div>
-        <div className="col-span-2">
-          <dt className="text-xs text-stone-500">Price</dt>
-          <dd className="font-semibold text-brand-700">{priceLabel}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-stone-500">MOQ</dt>
-          <dd className="font-medium">
-            {Number(product.minimumOrderQuantity).toLocaleString()} {labelOf(PRICE_UNITS, product.priceUnit).replace('Per ', '').toLowerCase()}
           </dd>
         </div>
         <div>

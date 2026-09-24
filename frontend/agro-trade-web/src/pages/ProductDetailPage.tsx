@@ -54,7 +54,7 @@ export default function ProductDetailPage() {
       <AppHeader />
       <main className="mx-auto max-w-6xl px-4 py-10">
         <Link to="/marketplace" className="text-sm font-medium text-brand-700 hover:underline">
-          ← Back to marketplace
+          ← Back to products
         </Link>
 
         {error ? (
