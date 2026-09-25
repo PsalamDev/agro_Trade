@@ -11,8 +11,8 @@
 // A mapped image is used only when a listing has no uploaded photo. An
 // uploaded cover photo always wins over these.
 export const PRODUCT_IMAGE_MATCHES: ReadonlyArray<{ prefix: string; image: string }> = [
-  { prefix: 'cocoa-beans', image: '/assets/cocoa.svg' },
-  { prefix: 'cashew-nuts', image: '/assets/cashew.svg' },
+  { prefix: 'cocoa-beans', image: '/assets/cocoa.jpg' },
+  { prefix: 'cashew-nuts', image: '/assets/cashew.jpg' },
   { prefix: 'palm-kernel', image: '/assets/palm-kernel.webp' },
   { prefix: 'white-maize', image: '/assets/produce.svg' },
   { prefix: 'arabica', image: '/assets/produce.svg' },

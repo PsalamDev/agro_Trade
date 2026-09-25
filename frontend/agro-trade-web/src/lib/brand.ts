@@ -1,11 +1,11 @@
 export const COMMODITIES = [
   {
-    src: '/assets/cocoa.svg',
+    src: '/assets/cocoa.jpg',
     name: 'Cocoa',
     blurb: 'Fermented cocoa beans — graded, tested, and export-ready.',
   },
   {
-    src: '/assets/cashew.svg',
+    src: '/assets/cashew.jpg',
     name: 'Cashew nuts',
     blurb: 'W320 / W180 kernels and raw nuts for processors worldwide.',
   },
