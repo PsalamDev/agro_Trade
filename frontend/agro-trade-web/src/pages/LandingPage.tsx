@@ -15,8 +15,22 @@ export default function LandingPage() {
     <div className="min-h-screen">
       <AppHeader />
 
-      <section className="bg-gradient-to-b from-brand-50 to-stone-50">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-20 md:grid-cols-2 md:items-center">
+      <section className="relative overflow-hidden">
+        <img
+          src="/assets/cocoa.jpg"
+          alt=""
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              'linear-gradient(90deg, #f0fdf4 0%, #f0fdf4 38%, rgba(240,253,244,0.72) 55%, rgba(240,253,244,0.2) 75%, rgba(240,253,244,0) 96%)',
+          }}
+        />
+        <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-20 md:grid-cols-2 md:items-center">
           <div>
             <p className="mb-3 inline-flex rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-800">
               Achievers Global Consult
@@ -45,7 +59,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-stone-200 bg-white/80 p-6 shadow-sm backdrop-blur">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-stone-500">
               Live trade corridors
             </h2>
@@ -65,6 +79,10 @@ export default function LandingPage() {
               ))}
             </ul>
           </div>
+        </div>
+        <div className="relative flex h-1 w-full" aria-hidden>
+          <div className="w-[91%] bg-brand-600" />
+          <div className="w-[9%] bg-red-600" />
         </div>
       </section>
 
