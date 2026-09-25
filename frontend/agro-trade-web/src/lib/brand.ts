@@ -1,21 +1,21 @@
 export const COMMODITIES = [
   {
-    src: '/ag-products/cocoa.svg',
+    src: '/assets/cocoa.svg',
     name: 'Cocoa',
     blurb: 'Fermented cocoa beans — graded, tested, and export-ready.',
   },
   {
-    src: '/ag-products/cashew.svg',
+    src: '/assets/cashew.svg',
     name: 'Cashew nuts',
     blurb: 'W320 / W180 kernels and raw nuts for processors worldwide.',
   },
   {
-    src: '/ag-products/palm-kernel.webp',
+    src: '/assets/palm-kernel.webp',
     name: 'Palm kernel',
     blurb: 'Palm kernel and PKC for the feed, oil, and oleochemical industries.',
   },
   {
-    src: '/ag-products/fishery.svg',
+    src: '/assets/fishery.svg',
     name: 'Fishery',
     blurb: 'Frozen and dried fish for regional and international markets.',
   },

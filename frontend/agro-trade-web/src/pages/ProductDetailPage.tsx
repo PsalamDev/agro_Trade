@@ -75,7 +75,7 @@ export default function ProductDetailPage() {
             <div className="lg:col-span-3">
               <Card>
                 <img
-                  src={activeImage ?? '/ag-products/produce.svg'}
+                  src={activeImage ?? '/assets/produce.svg'}
                   alt={product.name}
                   className="h-64 w-full rounded-lg border border-stone-100 object-cover"
                 />
