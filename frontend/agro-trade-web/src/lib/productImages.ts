@@ -13,6 +13,7 @@
 export const PRODUCT_IMAGE_MATCHES: ReadonlyArray<{ prefix: string; image: string }> = [
   { prefix: 'cocoa-beans', image: '/ag-products/cocoa.svg' },
   { prefix: 'cashew-nuts', image: '/ag-products/cashew.svg' },
+  { prefix: 'palm-kernel', image: '/ag-products/palm-kernel.webp' },
   { prefix: 'white-maize', image: '/ag-products/produce.svg' },
   { prefix: 'arabica', image: '/ag-products/produce.svg' },
 ]

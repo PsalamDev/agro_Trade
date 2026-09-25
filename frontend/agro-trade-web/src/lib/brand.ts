@@ -10,7 +10,7 @@ export const COMMODITIES = [
     blurb: 'W320 / W180 kernels and raw nuts for processors worldwide.',
   },
   {
-    src: '/ag-products/palm-kernel.svg',
+    src: '/ag-products/palm-kernel.webp',
     name: 'Palm kernel',
     blurb: 'Palm kernel and PKC for the feed, oil, and oleochemical industries.',
   },
