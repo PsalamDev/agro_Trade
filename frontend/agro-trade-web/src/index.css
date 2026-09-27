@@ -13,13 +13,139 @@
   --color-brand-900: #14532d;
 
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-display:
+    'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Layered shadows — softer and more dimensional than the Tailwind defaults. */
+  --shadow-soft: 0 1px 2px 0 rgb(28 25 23 / 0.04), 0 1px 3px 0 rgb(28 25 23 / 0.06);
+  --shadow-card: 0 1px 2px 0 rgb(28 25 23 / 0.04), 0 4px 14px -3px rgb(28 25 23 / 0.08);
+  --shadow-lift: 0 2px 4px -1px rgb(28 25 23 / 0.05), 0 16px 32px -8px rgb(28 25 23 / 0.16);
+  --shadow-pop: 0 4px 8px -2px rgb(28 25 23 / 0.06), 0 24px 48px -12px rgb(28 25 23 / 0.22);
+  --shadow-brand: 0 8px 24px -8px rgb(22 163 74 / 0.5);
+
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-fade-up: fade-up 0.55s var(--ease-soft) both;
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-scale-in: scale-in 0.18s var(--ease-soft) both;
+  --animate-shimmer: shimmer 1.8s ease-in-out infinite;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes shimmer {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
 }
 
-html {
-  scroll-behavior: smooth;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-stone-50 font-sans text-stone-900 antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display text-balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    @apply bg-brand-200 text-brand-900;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+
+  /* Slim, unobtrusive scrollbars that match the neutral palette. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-stone-300) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background: var(--color-stone-300);
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-stone-400);
+    background-clip: content-box;
+  }
 }
 
-body {
-  @apply bg-stone-50 text-stone-900 antialiased;
+@layer utilities {
+  /* Horizontal link rails (nav bars, filter chips) without a visible bar. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Subtle page-wide grain so large flat areas do not look sterile. */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgb(28 25 23 / 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(28 25 23 / 0.04) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
 }

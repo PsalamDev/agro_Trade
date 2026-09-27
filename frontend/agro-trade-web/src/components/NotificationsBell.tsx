@@ -4,6 +4,7 @@ import { getNotifications, getUnreadNotificationCount, markAllNotificationsRead,
 import { NOTIFICATION_TYPES, labelOf } from '../types/trade'
 import type { NotificationDto } from '../types/trade'
 import { Spinner } from './ui'
+import { BellIcon } from './icons'
 
 function timeAgo(iso: string): string {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
@@ -86,48 +87,48 @@ export function NotificationsBell() {
       <button
         type="button"
         onClick={() => void toggle()}
-        aria-label="Notifications"
-        className="relative rounded-md px-2.5 py-2 text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+        className={`relative grid h-9 w-9 place-items-center rounded-xl transition duration-200 ease-soft ${
+          open ? 'bg-stone-100 text-stone-900' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
+        }`}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-          />
-        </svg>
+        <BellIcon className="h-4.5 w-4.5" />
         {unread > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white">
+          <span className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
             {unread > 9 ? '9+' : unread}
           </span>
         ) : null}
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 w-80 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-lg">
-          <div className="flex items-center justify-between border-b border-stone-100 px-4 py-2.5">
-            <p className="text-sm font-semibold">Notifications</p>
+        <div className="absolute right-0 z-20 mt-2 w-80 origin-top-right animate-scale-in overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-pop">
+          <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+            <p className="font-display text-sm font-semibold">Notifications</p>
             <div className="flex items-center gap-3 text-xs">
               <button
                 type="button"
-                className="text-brand-700 hover:underline disabled:opacity-50"
+                className="font-semibold text-brand-700 transition hover:text-brand-800 hover:underline disabled:opacity-50"
                 disabled={busy || unread === 0}
                 onClick={() => void markAll()}
               >
                 Mark all read
               </button>
-              <Link to="/notifications" onClick={() => setOpen(false)} className="text-stone-500 hover:underline">
+              <Link
+                to="/notifications"
+                onClick={() => setOpen(false)}
+                className="text-stone-500 transition hover:text-stone-800 hover:underline"
+              >
                 View all
               </Link>
             </div>
           </div>
           <div className="max-h-96 overflow-y-auto">
             {items === null ? (
-              <div className="px-4 py-6">
+              <div className="px-4 py-2">
                 <Spinner label="Checking notifications…" />
               </div>
             ) : items.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-stone-500">You’re all caught up.</p>
+              <p className="px-4 py-8 text-center text-sm text-stone-500">You’re all caught up.</p>
             ) : (
               <ul className="divide-y divide-stone-100">
                 {items.map((n) => (
@@ -135,16 +136,23 @@ export function NotificationsBell() {
                     <button
                       type="button"
                       onClick={() => void openOne(n.id)}
-                      className={`block w-full px-4 py-3 text-left transition hover:bg-stone-50 ${n.isRead ? '' : 'bg-brand-50/40'}`}
+                      className={`relative block w-full px-4 py-3 text-left transition hover:bg-stone-50 ${
+                        n.isRead ? '' : 'bg-brand-50/40'
+                      }`}
                     >
+                      {!n.isRead ? (
+                        <span className="absolute top-4 left-1.5 h-1.5 w-1.5 rounded-full bg-brand-600" />
+                      ) : null}
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold uppercase tracking-wide text-brand-700">
+                        <span className="text-[11px] font-semibold tracking-wide text-brand-700 uppercase">
                           {labelOf(NOTIFICATION_TYPES, n.type)}
                         </span>
                         <span className="shrink-0 text-xs text-stone-400">{timeAgo(n.createdAtUtc)}</span>
                       </div>
                       <p className="mt-0.5 text-sm font-medium text-stone-800">{n.title}</p>
-                      {n.body ? <p className="mt-0.5 text-xs text-stone-500 line-clamp-2">{n.body}</p> : null}
+                      {n.body ? (
+                        <p className="mt-0.5 line-clamp-2 text-xs text-stone-500">{n.body}</p>
+                      ) : null}
                     </button>
                   </li>
                 ))}

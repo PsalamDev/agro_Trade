@@ -4,62 +4,104 @@ import type { ProductCardDto } from '../types/trade'
 import { PRICE_UNITS, labelOf } from '../types/trade'
 import { IncotermBadge, VerifiedBadge } from './badges'
 import { productImageFor, resolveProductImage } from '../lib/productImages'
+import { BuildingIcon, ClockIcon, MapPinIcon, PackageIcon, ScaleIcon } from './icons'
 
 export function ProductCard({ product }: { product: ProductCardDto }) {
   const unit = labelOf(PRICE_UNITS, product.priceUnit).replace('Per ', '').toLowerCase()
-  const priceLabel = `${product.currency} ${Number(product.price).toLocaleString()} / ${unit}`
   const fallbackImage = productImageFor(product.slug) ?? '/assets/produce.svg'
   const [imageSrc, setImageSrc] = useState(() => resolveProductImage(product.slug, product.primaryImageUrl))
+
+  const specs = [
+    {
+      label: 'Available',
+      icon: <PackageIcon className="h-3.5 w-3.5" />,
+      value: (
+        <>
+          {Number(product.availableQuantity).toLocaleString()} <span className="font-normal text-stone-500">{unit}</span>
+        </>
+      ),
+    },
+    {
+      label: 'MOQ',
+      icon: <ScaleIcon className="h-3.5 w-3.5" />,
+      value: (
+        <>
+          {Number(product.minimumOrderQuantity).toLocaleString()} <span className="font-normal text-stone-500">{unit}</span>
+        </>
+      ),
+    },
+    {
+      label: 'Lead time',
+      icon: <ClockIcon className="h-3.5 w-3.5" />,
+      value: product.leadTimeDays ? `${product.leadTimeDays} days` : '—',
+    },
+    {
+      label: 'Incoterm',
+      icon: <PackageIcon className="h-3.5 w-3.5" />,
+      value: <IncotermBadge value={product.incoterms} />,
+    },
+  ]
+
   return (
     <Link
       to={`/products/${product.slug || product.id}`}
-      className="group flex flex-col rounded-xl border border-stone-200 bg-white p-5 shadow-sm transition hover:border-brand-300 hover:shadow"
+      className="group flex flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-card transition duration-300 ease-soft hover:-translate-y-1 hover:border-brand-200 hover:shadow-lift"
     >
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="font-semibold group-hover:text-brand-700">{product.name}</h3>
-        <VerifiedBadge visible={product.isSellerVerifiedBadgeVisible} />
+      <div className="relative overflow-hidden bg-stone-100">
+        <img
+          src={imageSrc}
+          onError={() => setImageSrc((prev) => (prev === fallbackImage ? prev : fallbackImage))}
+          alt={product.name}
+          className="h-44 w-full object-cover transition duration-700 ease-soft group-hover:scale-105"
+        />
+        {product.isSellerVerifiedBadgeVisible ? (
+          <div className="absolute left-3 top-3">
+            <VerifiedBadge visible size="lg" />
+          </div>
+        ) : null}
       </div>
 
-      <img
-        src={imageSrc}
-        onError={() => setImageSrc((prev) => (prev === fallbackImage ? prev : fallbackImage))}
-        alt={product.name}
-        className="mt-3 h-36 w-full rounded-lg border border-stone-100 object-cover"
-      />
+      <div className="flex flex-1 flex-col p-5">
+        <h3 className="font-display leading-snug font-semibold transition group-hover:text-brand-700">
+          {product.name}
+        </h3>
 
-      <dl className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-        <div className="col-span-2">
-          <dt className="text-xs text-stone-500">Price</dt>
-          <dd className="font-semibold text-brand-700">{priceLabel}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-stone-500">Available</dt>
-          <dd className="font-medium">{Number(product.availableQuantity).toLocaleString()} {unit}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-stone-500">MOQ</dt>
-          <dd className="font-medium">{Number(product.minimumOrderQuantity).toLocaleString()} {unit}</dd>
-        </div>
-        <div className="col-span-2">
-          <dt className="text-xs text-stone-500">Origin</dt>
-          <dd className="font-medium">{product.originCountry}{product.portOfLoading ? ` · ${product.portOfLoading}` : ''}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-stone-500">Incoterm</dt>
-          <dd>
-            <IncotermBadge value={product.incoterms} />
-            {product.incoterms === null || product.incoterms === undefined ? '—' : null}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-stone-500">Lead time</dt>
-          <dd className="font-medium">{product.leadTimeDays ? `${product.leadTimeDays} days` : '—'}</dd>
-        </div>
-      </dl>
+        <p className="mt-2.5 flex flex-wrap items-baseline gap-x-1.5">
+          <span className="text-xs font-medium tracking-wide text-stone-500 uppercase">Price</span>
+          <span className="font-display text-lg leading-none font-bold text-brand-700">
+            {product.currency} {Number(product.price).toLocaleString()}
+          </span>
+          <span className="text-sm text-stone-500">/ {unit}</span>
+        </p>
 
-      <p className="mt-4 border-t border-stone-100 pt-3 text-sm text-stone-600">
-        {product.sellerTradingName}
-      </p>
+        <p className="mt-3 flex items-center gap-1.5 text-sm text-stone-600">
+          <MapPinIcon className="h-3.5 w-3.5 shrink-0 text-stone-400" />
+          {product.originCountry}
+          {product.portOfLoading ? (
+            <>
+              <span className="text-stone-300">·</span>
+              <span className="truncate">{product.portOfLoading}</span>
+            </>
+          ) : null}
+        </p>
+
+        <dl className="mt-4 grid grid-cols-2 gap-2">
+          {specs.map((spec) => (
+            <div key={spec.label} className="rounded-xl bg-stone-50 px-2.5 py-2">
+              <dt className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-stone-500 uppercase">
+                {spec.icon}
+                {spec.label}
+              </dt>
+              <dd className="mt-0.5 text-sm font-semibold text-stone-800">{spec.value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <p className="mt-auto flex items-center gap-2 border-t border-stone-100 pt-4 text-sm font-medium text-stone-600">
+          <BuildingIcon className="h-4 w-4 shrink-0 text-stone-400" />
+          <span className="truncate">{product.sellerTradingName}</span>
+        </p>
+      </div>
     </Link>
   )
 }

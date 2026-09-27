@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { RfqCard } from '../components/RfqCard'
-import { EmptyState, ErrorAlert, Field, SelectField, Spinner } from '../components/ui'
+import { EmptyState, ErrorAlert, Field, PageHeader, SelectField, SkeletonGrid } from '../components/ui'
 import { getCategoryTree, getOpenRfqs } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import type { CategoryDto, TradeRequestCardDto } from '../types/trade'
+import { MapPinIcon, SearchIcon } from '../components/icons'
 
 export default function RfqDirectoryPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -59,23 +60,21 @@ export default function RfqDirectoryPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <AppHeader />
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Open RFQs</h1>
-            <p className="mt-1 text-sm text-stone-500">
-              Importers’ sourcing requests — quote with full trade terms, or publish your own.
-            </p>
-          </div>
-        </div>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
+        <PageHeader
+          eyebrow="Sourcing requests"
+          title="Open RFQs"
+          subtitle="Importers’ sourcing requests — quote with full trade terms, or publish your own."
+        />
 
-        <div className="mt-6 grid gap-4 rounded-xl border border-stone-200 bg-white p-5 shadow-sm sm:grid-cols-3">
+        <div className="mt-6 grid gap-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-card sm:grid-cols-3">
           <Field
             label="Search"
             id="rfq-q"
             placeholder="e.g. white maize"
+            icon={<SearchIcon className="h-4 w-4" />}
             value={q}
             onChange={(e) => void updateParam('q', e.target.value)}
           />
@@ -92,6 +91,7 @@ export default function RfqDirectoryPage() {
             id="rfq-destination"
             maxLength={2}
             placeholder="NG"
+            icon={<MapPinIcon className="h-4 w-4" />}
             value={destinationCountry}
             onChange={(e) => void updateParam('destinationCountry', e.target.value.toUpperCase())}
           />
@@ -104,19 +104,28 @@ export default function RfqDirectoryPage() {
         ) : null}
 
         {loading ? (
-          <div className="mt-8">
-            <Spinner />
-          </div>
+          <SkeletonGrid className="mt-8" />
         ) : rfqs.length === 0 ? (
           <div className="mt-8">
-            <EmptyState title="No open RFQs match" body="Check back soon — or publish your own sourcing request." />
+            <EmptyState
+              title="No open RFQs match"
+              body="Check back soon — or publish your own sourcing request."
+              icon={<SearchIcon className="h-5 w-5" />}
+            />
           </div>
         ) : (
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {rfqs.map((rfq) => (
-              <RfqCard key={rfq.id} rfq={rfq} />
-            ))}
-          </div>
+          <>
+            <p className="mt-8 text-sm text-stone-500">
+              <span className="rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-800">
+                {rfqs.length} open request{rfqs.length === 1 ? '' : 's'}
+              </span>
+            </p>
+            <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {rfqs.map((rfq) => (
+                <RfqCard key={rfq.id} rfq={rfq} />
+              ))}
+            </div>
+          </>
         )}
       </main>
     </div>

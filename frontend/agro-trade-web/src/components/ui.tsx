@@ -1,5 +1,74 @@
 import { useState } from 'react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
+import { AlertCircleIcon, InboxIcon } from './icons'
+
+/* -------------------------------------------------------------------------- */
+/* Buttons                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const buttonVariants = {
+  primary: 'bg-brand-600 text-white shadow-brand hover:bg-brand-700 active:bg-brand-800',
+  secondary: 'border border-stone-300 bg-white text-stone-700 shadow-soft hover:border-stone-400 hover:bg-stone-50',
+  subtle: 'bg-brand-50 text-brand-700 hover:bg-brand-100',
+  ghost: 'text-stone-600 hover:bg-stone-100 hover:text-stone-900',
+  danger: 'bg-red-600 text-white shadow-soft hover:bg-red-700',
+} as const
+
+const buttonSizes = {
+  sm: 'h-8 gap-1.5 px-3 text-xs',
+  md: 'h-10 gap-2 px-4 text-sm',
+  lg: 'h-12 gap-2 px-6 text-sm',
+} as const
+
+export type ButtonVariant = keyof typeof buttonVariants
+export type ButtonSize = keyof typeof buttonSizes
+
+const buttonBase =
+  'inline-flex shrink-0 items-center justify-center rounded-xl font-semibold whitespace-nowrap transition duration-200 ease-soft select-none disabled:pointer-events-none disabled:opacity-55'
+
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant
+  size?: ButtonSize
+}
+
+export function Button({ variant = 'primary', size = 'md', className = '', ...rest }: ButtonProps) {
+  return <button className={`${buttonBase} ${buttonVariants[variant]} ${buttonSizes[size]} ${className}`} {...rest} />
+}
+
+export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  /** Required: icon-only controls must expose an accessible name. */
+  label: string
+  tone?: 'ghost' | 'secondary' | 'primary'
+}
+
+const iconButtonTones = {
+  ghost: 'text-stone-500 hover:bg-stone-100 hover:text-stone-900',
+  secondary: 'border border-stone-200 bg-white text-stone-600 shadow-soft hover:border-stone-300 hover:bg-stone-50',
+  primary: 'bg-brand-600 text-white shadow-brand hover:bg-brand-700',
+} as const
+
+export function IconButton({ label, tone = 'ghost', className = '', children, ...rest }: IconButtonProps) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl transition duration-200 ease-soft disabled:pointer-events-none disabled:opacity-55 ${iconButtonTones[tone]} ${className}`}
+      {...rest}
+    >
+      {children}
+    </button>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Form controls                                                               */
+/* -------------------------------------------------------------------------- */
+
+const controlClass =
+  'w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm shadow-soft transition duration-200 ease-soft outline-none placeholder:text-stone-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15 disabled:bg-stone-100'
+
+const labelClass = 'mb-1.5 block text-sm font-medium text-stone-700'
 
 interface ErrorAlertProps {
   title?: string
@@ -13,17 +82,43 @@ export function ErrorAlert({ title, detail, fieldErrors }: ErrorAlertProps) {
   return (
     <div
       role="alert"
-      className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+      className="flex gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
     >
-      <p className="font-medium">{title ?? 'Request failed'}</p>
-      {detail ? <p className="mt-0.5">{detail}</p> : null}
-      {fieldErrors ? (
-        <ul className="mt-2 list-inside list-disc space-y-0.5">
-          {Object.entries(fieldErrors).flatMap(([field, messages]) =>
-            messages.map((message) => <li key={`${field}:${message}`}>{message}</li>),
-          )}
-        </ul>
-      ) : null}
+      <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+      <div className="min-w-0">
+        <p className="font-semibold">{title ?? 'Request failed'}</p>
+        {detail ? <p className="mt-0.5 opacity-90">{detail}</p> : null}
+        {fieldErrors ? (
+          <ul className="mt-2 list-inside list-disc space-y-0.5 opacity-90">
+            {Object.entries(fieldErrors).flatMap(([field, messages]) =>
+              messages.map((message) => <li key={`${field}:${message}`}>{message}</li>),
+            )}
+          </ul>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+export function InfoBanner({
+  tone = 'info',
+  title,
+  children,
+}: {
+  tone?: 'info' | 'brand' | 'warning'
+  title?: string
+  children: ReactNode
+}) {
+  const tones = {
+    info: 'border-stone-200 bg-stone-50 text-stone-700',
+    brand: 'border-brand-200 bg-brand-50 text-brand-900',
+    warning: 'border-amber-200 bg-amber-50 text-amber-900',
+  } as const
+
+  return (
+    <div className={`rounded-xl border px-4 py-3 text-sm ${tones[tone]}`}>
+      {title ? <p className="font-semibold">{title}</p> : null}
+      {children ? <div className={title ? 'mt-0.5 opacity-90' : undefined}>{children}</div> : null}
     </div>
   )
 }
@@ -32,24 +127,27 @@ interface FieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string
   /** Optional leading icon rendered inside the input (left side). */
   icon?: ReactNode
+  /** Optional helper or validation text under the control. */
+  hint?: string
 }
 
-export function Field({ label, id, icon, ...rest }: FieldProps) {
+export function Field({ label, id, icon, hint, ...rest }: FieldProps) {
   return (
     <label htmlFor={id} className="block">
-      <span className="mb-1 block text-sm font-medium text-stone-700">{label}</span>
+      <span className={labelClass}>{label}</span>
       <div className="relative">
         {icon ? (
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-stone-400">{icon}</span>
+          <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-stone-400 transition peer-focus:text-brand-500">
+            {icon}
+          </span>
         ) : null}
         <input
           id={id}
-          className={`w-full rounded-lg border border-stone-300 bg-white py-2 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 ${
-            icon ? 'pl-9 pr-3' : 'px-3'
-          }`}
+          className={`${controlClass} peer ${icon ? 'pl-10' : ''}`}
           {...rest}
         />
       </div>
+      {hint ? <span className="mt-1 block text-xs text-stone-500">{hint}</span> : null}
     </label>
   )
 }
@@ -61,17 +159,21 @@ export function SubmitButton({
 }: { children: ReactNode; pending?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
-      disabled={pending}
-      className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={pending || rest.disabled}
+      className={`${buttonBase} ${buttonVariants.primary} ${buttonSizes.lg} w-full`}
       {...rest}
     >
-      {pending ? 'Please wait…' : children}
+      {pending ? (
+        <>
+          <SpinnerIcon className="h-4 w-4" />
+          Please wait…
+        </>
+      ) : (
+        children
+      )}
     </button>
   )
 }
-
-const controlClass =
-  'w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 disabled:bg-stone-100'
 
 interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label: string
@@ -83,7 +185,7 @@ interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
 export function SelectField({ label, id, options, values, ...rest }: SelectFieldProps) {
   return (
     <label htmlFor={id} className="block">
-      <span className="mb-1 block text-sm font-medium text-stone-700">{label}</span>
+      <span className={labelClass}>{label}</span>
       <select id={id} className={controlClass} {...rest}>
         <option value="">— Select —</option>
         {options.map((option, index) => (
@@ -105,16 +207,22 @@ interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 export function TextArea({ label, id, icon, ...rest }: TextAreaProps) {
   return (
     <label htmlFor={id} className="block">
-      <span className="mb-1 block text-sm font-medium text-stone-700">{label}</span>
+      <span className={labelClass}>{label}</span>
       <div className="relative">
         {icon ? (
-          <span className="pointer-events-none absolute left-3 top-3 flex items-center text-stone-400">{icon}</span>
+          <span className="pointer-events-none absolute left-3.5 top-3.5 flex items-center text-stone-400">
+            {icon}
+          </span>
         ) : null}
-        <textarea id={id} className={`${controlClass} min-h-24 resize-y ${icon ? 'pl-9' : ''}`} {...rest} />
+        <textarea id={id} className={`${controlClass} min-h-28 resize-y ${icon ? 'pl-10' : ''}`} {...rest} />
       </div>
     </label>
   )
 }
+
+/* -------------------------------------------------------------------------- */
+/* Composite inputs                                                            */
+/* -------------------------------------------------------------------------- */
 
 /** Comma-separated tag list input (tags displayed as pills, removed on click). */
 export function TagInput({
@@ -140,19 +248,19 @@ export function TagInput({
 
   return (
     <div className="block">
-      <span className="mb-1 block text-sm font-medium text-stone-700">{label}</span>
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-2 py-1.5 shadow-sm focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/30">
+      <span className={labelClass}>{label}</span>
+      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-2.5 py-2 shadow-soft transition duration-200 ease-soft focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-500/15">
         {value.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-800"
+            className="inline-flex items-center gap-1 rounded-full bg-brand-50 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-brand-800"
           >
             {tag}
             <button
               type="button"
               aria-label={`Remove ${tag}`}
               onClick={() => onChange(value.filter((t) => t !== tag))}
-              className="text-brand-600 hover:text-brand-900"
+              className="grid h-4 w-4 place-items-center rounded-full text-brand-600 transition hover:bg-brand-200 hover:text-brand-900"
             >
               ×
             </button>
@@ -173,7 +281,7 @@ export function TagInput({
           }}
           onBlur={commit}
           placeholder="Type and press Enter / comma"
-          className="min-w-40 flex-1 border-none bg-transparent py-1 text-sm outline-none placeholder:text-stone-400"
+          className="min-w-40 flex-1 border-none bg-transparent py-0.5 text-sm outline-none placeholder:text-stone-400"
         />
       </div>
     </div>
@@ -209,14 +317,14 @@ export function KeyValueEditor({
 
   return (
     <div className="block">
-      <span className="mb-1 block text-sm font-medium text-stone-700">{label}</span>
+      <span className={labelClass}>{label}</span>
       <div className="space-y-2">
         {entries.length > 0 ? (
-          <ul className="divide-y divide-stone-100 rounded-lg border border-stone-200">
+          <ul className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200 bg-white">
             {entries.map(([k, v]) => (
-              <li key={k} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+              <li key={k} className="flex items-start justify-between gap-3 px-3.5 py-2.5 text-sm">
                 <span className="font-medium text-stone-700">{k}</span>
-                <span className="flex items-center gap-2 text-stone-600">{v}</span>
+                <span className="min-w-0 flex-1 text-right text-stone-600">{v}</span>
                 <button
                   type="button"
                   aria-label={`Remove ${k}`}
@@ -225,7 +333,7 @@ export function KeyValueEditor({
                     delete next[k]
                     onChange(next)
                   }}
-                  className="text-stone-400 hover:text-red-600"
+                  className="text-stone-400 transition hover:text-red-600"
                 >
                   ×
                 </button>
@@ -233,7 +341,9 @@ export function KeyValueEditor({
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-stone-400">No entries yet.</p>
+          <p className="rounded-xl border border-dashed border-stone-300 px-3.5 py-4 text-sm text-stone-400">
+            No entries yet.
+          </p>
         )}
         <div className="flex gap-2">
           <input
@@ -256,53 +366,174 @@ export function KeyValueEditor({
               }
             }}
           />
-          <button
-            type="button"
-            onClick={commit}
-            className="rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-100"
-          >
+          <Button type="button" variant="secondary" onClick={commit} className="h-auto px-3.5">
             Add
-          </button>
+          </Button>
         </div>
       </div>
     </div>
   )
 }
 
-export function Spinner({ label = 'Loading…' }: { label?: string }) {
-  return <p className="animate-pulse text-sm text-stone-500">{label}</p>
+/* -------------------------------------------------------------------------- */
+/* Feedback + layout primitives                                                */
+/* -------------------------------------------------------------------------- */
+
+export function SpinnerIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className={`animate-spin ${className}`}>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="2.5" />
+      <path
+        d="M21 12a9 9 0 0 0-9-9"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
 }
 
-export function EmptyState({ title, body }: { title: string; body?: string }) {
+export function Spinner({ label = 'Loading…' }: { label?: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 px-6 py-12 text-center">
-      <p className="font-medium text-stone-700">{title}</p>
-      {body ? <p className="mt-1 text-sm text-stone-500">{body}</p> : null}
+    <div className="flex items-center gap-2.5 py-10 text-sm text-stone-500">
+      <SpinnerIcon className="h-4 w-4 text-brand-600" />
+      {label}
     </div>
+  )
+}
+
+/** Grey placeholder block used to build content-shaped loading states. */
+export function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`animate-shimmer rounded-lg bg-stone-200/70 ${className}`} />
+}
+
+/** Grid of card-shaped skeletons, matching the marketplace / listing layouts. */
+export function SkeletonGrid({ count = 6, className = '' }: { count?: number; className?: string }) {
+  return (
+    <div className={`grid gap-5 sm:grid-cols-2 lg:grid-cols-3 ${className}`}>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-soft">
+          <Skeleton className="h-36 w-full rounded-xl" />
+          <Skeleton className="mt-4 h-4 w-3/4" />
+          <Skeleton className="mt-3 h-3 w-1/2" />
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Skeleton className="h-8" />
+            <Skeleton className="h-8" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function EmptyState({
+  title,
+  body,
+  icon,
+  action,
+}: {
+  title: string
+  body?: string
+  icon?: ReactNode
+  action?: ReactNode
+}) {
+  return (
+    <div className="rounded-2xl border border-dashed border-stone-300 bg-white/60 px-6 py-14 text-center">
+      <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-stone-100 text-stone-400">
+        {icon ?? <InboxIcon className="h-5 w-5" />}
+      </span>
+      <p className="mt-4 font-display text-base font-semibold text-stone-800">{title}</p>
+      {body ? <p className="mx-auto mt-1 max-w-md text-sm text-stone-500">{body}</p> : null}
+      {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
+    </div>
+  )
+}
+
+export function Eyebrow({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold tracking-wide text-brand-800 uppercase ${className}`}
+    >
+      {children}
+    </span>
   )
 }
 
 export function PageHeader({
   title,
   subtitle,
+  eyebrow,
   action,
 }: {
   title: string
   subtitle?: string
+  eyebrow?: string
   action?: ReactNode
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-        {subtitle ? <p className="mt-1 text-sm text-stone-500">{subtitle}</p> : null}
+      <div className="min-w-0">
+        {eyebrow ? (
+          <p className="mb-2 text-xs font-semibold tracking-widest text-brand-600 uppercase">{eyebrow}</p>
+        ) : null}
+        <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">{title}</h1>
+        {subtitle ? <p className="mt-1.5 max-w-2xl text-sm text-stone-500">{subtitle}</p> : null}
       </div>
-      {action}
+      {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
     </div>
   )
 }
 
-/** Wraps content in a white card with border + shadow, matching dashboard tiles. */
-export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`rounded-xl border border-stone-200 bg-white p-5 shadow-sm ${className}`}>{children}</div>
+/** Wraps content in a white card with border + soft shadow. */
+export function Card({
+  children,
+  className = '',
+  hover = false,
+  as: Tag = 'div',
+}: {
+  children: ReactNode
+  className?: string
+  hover?: boolean
+  as?: 'div' | 'section' | 'article' | 'li'
+}) {
+  return (
+    <Tag
+      className={`rounded-2xl border border-stone-200 bg-white p-5 shadow-card transition duration-300 ease-soft ${
+        hover ? 'hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-lift' : ''
+      } ${className}`}
+    >
+      {children}
+    </Tag>
+  )
+}
+
+/** Small labelled metric used on dashboards and summary strips. */
+export function Stat({
+  label,
+  value,
+  icon,
+  tone = 'brand',
+}: {
+  label: string
+  value: ReactNode
+  icon?: ReactNode
+  tone?: 'brand' | 'neutral' | 'amber'
+}) {
+  const tones = {
+    brand: 'bg-brand-50 text-brand-700',
+    neutral: 'bg-stone-100 text-stone-600',
+    amber: 'bg-amber-50 text-amber-700',
+  } as const
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3.5 shadow-soft">
+      {icon ? (
+        <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tones[tone]}`}>{icon}</span>
+      ) : null}
+      <div className="min-w-0">
+        <p className="truncate text-xs font-medium tracking-wide text-stone-500 uppercase">{label}</p>
+        <p className="font-display text-lg font-bold text-stone-900">{value}</p>
+      </div>
+    </div>
+  )
 }
