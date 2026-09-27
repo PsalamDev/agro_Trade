@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { ListingPill, VerifiedBadge } from '../components/badges'
-import { Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
+import { Button, Card, EmptyState, ErrorAlert, PageHeader, Spinner } from '../components/ui'
+import { ConfirmDialog, Tooltip } from '../components/overlays'
 import { deleteProduct, getMyBusinesses, searchProducts } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import { COMPANY_ROLE } from '../types/auth'
 import { PRICE_UNITS, labelOf } from '../types/trade'
+import { BuildingIcon, PencilIcon, PlusIcon, TrashIcon } from '../components/icons'
 import type { BusinessSummaryDto, ProductCardDto } from '../types/trade'
 
 export default function MyProductsPage() {
@@ -19,6 +21,7 @@ export default function MyProductsPage() {
   const [businessId, setBusinessId] = useState('')
   const [error, setError] = useState<{ code?: string; detail?: string } | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<ProductCardDto | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -40,6 +43,7 @@ export default function MyProductsPage() {
     setError(null)
     try {
       await deleteProduct(productId)
+      setPendingDelete(null)
       await load()
     } catch (err) {
       setError(problemFrom(err))
@@ -49,23 +53,25 @@ export default function MyProductsPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <AppHeader />
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">My listings</h1>
-            <p className="mt-1 text-sm text-stone-500">Manage the platform's export supply.</p>
-          </div>
-          {isCompany ? (
-            <Link
-              to="/products/new"
-              className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
-            >
-              New listing
-            </Link>
-          ) : null}
-        </div>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
+        <PageHeader
+          eyebrow="Company"
+          title="My listings"
+          subtitle="Manage the platform's export supply."
+          action={
+            isCompany ? (
+              <Link
+                to="/products/new"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white shadow-brand transition duration-200 ease-soft hover:bg-brand-700"
+              >
+                <PlusIcon className="h-4 w-4" />
+                New listing
+              </Link>
+            ) : undefined
+          }
+        />
 
         {!isCompany ? (
           <div className="mt-6">
@@ -81,7 +87,7 @@ export default function MyProductsPage() {
             <select
               value={businessId}
               onChange={(e) => setBusinessId(e.target.value)}
-              className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+              className="w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm shadow-soft outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
             >
               <option value="">All my businesses</option>
               {businesses.map((b) => (
@@ -117,11 +123,19 @@ export default function MyProductsPage() {
                 <Card className="flex h-full flex-col">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <Link to={`/products/${product.slug || product.id}`} className="font-semibold text-stone-900 hover:text-brand-700">
+                      <Link
+                        to={`/products/${product.slug || product.id}`}
+                        className="font-semibold text-stone-900 transition hover:text-brand-700"
+                      >
                         {product.name}
                       </Link>
-                      <p className="text-sm text-stone-500">
-                        {product.currency} {Number(product.price).toLocaleString()} / {labelOf(PRICE_UNITS, product.priceUnit).replace('Per ', '').toLowerCase()}
+                      <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5 text-sm">
+                        <span className="font-display font-bold text-brand-700">
+                          {product.currency} {Number(product.price).toLocaleString()}
+                        </span>
+                        <span className="text-stone-500">
+                          / {labelOf(PRICE_UNITS, product.priceUnit).replace('Per ', '').toLowerCase()}
+                        </span>
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
@@ -129,26 +143,29 @@ export default function MyProductsPage() {
                       <VerifiedBadge visible={product.isSellerVerifiedBadgeVisible} />
                     </div>
                   </div>
-                  <p className="mt-3 text-sm text-stone-500">
-                    {product.originCountry}
-                    {product.portOfLoading ? ` · ${product.portOfLoading}` : ''} · {product.sellerTradingName}
+                  <p className="mt-3 flex items-center gap-1.5 text-sm text-stone-500">
+                    <BuildingIcon className="h-3.5 w-3.5 shrink-0 text-stone-400" />
+                    <span className="truncate">
+                      {product.originCountry}
+                      {product.portOfLoading ? ` · ${product.portOfLoading}` : ''} ·{' '}
+                      {product.sellerTradingName}
+                    </span>
                   </p>
                   <div className="mt-4 flex flex-1 items-end gap-2">
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      className="flex-1"
                       onClick={() => navigate(`/products/${product.slug || product.id}/edit`)}
-                      className="flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50"
                     >
+                      <PencilIcon className="h-3.5 w-3.5" />
                       Edit
-                    </button>
-                    <button
-                      type="button"
-                      disabled={deletingId === product.id}
-                      onClick={() => void handleDelete(product.id)}
-                      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
-                    >
-                      {deletingId === product.id ? '…' : 'Delete'}
-                    </button>
+                    </Button>
+                    <Tooltip label="Remove this listing from the marketplace">
+                      <Button variant="danger" onClick={() => setPendingDelete(product)}>
+                        <TrashIcon className="h-3.5 w-3.5" />
+                        Delete
+                      </Button>
+                    </Tooltip>
                   </div>
                 </Card>
               </li>
@@ -158,6 +175,24 @@ export default function MyProductsPage() {
           </>
         )}
       </main>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        pending={deletingId !== null}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (pendingDelete) void handleDelete(pendingDelete.id)
+        }}
+        title="Delete this listing?"
+        confirmLabel="Delete listing"
+        message={
+          <>
+            <strong className="font-semibold text-stone-800">{pendingDelete?.name}</strong> will be
+            removed from the marketplace and buyers will no longer be able to find or request it.
+            Existing quotations and conversations are kept.
+          </>
+        }
+      />
     </div>
   )
 }

@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { VerifiedBadge } from '../components/badges'
 import { Card, ErrorAlert, Spinner } from '../components/ui'
+import { TabPanel, Tabs } from '../components/overlays'
+import { AwardIcon, CoinsIcon, PackageIcon } from '../components/icons'
 import { getProduct } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import { resolveProductImage } from '../lib/productImages'
@@ -24,6 +26,7 @@ export default function ProductDetailPage() {
   const [error, setError] = useState<{ code?: string; detail?: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [specTab, setSpecTab] = useState('packaging')
 
   useEffect(() => {
     if (!idOrSlug) return
@@ -51,6 +54,18 @@ export default function ProductDetailPage() {
   const activeImage = product
     ? selectedImage ?? resolveProductImage(product.slug, product.primaryImageUrl)
     : null
+
+  // Default the spec tabs to whichever section this product actually has.
+  useEffect(() => {
+    if (!product) return
+    setSpecTab(
+      product.packagingOptions.length > 0
+        ? 'packaging'
+        : product.certifications.length > 0
+          ? 'certifications'
+          : 'terms',
+    )
+  }, [product])
 
   return (
     <div className="min-h-screen">
@@ -127,29 +142,84 @@ export default function ProductDetailPage() {
                 </Card>
               ) : null}
 
-              {product.packagingOptions.length > 0 ? (
+              {product.packagingOptions.length > 0 || product.certifications.length > 0 ? (
                 <Card className="mt-6">
-                  <h2 className="text-lg font-semibold">Packaging</h2>
-                  <ul className="mt-3 flex flex-wrap gap-2">
-                    {product.packagingOptions.map((option) => (
-                      <li key={option} className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700">
-                        {option}
-                      </li>
-                    ))}
-                  </ul>
-                </Card>
-              ) : null}
+                  <Tabs
+                    items={[
+                      ...(product.packagingOptions.length > 0
+                        ? [
+                            {
+                              id: 'packaging',
+                              label: 'Packaging',
+                              icon: <PackageIcon className="h-4 w-4" />,
+                              count: product.packagingOptions.length,
+                            },
+                          ]
+                        : []),
+                      ...(product.certifications.length > 0
+                        ? [
+                            {
+                              id: 'certifications',
+                              label: 'Certifications',
+                              icon: <AwardIcon className="h-4 w-4" />,
+                              count: product.certifications.length,
+                            },
+                          ]
+                        : []),
+                      ...(product.paymentTermsOffered.length > 0
+                        ? [
+                            {
+                              id: 'terms',
+                              label: 'Payment terms',
+                              icon: <CoinsIcon className="h-4 w-4" />,
+                              count: product.paymentTermsOffered.length,
+                            },
+                          ]
+                        : []),
+                    ]}
+                    value={specTab}
+                    onChange={setSpecTab}
+                    className="-mt-1"
+                  />
 
-              {product.certifications.length > 0 ? (
-                <Card className="mt-6">
-                  <h2 className="text-lg font-semibold">Certifications</h2>
-                  <ul className="mt-3 flex flex-wrap gap-2">
-                    {product.certifications.map((cert) => (
-                      <li key={cert} className="rounded-full bg-brand-50 px-3 py-1 text-sm font-medium text-brand-800">
-                        {cert}
-                      </li>
-                    ))}
-                  </ul>
+                  <TabPanel id="packaging" activeId={specTab}>
+                    <ul className="flex flex-wrap gap-2">
+                      {product.packagingOptions.map((option) => (
+                        <li
+                          key={option}
+                          className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700"
+                        >
+                          {option}
+                        </li>
+                      ))}
+                    </ul>
+                  </TabPanel>
+
+                  <TabPanel id="certifications" activeId={specTab}>
+                    <ul className="flex flex-wrap gap-2">
+                      {product.certifications.map((cert) => (
+                        <li
+                          key={cert}
+                          className="rounded-full bg-brand-50 px-3 py-1 text-sm font-medium text-brand-800"
+                        >
+                          {cert}
+                        </li>
+                      ))}
+                    </ul>
+                  </TabPanel>
+
+                  <TabPanel id="terms" activeId={specTab}>
+                    <ul className="flex flex-wrap gap-2">
+                      {product.paymentTermsOffered.map((term) => (
+                        <li
+                          key={term}
+                          className="rounded-lg bg-stone-100 px-2.5 py-1 font-mono text-xs text-stone-700"
+                        >
+                          {term}
+                        </li>
+                      ))}
+                    </ul>
+                  </TabPanel>
                 </Card>
               ) : null}
             </div>
@@ -177,18 +247,6 @@ export default function ProductDetailPage() {
                     </dd>
                   </div>
                 </dl>
-                {product.paymentTermsOffered.length > 0 ? (
-                  <div className="mt-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Payment terms offered</p>
-                    <ul className="mt-2 flex flex-wrap gap-2">
-                      {product.paymentTermsOffered.map((term) => (
-                        <li key={term} className="rounded-md bg-stone-100 px-2 py-0.5 font-mono text-xs text-stone-700">
-                          {term}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
               </Card>
 
               <Card className="bg-brand-50/60">

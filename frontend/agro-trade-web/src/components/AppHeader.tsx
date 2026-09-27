@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
 import { NotificationsBell } from './NotificationsBell'
+import { Dropdown, MenuItem, Offcanvas, Tooltip } from './overlays'
 import { COMPANY_ROLE } from '../types/auth'
 import {
   BuildingIcon,
@@ -13,7 +14,6 @@ import {
   MessageIcon,
   SearchIcon,
   ShieldCheckIcon,
-  XIcon,
 } from './icons'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -23,11 +23,9 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
       : 'text-stone-600 after:scale-x-0 hover:bg-stone-100 hover:text-stone-900 hover:after:scale-x-100'
   }`
 
-const menuItemClass = ({ isActive }: { isActive: boolean }) =>
-  `flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition duration-200 ease-soft ${
-    isActive
-      ? 'bg-brand-50 text-brand-700'
-      : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+const railItemClass = ({ isActive }: { isActive: boolean }) =>
+  `flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition duration-200 ease-soft ${
+    isActive ? 'bg-brand-50 text-brand-700' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
   }`
 
 function initialsOf(name: string) {
@@ -40,16 +38,15 @@ export function AppHeader() {
   const roles = user?.roles ?? []
   const isCompany = roles.includes(COMPANY_ROLE)
   const isAdmin = roles.includes('Administrator')
-  const [tradingOpen, setTradingOpen] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const tradingLinks = [
-    { to: '/rfqs', label: 'Find RFQs', icon: SearchIcon, show: true },
-    { to: '/my/rfqs', label: 'My RFQs', icon: FileTextIcon, show: true },
-    { to: '/messages', label: 'Messages', icon: MessageIcon, show: true },
-    { to: '/my/products', label: 'My listings', icon: GridIcon, show: isCompany },
-    { to: '/business', label: 'Business', icon: BuildingIcon, show: true },
-    { to: '/admin/verification', label: 'Admin', icon: ShieldCheckIcon, show: isAdmin },
+    { to: '/rfqs', label: 'Find RFQs', icon: <SearchIcon className="h-4 w-4" />, show: true },
+    { to: '/my/rfqs', label: 'My RFQs', icon: <FileTextIcon className="h-4 w-4" />, show: true },
+    { to: '/messages', label: 'Messages', icon: <MessageIcon className="h-4 w-4" />, show: true },
+    { to: '/my/products', label: 'My listings', icon: <GridIcon className="h-4 w-4" />, show: isCompany },
+    { to: '/business', label: 'Business', icon: <BuildingIcon className="h-4 w-4" />, show: true },
+    { to: '/admin/verification', label: 'Admin', icon: <ShieldCheckIcon className="h-4 w-4" />, show: isAdmin },
   ].filter((link) => link.show)
 
   const primaryLinks = [
@@ -59,15 +56,10 @@ export function AppHeader() {
     { to: '/contact', label: 'Contact', end: false },
   ]
 
-  function closeMenus() {
-    setTradingOpen(false)
-    setMobileOpen(false)
-  }
-
   return (
     <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/85 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
-        <Link to="/" onClick={closeMenus} className="group flex shrink-0 items-center gap-2.5">
+        <Link to="/" onClick={() => setMenuOpen(false)} className="group flex shrink-0 items-center gap-2.5">
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-brand transition duration-300 ease-soft group-hover:scale-105">
             AG
           </span>
@@ -84,49 +76,26 @@ export function AppHeader() {
               </NavLink>
             ))}
           </div>
+
           {user && tradingLinks.length > 0 ? (
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setTradingOpen((open) => !open)}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition duration-200 ease-soft ${
-                  tradingOpen ? 'bg-stone-100 text-stone-900' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
-                }`}
-                aria-expanded={tradingOpen}
-                aria-haspopup="menu"
-              >
-                Trading
-                <ChevronDownIcon
-                  className={`h-3.5 w-3.5 text-stone-400 transition-transform duration-300 ease-soft ${
-                    tradingOpen ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              {tradingOpen ? (
+            <Dropdown
+              label="Open trading menu"
+              header="Trading desk"
+              width="w-56"
+              buttonClassName="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 transition duration-200 ease-soft hover:bg-stone-100 hover:text-stone-900"
+              button={
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setTradingOpen(false)} />
-                  <div
-                    role="menu"
-                    className="absolute right-0 top-full z-20 mt-2 w-56 origin-top-right animate-scale-in rounded-2xl border border-stone-200 bg-white p-1.5 shadow-pop"
-                  >
-                    <p className="px-3 pt-1.5 pb-2 text-[10px] font-semibold tracking-widest text-stone-400 uppercase">
-                      Trading desk
-                    </p>
-                    {tradingLinks.map((link) => (
-                      <NavLink
-                        key={link.to}
-                        to={link.to}
-                        onClick={() => setTradingOpen(false)}
-                        className={menuItemClass}
-                      >
-                        <link.icon className="h-4 w-4 text-stone-400" />
-                        {link.label}
-                      </NavLink>
-                    ))}
-                  </div>
+                  Trading
+                  <ChevronDownIcon className="h-3.5 w-3.5 text-stone-400" />
                 </>
-              ) : null}
-            </div>
+              }
+            >
+              {tradingLinks.map((link) => (
+                <MenuItem key={link.to} to={link.to} icon={link.icon}>
+                  {link.label}
+                </MenuItem>
+              ))}
+            </Dropdown>
           ) : null}
         </nav>
 
@@ -146,14 +115,15 @@ export function AppHeader() {
                   {user.displayName}
                 </span>
               </Link>
-              <button
-                onClick={() => void logout()}
-                title="Sign out"
-                aria-label="Sign out"
-                className="grid h-9 w-9 place-items-center rounded-xl text-stone-500 transition duration-200 ease-soft hover:bg-stone-100 hover:text-stone-900"
-              >
-                <LogOutIcon className="h-4 w-4" />
-              </button>
+              <Tooltip label="Sign out">
+                <button
+                  onClick={() => void logout()}
+                  aria-label="Sign out"
+                  className="grid h-9 w-9 place-items-center rounded-xl text-stone-500 transition duration-200 ease-soft hover:bg-stone-100 hover:text-stone-900"
+                >
+                  <LogOutIcon className="h-4 w-4" />
+                </button>
+              </Tooltip>
             </>
           ) : (
             <>
@@ -170,64 +140,87 @@ export function AppHeader() {
           )}
           <button
             type="button"
-            onClick={() => setMobileOpen((open) => !open)}
-            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={mobileOpen}
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open menu"
             className="grid h-9 w-9 place-items-center rounded-xl text-stone-600 transition hover:bg-stone-100 hover:text-stone-900 lg:hidden"
           >
-            {mobileOpen ? <XIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
+            <MenuIcon className="h-5 w-5" />
           </button>
         </div>
       </div>
 
-      {mobileOpen ? (
-        <div className="animate-fade-in border-t border-stone-200 bg-white lg:hidden">
-          <div className="mx-auto max-w-6xl space-y-1 px-4 py-4">
-            {primaryLinks.map(({ to, label, end }) => (
-              <NavLink key={to} to={to} end={end} onClick={closeMenus} className={menuItemClass}>
-                {label}
+      <Offcanvas open={menuOpen} onClose={() => setMenuOpen(false)} title="Menu" width="max-w-xs">
+        <nav className="space-y-1">
+          {primaryLinks.map(({ to, label, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              onClick={() => setMenuOpen(false)}
+              className={railItemClass}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+
+        {user ? (
+          <div className="mt-4 space-y-1 border-t border-stone-100 pt-4">
+            <p className="px-3 pb-1 text-[10px] font-semibold tracking-widest text-stone-400 uppercase">
+              Trading desk
+            </p>
+            {tradingLinks.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                onClick={() => setMenuOpen(false)}
+                className={railItemClass}
+              >
+                {link.icon}
+                {link.label}
               </NavLink>
             ))}
-            {user ? (
-              <div className="mt-3 space-y-1 border-t border-stone-100 pt-3">
-                {tradingLinks.map((link) => (
-                  <NavLink key={link.to} to={link.to} onClick={closeMenus} className={menuItemClass}>
-                    <link.icon className="h-4 w-4 text-stone-400" />
-                    {link.label}
-                  </NavLink>
-                ))}
-                <Link
-                  to="/dashboard"
-                  onClick={closeMenus}
-                  className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-stone-600 transition hover:bg-stone-100"
-                >
-                  <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-100 text-[10px] font-bold text-brand-800">
-                    {initialsOf(user.displayName)}
-                  </span>
-                  {user.displayName}
-                </Link>
-              </div>
-            ) : (
-              <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
-                <NavLink
-                  to="/register"
-                  onClick={closeMenus}
-                  className="flex h-10 items-center justify-center rounded-xl bg-brand-600 text-sm font-semibold text-white shadow-brand"
-                >
-                  Join the marketplace
-                </NavLink>
-                <NavLink
-                  to="/login"
-                  onClick={closeMenus}
-                  className="flex h-10 items-center justify-center rounded-xl border border-stone-300 text-sm font-semibold text-stone-700"
-                >
-                  Sign in
-                </NavLink>
-              </div>
-            )}
+            <Link
+              to="/dashboard"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition hover:bg-stone-100"
+            >
+              <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-100 text-[10px] font-bold text-brand-800">
+                {initialsOf(user.displayName)}
+              </span>
+              {user.displayName}
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false)
+                void logout()
+              }}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition hover:bg-stone-100"
+            >
+              <LogOutIcon className="h-4 w-4 text-stone-400" />
+              Sign out
+            </button>
           </div>
-        </div>
-      ) : null}
+        ) : (
+          <div className="mt-4 space-y-2 border-t border-stone-100 pt-4">
+            <Link
+              to="/register"
+              onClick={() => setMenuOpen(false)}
+              className="flex h-10 items-center justify-center rounded-xl bg-brand-600 text-sm font-semibold text-white shadow-brand"
+            >
+              Join the marketplace
+            </Link>
+            <Link
+              to="/login"
+              onClick={() => setMenuOpen(false)}
+              className="flex h-10 items-center justify-center rounded-xl border border-stone-300 text-sm font-semibold text-stone-700"
+            >
+              Sign in
+            </Link>
+          </div>
+        )}
+      </Offcanvas>
     </header>
   )
 }

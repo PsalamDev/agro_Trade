@@ -13,6 +13,7 @@ import {
   SkeletonGrid,
 } from '../components/ui'
 import { getCategoryTree, searchProducts } from '../lib/trade'
+import { Accordion } from '../components/overlays'
 import { problemFrom } from '../lib/api'
 import type { CategoryDto, ProductCardDto } from '../types/trade'
 import { CoinsIcon, FilterIcon, GlobeIcon, SearchIcon, ShieldCheckIcon, XIcon } from '../components/icons'
@@ -77,6 +78,15 @@ export default function MarketplacePage() {
     q || categoryId || originCountry || exportsToCountry || verifiedOnly || minPrice || maxPrice,
   )
 
+  const activeFilterCount = [
+    categoryId,
+    originCountry,
+    exportsToCountry,
+    minPrice,
+    maxPrice,
+    verifiedOnly ? '1' : '',
+  ].filter(Boolean).length
+
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams)
     if (value) next.set(key, value)
@@ -140,71 +150,81 @@ export default function MarketplacePage() {
             </Button>
           </div>
 
-          <div className="mt-5 border-t border-stone-100 pt-5">
-            <p className="mb-4 flex items-center gap-1.5 text-xs font-semibold tracking-widest text-stone-400 uppercase">
-              <FilterIcon className="h-3.5 w-3.5" />
-              Refine
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <SelectField
-                label="Category"
-                id="marketplace-category"
-                options={leafCategories.map((c) => c.name)}
-                values={leafCategories.map((c) => c.id)}
-                value={categoryId}
-                onChange={(e) => void updateParam('categoryId', e.target.value)}
-              />
-              <Field
-                label="Origin country (ISO-2)"
-                id="marketplace-origin"
-                maxLength={2}
-                placeholder="KE"
-                icon={<GlobeIcon className="h-4 w-4" />}
-                hint="Two-letter country code"
-                value={originCountry}
-                onChange={(e) => void updateParam('originCountry', e.target.value.toUpperCase())}
-              />
-              <Field
-                label="Exports to (destination)"
-                id="marketplace-dest"
-                maxLength={2}
-                placeholder="NG"
-                icon={<GlobeIcon className="h-4 w-4" />}
-                hint="Two-letter country code"
-                value={exportsToCountry}
-                onChange={(e) => void updateParam('exportsToCountry', e.target.value.toUpperCase())}
-              />
-              <Field
-                label="Min price"
-                id="marketplace-min"
-                type="number"
-                min="0"
-                placeholder="0"
-                icon={<CoinsIcon className="h-4 w-4" />}
-                value={minPrice}
-                onChange={(e) => void updateParam('minPrice', e.target.value)}
-              />
-              <Field
-                label="Max price"
-                id="marketplace-max"
-                type="number"
-                min="0"
-                placeholder="100000"
-                icon={<CoinsIcon className="h-4 w-4" />}
-                value={maxPrice}
-                onChange={(e) => void updateParam('maxPrice', e.target.value)}
-              />
-              <label className="flex h-[42px] cursor-pointer items-center gap-2.5 self-end rounded-xl border border-stone-300 bg-stone-50 px-3.5 text-sm font-medium text-stone-700 transition hover:bg-stone-100">
-                <input
-                  type="checkbox"
-                  checked={verifiedOnly}
-                  onChange={(e) => updateParam('verifiedOnly', e.target.checked ? '1' : '')}
-                  className="h-4 w-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500"
-                />
-                <ShieldCheckIcon className="h-4 w-4 text-stone-400" />
-                Verified sellers only
-              </label>
-            </div>
+          <div className="mt-5 border-t border-stone-100 pt-1">
+            <Accordion
+              className="!border-0 !bg-transparent !shadow-none"
+              items={[
+                {
+                  id: 'refine',
+                  icon: <FilterIcon className="h-4 w-4" />,
+                  title: 'Refine results',
+                  meta: activeFilterCount > 0 ? `${activeFilterCount} active` : 'Category, country & price',
+                  defaultOpen: true,
+                  content: (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <SelectField
+                        label="Category"
+                        id="marketplace-category"
+                        options={leafCategories.map((c) => c.name)}
+                        values={leafCategories.map((c) => c.id)}
+                        value={categoryId}
+                        onChange={(e) => void updateParam('categoryId', e.target.value)}
+                      />
+                      <Field
+                        label="Origin country (ISO-2)"
+                        id="marketplace-origin"
+                        maxLength={2}
+                        placeholder="KE"
+                        icon={<GlobeIcon className="h-4 w-4" />}
+                        hint="Two-letter country code"
+                        value={originCountry}
+                        onChange={(e) => void updateParam('originCountry', e.target.value.toUpperCase())}
+                      />
+                      <Field
+                        label="Exports to (destination)"
+                        id="marketplace-dest"
+                        maxLength={2}
+                        placeholder="NG"
+                        icon={<GlobeIcon className="h-4 w-4" />}
+                        hint="Two-letter country code"
+                        value={exportsToCountry}
+                        onChange={(e) => void updateParam('exportsToCountry', e.target.value.toUpperCase())}
+                      />
+                      <Field
+                        label="Min price"
+                        id="marketplace-min"
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        icon={<CoinsIcon className="h-4 w-4" />}
+                        value={minPrice}
+                        onChange={(e) => void updateParam('minPrice', e.target.value)}
+                      />
+                      <Field
+                        label="Max price"
+                        id="marketplace-max"
+                        type="number"
+                        min="0"
+                        placeholder="100000"
+                        icon={<CoinsIcon className="h-4 w-4" />}
+                        value={maxPrice}
+                        onChange={(e) => void updateParam('maxPrice', e.target.value)}
+                      />
+                      <label className="flex h-[42px] cursor-pointer items-center gap-2.5 self-end rounded-xl border border-stone-300 bg-stone-50 px-3.5 text-sm font-medium text-stone-700 transition hover:bg-stone-100">
+                        <input
+                          type="checkbox"
+                          checked={verifiedOnly}
+                          onChange={(e) => updateParam('verifiedOnly', e.target.checked ? '1' : '')}
+                          className="h-4 w-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500"
+                        />
+                        <ShieldCheckIcon className="h-4 w-4 text-stone-400" />
+                        Verified sellers only
+                      </label>
+                    </div>
+                  ),
+                },
+              ]}
+            />
           </div>
         </form>
 
