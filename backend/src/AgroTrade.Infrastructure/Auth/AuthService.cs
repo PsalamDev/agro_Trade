@@ -42,6 +42,8 @@ public sealed class AuthService(
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
+        // Single-supplier model: registration is buyers/importers only. Supplier-side
+        // roles are filtered out and non-buyer registrations default to Buyer.
         var roles = request.Roles.Count > 0 ? request.Roles : [RoleNames.Buyer];
         roles = roles
             .Where(r => RoleNames.Registrable.Contains(r))
@@ -50,7 +52,7 @@ public sealed class AuthService(
 
         if (roles.Count == 0)
         {
-            throw ApiException.BadRequest("INVALID_ROLE", $"Role must be one of: {string.Join(", ", RoleNames.Registrable)}.");
+            roles = [RoleNames.Buyer];
         }
 
         var user = new ApplicationUser

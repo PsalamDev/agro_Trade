@@ -18,6 +18,12 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
+      // Uploaded product images / business documents are stored by the API
+      // under /uploads; proxy them so relative URLs work in dev.
+      '/uploads': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
     },
   },
 })

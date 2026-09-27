@@ -15,6 +15,11 @@ public static class RoleNames
     public const string Distributor = "Distributor";
     public const string LogisticsProvider = "LogisticsProvider";
     public const string Administrator = "Administrator";
+    /// <summary>
+    /// The platform's single supplier account (Achievers Global Consult). Only this
+    /// role may list products and quote on RFQs (single-supplier model).
+    /// </summary>
+    public const string Company = "Company";
 
     /// <summary>All roles seeded on startup (spec §6).</summary>
     public static readonly IReadOnlyList<string> All =
@@ -27,30 +32,25 @@ public static class RoleNames
         Importer,
         Distributor,
         LogisticsProvider,
+        Company,
         Administrator,
     ];
 
-    /// <summary>Roles a user may self-select at registration.</summary>
+    /// <summary>Roles a user may self-select at registration (buyers/importers only).</summary>
     public static readonly IReadOnlyList<string> Registrable =
     [
         Buyer,
-        Farmer,
-        Supplier,
-        AgroProcessor,
-        Exporter,
         Importer,
         Distributor,
-        LogisticsProvider,
     ];
 
-    /// <summary>Seller-side roles — own products/listings and can quote RFQs.</summary>
+    /// <summary>
+    /// Roles that may act as a seller. Single-supplier model: only the Company
+    /// account holds this role — no self-registered role can sell.
+    /// </summary>
     public static readonly IReadOnlyList<string> SellerRoles =
     [
-        Farmer,
-        Supplier,
-        AgroProcessor,
-        Exporter,
-        Distributor,
+        Company,
     ];
 
     /// <summary>Buyer-side roles — can publish RFQs and place orders.</summary>

@@ -8,8 +8,7 @@ import { problemFrom } from '../lib/api'
 import { BUSINESS_TYPES, labelOf } from '../types/trade'
 import type { BusinessSummaryDto } from '../types/trade'
 import { useAuth } from '../lib/auth-context'
-
-const SELLER_ROLES = ['Farmer', 'Supplier', 'AgroProcessor', 'Exporter', 'Distributor']
+import { COMPANY_ROLE } from '../types/auth'
 
 export default function BusinessHubPage() {
   const { user } = useAuth()
@@ -30,7 +29,7 @@ export default function BusinessHubPage() {
     }
   }, [])
 
-  const isSeller = (user?.roles ?? []).some((r) => SELLER_ROLES.includes(r))
+  const isCompany = (user?.roles ?? []).includes(COMPANY_ROLE)
 
   return (
     <div className="min-h-screen">
@@ -65,7 +64,7 @@ export default function BusinessHubPage() {
           <div className="mt-6">
             <EmptyState
               title="No business profiles yet"
-              body="Register your trading entity to start exporting (listings) or quoting on RFQs."
+              body="Register your trading entity to build buyer trust, source imports, and participate in RFQs."
             />
           </div>
         ) : (
@@ -114,7 +113,7 @@ export default function BusinessHubPage() {
           </ul>
         )}
 
-        {isSeller && businesses && businesses.length > 0 ? (
+        {isCompany && businesses && businesses.length > 0 ? (
           <p className="mt-8 text-sm text-stone-500">
             Selected the right entity? Create an export listing on the{' '}
             <Link to="/my/products" className="font-medium text-brand-700 hover:underline">

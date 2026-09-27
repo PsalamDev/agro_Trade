@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
 import { NotificationsBell } from './NotificationsBell'
-
-const SELLER_ROLES = ['Farmer', 'Supplier', 'AgroProcessor', 'Exporter', 'Distributor']
+import { COMPANY_ROLE } from '../types/auth'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-md px-3 py-2 text-sm font-medium transition ${
@@ -13,7 +12,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 export function AppHeader() {
   const { user, logout } = useAuth()
   const roles = user?.roles ?? []
-  const isSeller = roles.some((r) => SELLER_ROLES.includes(r))
+  const isCompany = roles.includes(COMPANY_ROLE)
   const isAdmin = roles.includes('Administrator')
   const [tradingOpen, setTradingOpen] = useState(false)
 
@@ -21,7 +20,7 @@ export function AppHeader() {
     { to: '/rfqs', label: 'Find RFQs', show: true },
     { to: '/my/rfqs', label: 'My RFQs', show: true },
     { to: '/messages', label: 'Messages', show: true },
-    { to: '/my/products', label: 'My listings', show: isSeller },
+    { to: '/my/products', label: 'My listings', show: isCompany },
     { to: '/business', label: 'Business', show: true },
     { to: '/admin/verification', label: 'Admin', show: isAdmin },
   ].filter((link) => link.show)

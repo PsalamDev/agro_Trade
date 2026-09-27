@@ -17,7 +17,7 @@ public sealed class RegisterRequestValidatorTests
             DisplayName = "Mama Farms",
             HomeCountry = "KE",
             DefaultCurrency = "KES",
-            Roles = [AgroTrade.Domain.Enums.RoleNames.Supplier],
+            Roles = [AgroTrade.Domain.Enums.RoleNames.Importer],
         };
 
         var result = _validator.Validate(request);

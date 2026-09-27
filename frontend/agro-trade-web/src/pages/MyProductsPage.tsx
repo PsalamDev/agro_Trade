@@ -5,11 +5,15 @@ import { ListingPill, VerifiedBadge } from '../components/badges'
 import { Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { deleteProduct, getMyBusinesses, searchProducts } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { useAuth } from '../lib/auth-context'
+import { COMPANY_ROLE } from '../types/auth'
 import { PRICE_UNITS, labelOf } from '../types/trade'
 import type { BusinessSummaryDto, ProductCardDto } from '../types/trade'
 
 export default function MyProductsPage() {
+  const { user } = useAuth()
   const navigate = useNavigate()
+  const isCompany = (user?.roles ?? []).includes(COMPANY_ROLE)
   const [products, setProducts] = useState<ProductCardDto[] | null>(null)
   const [businesses, setBusinesses] = useState<BusinessSummaryDto[]>([])
   const [businessId, setBusinessId] = useState('')
@@ -51,16 +55,27 @@ export default function MyProductsPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">My listings</h1>
-            <p className="mt-1 text-sm text-stone-500">Manage your export supply. Active listings require a verified business.</p>
+            <p className="mt-1 text-sm text-stone-500">Manage the platform's export supply.</p>
           </div>
-          <Link
-            to="/products/new"
-            className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
-          >
-            New listing
-          </Link>
+          {isCompany ? (
+            <Link
+              to="/products/new"
+              className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+            >
+              New listing
+            </Link>
+          ) : null}
         </div>
 
+        {!isCompany ? (
+          <div className="mt-6">
+            <EmptyState
+              title="Supplier listings are managed by the platform"
+              body="Sign up and trade as a buyer/importer — publish RFQs to source imports. Only the Achievers Global Consult account manages export listings."
+            />
+          </div>
+        ) : (
+          <>
         {businesses.length > 1 ? (
           <div className="mt-6 flex max-w-sm items-center justify-between gap-3">
             <select
@@ -139,6 +154,8 @@ export default function MyProductsPage() {
               </li>
             ))}
           </ul>
+        )}
+          </>
         )}
       </main>
     </div>

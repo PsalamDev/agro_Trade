@@ -6,9 +6,9 @@ import { EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { getMyRfqs } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
+import { COMPANY_ROLE } from '../types/auth'
 import type { TradeRequestCardDto } from '../types/trade'
 
-const SELLER_ROLES = ['Farmer', 'Supplier', 'AgroProcessor', 'Exporter', 'Distributor']
 const BUYER_ROLES = ['Buyer', 'Importer', 'Distributor']
 
 export default function MyRfqsPage() {
@@ -18,7 +18,7 @@ export default function MyRfqsPage() {
   const [error, setError] = useState<{ code?: string; detail?: string } | null>(null)
 
   const roles = user?.roles ?? []
-  const canSell = roles.some((r) => SELLER_ROLES.includes(r))
+  const canSell = roles.includes(COMPANY_ROLE)
   const canBuy = roles.some((r) => BUYER_ROLES.includes(r))
 
   const load = useCallback(async () => {

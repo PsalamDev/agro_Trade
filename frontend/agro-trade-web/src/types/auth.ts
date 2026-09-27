@@ -47,14 +47,8 @@ export interface ProblemDetails {
   fieldErrors?: Record<string, string[]>
 }
 
-/** Roles a user may choose at registration (mirror of RoleNames.Registrable). */
-export const REGISTRABLE_ROLES = [
-  'Buyer',
-  'Farmer',
-  'Supplier',
-  'AgroProcessor',
-  'Exporter',
-  'Importer',
-  'Distributor',
-  'LogisticsProvider',
-] as const
+/** Roles a user may choose at registration (mirror of RoleNames.Registrable, buyer/importer only). */
+export const REGISTRABLE_ROLES = ['Buyer', 'Importer', 'Distributor'] as const
+
+/** The single supplier role — held only by the Achievers Global Consult account. */
+export const COMPANY_ROLE = 'Company'

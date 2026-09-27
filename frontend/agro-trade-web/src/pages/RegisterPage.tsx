@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
 import { ErrorAlert, Field, SubmitButton } from '../components/ui'
 import { AppHeader } from '../components/AppHeader'
-import { REGISTRABLE_ROLES } from '../types/auth'
 
 const COUNTRIES = ['NG', 'KE', 'GH', 'ZA', 'EG', 'ET', 'SN', 'TZ', 'UG', 'RW', 'CI', 'CM', 'MA', 'OTHER']
 
@@ -17,17 +16,12 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState('')
   const [homeCountry, setHomeCountry] = useState('')
   const [defaultCurrency, setDefaultCurrency] = useState('NGN')
-  const [roles, setRoles] = useState<string[]>(['Supplier'])
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<{
     title?: string
     detail?: string
     fieldErrors?: Record<string, string[]>
   } | null>(null)
-
-  function toggleRole(role: string) {
-    setRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]))
-  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -40,7 +34,6 @@ export default function RegisterPage() {
         displayName,
         homeCountry: homeCountry || undefined,
         defaultCurrency,
-        roles,
       })
       navigate('/dashboard', { replace: true })
     } catch (err) {
@@ -56,7 +49,8 @@ export default function RegisterPage() {
       <main className="mx-auto max-w-lg px-4 py-12">
         <h1 className="text-2xl font-bold tracking-tight">Create your trading account</h1>
         <p className="mt-1 text-sm text-stone-500">
-          Choose the roles that best describe how you trade across borders.
+          Join as a buyer / importer — publish RFQs and source verified imports. Supplier listings are managed by
+          the platform.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
@@ -121,30 +115,6 @@ export default function RegisterPage() {
               </select>
             </label>
           </div>
-
-          <fieldset>
-            <legend className="mb-2 text-sm font-medium text-stone-700">Trading role(s)</legend>
-            <div className="flex flex-wrap gap-2">
-              {REGISTRABLE_ROLES.map((role) => {
-                const selected = roles.includes(role)
-                return (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => toggleRole(role)}
-                    aria-pressed={selected}
-                    className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                      selected
-                        ? 'border-brand-600 bg-brand-600 text-white'
-                        : 'border-stone-300 bg-white text-stone-600 hover:border-brand-400'
-                    }`}
-                  >
-                    {role}
-                  </button>
-                )
-              })}
-            </div>
-          </fieldset>
 
           <SubmitButton type="submit" pending={pending}>
             Create account

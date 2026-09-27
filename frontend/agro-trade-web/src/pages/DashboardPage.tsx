@@ -4,8 +4,8 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
 import { ErrorAlert, Field, SubmitButton } from '../components/ui'
 import { AppHeader } from '../components/AppHeader'
+import { COMPANY_ROLE } from '../types/auth'
 
-const SELLER_ROLES = ['Farmer', 'Supplier', 'AgroProcessor', 'Exporter', 'Distributor']
 const BUYER_ROLES = ['Buyer', 'Importer', 'Distributor']
 
 const quickActions = [
@@ -172,7 +172,7 @@ export default function DashboardPage() {
               <Link to="/business" className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-brand-700">
                 Manage business
               </Link>
-              {user.roles.some((r) => SELLER_ROLES.includes(r)) ? (
+              {user.roles.includes(COMPANY_ROLE) ? (
                 <Link to="/products/new" className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-50">
                   New listing
                 </Link>

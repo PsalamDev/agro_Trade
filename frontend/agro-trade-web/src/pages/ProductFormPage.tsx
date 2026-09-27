@@ -2,16 +2,20 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
-import { Card, ErrorAlert, Field, KeyValueEditor, SelectField, SubmitButton, TagInput, TextArea } from '../components/ui'
+import { Card, EmptyState, ErrorAlert, Field, KeyValueEditor, SelectField, SubmitButton, TagInput, TextArea } from '../components/ui'
 import { createProduct, deleteProductImage, getBusiness, getCategoryTree, getMyBusinesses, getProduct, updateProduct, uploadProductImage } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { useAuth } from '../lib/auth-context'
+import { COMPANY_ROLE } from '../types/auth'
 import { INCOTERMS, LISTING_STATUS, LISTING_STATUSES, PRICE_UNITS, labelOf } from '../types/trade'
 import type { BusinessSummaryDto, CategoryDto, ProductImageDto } from '../types/trade'
 
 export default function ProductFormPage() {
   const { id } = useParams<{ id: string }>()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const isEdit = Boolean(id)
+  const isCompany = (user?.roles ?? []).includes(COMPANY_ROLE)
 
   const [categories, setCategories] = useState<CategoryDto[]>([])
   const [businesses, setBusinesses] = useState<BusinessSummaryDto[]>([])
@@ -207,6 +211,25 @@ export default function ProductFormPage() {
     } finally {
       setPending(false)
     }
+  }
+
+  if (!isEdit && !isCompany) {
+    return (
+      <div className="min-h-screen">
+        <AppHeader />
+        <main className="mx-auto max-w-3xl px-4 py-10">
+          <Link to="/my/products" className="text-sm font-medium text-brand-700 hover:underline">
+            ← Back
+          </Link>
+          <div className="mt-6">
+            <EmptyState
+              title="Export listings are managed by the platform"
+              body="Only the Achievers Global Consult supplier account can publish listings. Register to trade as a buyer/importer and publish RFQs instead."
+            />
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (

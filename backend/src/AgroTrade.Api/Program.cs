@@ -207,7 +207,7 @@ app.Run();
 public static partial class Policies
 {
     public const string Administrator = "Administrator";
-    /// <summary>Seller-side roles: Farmer, Supplier, AgroProcessor, Exporter, Distributor.</summary>
+    /// <summary>Seller-side role: the Company (single-supplier model, see RoleNames.SellerRoles).</summary>
     public const string Seller = "Seller";
     /// <summary>Buyer-side roles: Buyer, Importer, Distributor.</summary>
     public const string Buyer = "Buyer";

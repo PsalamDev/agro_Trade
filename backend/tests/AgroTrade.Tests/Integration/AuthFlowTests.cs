@@ -34,14 +34,14 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
             displayName = "Mama Farms",
             homeCountry = "KE",
             defaultCurrency = "KES",
-            roles = new[] { "Supplier", "Exporter" },
+            roles = new[] { "Importer" }, // buyer/importer roles only
         });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         var registered = await register.Content.ReadFromJsonAsync<AuthResponseDto>();
         Assert.NotNull(registered);
         Assert.NotEmpty(registered.AccessToken);
         Assert.NotEmpty(registered.RefreshToken);
-        Assert.Equal(["Supplier", "Exporter"], registered.User.Roles);
+        Assert.Equal(["Importer"], registered.User.Roles);
         Assert.True(registered.User.IsEmailVerified); // AutoConfirmEmail in test config
 
         // Duplicate registration is rejected

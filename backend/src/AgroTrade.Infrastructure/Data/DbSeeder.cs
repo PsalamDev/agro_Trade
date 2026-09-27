@@ -171,6 +171,65 @@ public sealed class DbSeeder(
 
         const string password = "Demo@12345";
 
+        // ---- Single supplier: the Company (Achievers Global Consult) ----
+        // Dedicated supplier account for the marketplace operator; only this role can
+        // list products or quote RFQs (see RoleNames.SellerRoles / Policies.Seller).
+        var companyOwner = await userManager.FindByEmailAsync("company@achieversglobalconsult.com");
+        if (companyOwner is null)
+        {
+            companyOwner = new ApplicationUser
+            {
+                UserName = "company@achieversglobalconsult.com",
+                Email = "company@achieversglobalconsult.com",
+                DisplayName = "Achievers Global Consult",
+                HomeCountry = "NG",
+                DefaultCurrency = "NGN",
+                IsActive = true,
+                EmailConfirmed = true,
+                CreatedAtUtc = DateTime.UtcNow,
+            };
+            var companyResult = await userManager.CreateAsync(companyOwner, password);
+            if (companyResult.Succeeded)
+            {
+                await userManager.AddToRoleAsync(companyOwner, RoleNames.Company);
+            }
+        }
+
+        var company = await db.Businesses.FirstOrDefaultAsync(b => b.TradingName == "Achievers Global Consult", ct);
+        if (company is null && companyOwner is not null)
+        {
+            company = new Business
+            {
+                OwnerUserId = companyOwner.Id,
+                LegalName = "Achievers Global Consult Ltd",
+                TradingName = "Achievers Global Consult",
+                RegistrationNumber = "NG-RC-2026000001",
+                BusinessType = BusinessType.LimitedCompany,
+                CategoryFocusId = cashewId ?? cocoaId,
+                Website = "https://achieversglobalconsult.com",
+                Description = "Lagos-based importer and exporter of premium agro-allied products — cocoa, cashew, palm kernels and more — connecting African origin to world markets.",
+                VerificationStatus = VerificationStatus.Verified,
+            };
+            company.TradeCountries.AddRange(
+            [
+                new BusinessTradeCountry { Direction = TradeDirection.Export, Country = "NG", IsPrimary = true },
+                new BusinessTradeCountry { Direction = TradeDirection.Export, Country = "GH" },
+                new BusinessTradeCountry { Direction = TradeDirection.Export, Country = "KE" },
+                new BusinessTradeCountry { Direction = TradeDirection.Import, Country = "NL", IsPrimary = true },
+                new BusinessTradeCountry { Direction = TradeDirection.Import, Country = "VN" },
+            ]);
+            company.VerificationHistory.Add(new BusinessVerification
+            {
+                Status = VerificationStatus.Verified,
+                RequestedAtUtc = DateTime.UtcNow.AddDays(-45),
+                ReviewedAtUtc = DateTime.UtcNow.AddDays(-43),
+                VerifiedLevel = "Basic",
+            });
+            db.Businesses.Add(company);
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Seeded Company account + business (Achievers Global Consult).");
+        }
+
         // ---- Exporter #1: Uzuri Exporters (Kenya) — verified ----
         var uzuriOwner = await userManager.FindByEmailAsync("demo-exporter@agrotrade.local");
         if (uzuriOwner is null)
@@ -228,16 +287,16 @@ public sealed class DbSeeder(
             db.Businesses.Add(uzuri);
             await db.SaveChangesAsync(ct);
 
-            if (maizeId is not null && cashewId is not null)
+            if (maizeId is not null && cashewId is not null && company is not null)
             {
-                await SeedProductAsync(uzuri.Id, cashewId.Value, "Cashew Nuts W320", "0801", "KE", "Mombasa (MBA)",
+                await SeedProductAsync(company.Id, cashewId.Value, "Cashew Nuts W320", "0801", "KE", "Mombasa (MBA)",
                     1800m, PriceUnit.PerTon, "USD", 120m, 5m, Incoterms.Fob, 14,
                     ["T/T 50/50", "L/C at sight"],
                     "Grade W320 | moisture 8% max | out-turn 50-52 lbs",
                     ["50 kg jute bag", "1 MT jumbo bag"],
                     ["Phytosanitary", "GlobalG.A.P.", "ISO 22000"], ct);
 
-                await SeedProductAsync(uzuri.Id, maizeId.Value, "White Maize (Grade 1)", "1005", "KE", "Mombasa (MBA)",
+                await SeedProductAsync(company.Id, maizeId.Value, "White Maize (Grade 1)", "1005", "KE", "Mombasa (MBA)",
                     340m, PriceUnit.PerTon, "USD", 800m, 25m, Incoterms.Fob, 10,
                     ["T/T advance", "L/C at sight"],
                     "Grade 1 | moisture 13% max | test weight 72 kg/hl",
@@ -300,9 +359,9 @@ public sealed class DbSeeder(
             db.Businesses.Add(westGrain);
             await db.SaveChangesAsync(ct);
 
-            if (cocoaId is not null)
+            if (cocoaId is not null && company is not null)
             {
-                await SeedProductAsync(westGrain.Id, cocoaId.Value, "Cocoa Beans (Fermented)", "1801", "GH", "Tema (TMA)",
+                await SeedProductAsync(company.Id, cocoaId.Value, "Cocoa Beans (Fermented)", "1801", "GH", "Tema (TMA)",
                     2450m, PriceUnit.PerTon, "USD", 60m, 10m, Incoterms.Fob, 12,
                     ["L/C at sight", "T/T 50/50"],
                     "Well fermented | moisture 7.5% max | bean count 95-100/100g",
@@ -357,8 +416,8 @@ public sealed class DbSeeder(
             await db.SaveChangesAsync(ct);
         }
 
-        // Demo RFQ from the importer, quoted by Uzuri (corridor KE → NG).
-        if (deltaOwner is not null && uzuri is not null && delta is not null)
+        // Demo RFQ from the importer, quoted by the Company (corridor KE → NG).
+        if (deltaOwner is not null && delta is not null && company is not null)
         {
             var existingRfq = await db.TradeRequests.FirstOrDefaultAsync(r => r.BuyerUserId == deltaOwner.Id, ct);
             if (existingRfq is null)
@@ -399,7 +458,7 @@ public sealed class DbSeeder(
                 db.Quotations.Add(new Quotation
                 {
                     TradeRequestId = rfq.Id,
-                    SupplierBusinessId = uzuri.Id,
+                    SupplierBusinessId = company.Id,
                     Status = QuotationStatus.Submitted,
                     Currency = "USD",
                     Incoterms = Incoterms.Cif,
@@ -413,6 +472,44 @@ public sealed class DbSeeder(
                 });
                 await db.SaveChangesAsync(ct);
                 logger.LogInformation("Seeded demo RFQ + quotation (corridor KE -> NG).");
+            }
+        }
+
+        // ---- Single-supplier pivot: consolidate legacy demo supply under the Company ----
+        // Existing databases seeded before the pivot may still list products and quotes
+        // under the old demo exporter businesses (Uzuri/WestGrain). Reassign them to the
+        // Company business so the marketplace shows exactly one supplier. Idempotent.
+        if (company is not null)
+        {
+            var legacySellerIds = new List<Guid>();
+            if (uzuri is not null) legacySellerIds.Add(uzuri.Id);
+            if (westGrain is not null) legacySellerIds.Add(westGrain.Id);
+
+            if (legacySellerIds.Count > 0)
+            {
+                var legacyProducts = await db.Products
+                    .Where(p => legacySellerIds.Contains(p.SellerBusinessId))
+                    .ToListAsync(ct);
+                foreach (var product in legacyProducts)
+                {
+                    product.SellerBusinessId = company.Id;
+                }
+
+                var legacyQuotes = await db.Quotations
+                    .Where(q => legacySellerIds.Contains(q.SupplierBusinessId))
+                    .ToListAsync(ct);
+                foreach (var quote in legacyQuotes)
+                {
+                    quote.SupplierBusinessId = company.Id;
+                }
+
+                if (legacyProducts.Count > 0 || legacyQuotes.Count > 0)
+                {
+                    await db.SaveChangesAsync(ct);
+                    logger.LogInformation(
+                        "Reassigned {ProductCount} product(s) and {QuoteCount} quote(s) to the Company business.",
+                        legacyProducts.Count, legacyQuotes.Count);
+                }
             }
         }
     }

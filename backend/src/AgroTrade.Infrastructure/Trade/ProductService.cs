@@ -290,9 +290,9 @@ public sealed partial class ProductService(
 
     private Task<Product?> FindProductAsync(string idOrSlug, bool includeSeller = false, CancellationToken ct = default)
     {
-        var query = db.Products
-            .Include(p => p.Images)
-            .AsNoTracking();
+        // Tracked so that Update/Delete mutations persist via SaveChanges.
+        IQueryable<Product> query = db.Products
+            .Include(p => p.Images);
 
         if (includeSeller)
         {

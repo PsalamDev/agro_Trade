@@ -7,6 +7,8 @@ import { ThreadView } from '../components/ThreadView'
 import { Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { acceptQuotation, getConversations, getRfq } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { useAuth } from '../lib/auth-context'
+import { COMPANY_ROLE } from '../types/auth'
 import { MESSAGE_CONTEXT_TYPE, PAYMENT_TERMS, PRICE_UNITS, SHIPMENT_MODES, labelOf } from '../types/trade'
 import type { ConversationDto, QuotationDto, TradeRequestDetailDto } from '../types/trade'
 
@@ -21,6 +23,8 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 
 export default function RfqDetailPage() {
   const { id } = useParams()
+  const { user } = useAuth()
+  const isCompany = (user?.roles ?? []).includes(COMPANY_ROLE)
   const [rfq, setRfq] = useState<TradeRequestDetailDto | null>(null)
   const [conversations, setConversations] = useState<ConversationDto[]>([])
   const [loading, setLoading] = useState(true)
@@ -300,7 +304,13 @@ export default function RfqDetailPage() {
                   ) : (
                     <div className="mt-4">
                       {[0, 1, 2].includes(rfq.status) ? (
-                        <QuotationForm rfqId={rfq.id} currency={rfq.preferredCurrency} onQuoted={() => void load()} />
+                        isCompany ? (
+                          <QuotationForm rfqId={rfq.id} currency={rfq.preferredCurrency} onQuoted={() => void load()} />
+                        ) : (
+                          <p className="text-sm text-stone-500">
+                            Quotations on this RFQ are managed by the platform supplier.
+                          </p>
+                        )
                       ) : (
                         <p className="text-sm text-stone-500">This RFQ is closed for quotations.</p>
                       )}
