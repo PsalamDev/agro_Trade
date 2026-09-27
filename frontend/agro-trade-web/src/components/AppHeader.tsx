@@ -37,21 +37,23 @@ export function AppHeader() {
           </span>
         </Link>
 
-        <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
-          <NavLink to="/" className={linkClass} end>
-            Home
-          </NavLink>
-          <NavLink to="/marketplace" className={linkClass}>
-            Products
-          </NavLink>
-          <NavLink to="/about" className={linkClass}>
-            About
-          </NavLink>
-          <NavLink to="/contact" className={linkClass}>
-            Contact
-          </NavLink>
+        <nav className="flex min-w-0 items-center gap-1">
+          <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+            <NavLink to="/" className={linkClass} end>
+              Home
+            </NavLink>
+            <NavLink to="/marketplace" className={linkClass}>
+              Products
+            </NavLink>
+            <NavLink to="/about" className={linkClass}>
+              About
+            </NavLink>
+            <NavLink to="/contact" className={linkClass}>
+              Contact
+            </NavLink>
+          </div>
           {user && tradingLinks.length > 0 ? (
-            <div className="relative">
+            <div className="relative shrink-0">
               <button
                 type="button"
                 onClick={() => setTradingOpen((open) => !open)}
