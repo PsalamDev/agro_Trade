@@ -220,7 +220,18 @@ export default function LandingPage() {
       </section>
 
       <section className="border-y border-stone-200 bg-white">
-        <div className="mx-auto grid max-w-6xl gap-6 px-4 py-20 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto max-w-6xl px-4 py-20">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold tracking-widest text-brand-600 uppercase">Assurance</p>
+            <h2 className="mt-2 font-display text-3xl font-bold tracking-tight">
+              Built into every consignment
+            </h2>
+            <p className="mt-3 text-base leading-relaxed text-stone-600">
+              Four things we handle on every lot, regardless of commodity or corridor — so your
+              cargo clears without surprises on the other side.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {pillars.map(({ icon: Icon, title, body }) => (
             <div key={title}>
               <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-brand-700 transition duration-300 ease-soft">
@@ -230,6 +241,7 @@ export default function LandingPage() {
               <p className="mt-1.5 text-sm leading-relaxed text-stone-600">{body}</p>
             </div>
           ))}
+          </div>
         </div>
       </section>
 
