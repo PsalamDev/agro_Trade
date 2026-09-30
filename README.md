@@ -76,6 +76,18 @@ dotnet build backend/AgroTrade.slnx -warnaserror
 dotnet test backend/AgroTrade.slnx
 ```
 
+> **Stop the API before building.** A running `AgroTrade.Api` holds locks on the DLLs in
+> its own `bin` folder, so `dotnet build` fails while it is up:
+>
+> ```
+> error MSB3021: Unable to copy file "...AgroTrade.Application.dll" to "bin\Debug\net10.0\..."
+> The process cannot access the file because it is being used by another process.
+> ```
+>
+> These are file-copy errors, not compile errors. Stop the API (Ctrl+C, or
+> `Stop-Process -Name AgroTrade.Api -Force`) and rebuild. The frontend has no such
+> restriction — `npm run build` works fine while Vite is running.
+
 Integration tests (16 tests) spin up the API against a local `AgroTrade_Tests` database
 (`TestingWebAppFactory` migrates it automatically). Point `AGROTRADE_TEST_CONNECTION` at
 another SQL Server to run tests somewhere else (CI does this).
