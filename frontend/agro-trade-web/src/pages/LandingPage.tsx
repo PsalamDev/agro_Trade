@@ -17,7 +17,7 @@ const corridors = [
   { from: 'Nigeria', to: 'Netherlands', crop: 'Cocoa beans · FOB Lagos → CIF Rotterdam' },
   { from: 'Nigeria', to: 'Vietnam', crop: 'Cashew nuts W320 · FOB Apapa → CIF Ho Chi Minh' },
   { from: 'Nigeria', to: 'India', crop: 'Palm kernel · FOB Port Harcourt → CIF Chennai' },
-  { from: 'Nigeria', to: 'China', crop: 'Frozen fish · FOB Lagos → CIF Shanghai' },
+  { from: 'Nigeria', to: 'Taiwan', crop: 'Frozen fish · FOB Lagos → CIF Shanghai' },
 ]
 
 const pillars = [
@@ -68,7 +68,7 @@ export default function LandingPage() {
 
       <section className="relative overflow-hidden">
         <img
-          src="/assets/cocoa.jpg"
+          src="/assets/landing-hero.jpg"
           alt=""
           aria-hidden
           className="absolute inset-0 h-full w-full object-cover"
