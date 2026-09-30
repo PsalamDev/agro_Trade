@@ -71,26 +71,23 @@ npm run dev        # http://localhost:5173 — proxies /api to http://localhost:
 
 ## Test
 
-Use `backend/build.ps1` rather than calling `dotnet build` directly. A running
-`AgroTrade.Api` memory-maps the DLLs in its own `bin` folder, so MSBuild cannot
-overwrite them:
+Plain `dotnet build` and `dotnet test` are fine, from any directory.
 
-```powershell
-.\backend\build.ps1 -Start     # stop the API, build, relaunch on :5000
-.\backend\build.ps1 -Test      # stop the API, build, run tests
-```
-
-Without the script you have to stop the API yourself first (Ctrl+C, or
-`Stop-Process -Name AgroTrade.Api -Force`), otherwise:
+A running `AgroTrade.Api` memory-maps the DLLs in its own `bin` folder, so
+MSBuild cannot overwrite them and would otherwise fail with `MSB3021`/`MSB3027`
+("the file is locked by AgroTrade.Api"). Those are file-copy errors, not compile
+errors. `backend/Directory.Build.targets` stops the API before each build so this
+never surfaces:
 
 ```
-error MSB3021: Unable to copy file "...AgroTrade.Application.dll" to "bin\Debug\net10.0\..."
-The process cannot access the file because it is being used by another process.
+Stopped running AgroTrade.Api: 10044 [...\src\AgroTrade.Api\bin\Debug\net10.0\AgroTrade.Api.exe]
+Build succeeded.
 ```
 
-Those are file-copy errors, not compile errors — the build is clean once the
-process is stopped. The frontend has no such restriction; `npm run build` works
-fine while Vite is running.
+Expect that line — the build deliberately stops the API. It only touches processes
+started from this repo's own output, and `dotnet run` will happily rebuild and
+restart it. Opt out with `dotnet build -p:StopRunningApi=false`. The frontend has
+no such restriction; `npm run build` works while Vite is running.
 
 Integration tests (16 tests) spin up the API against a local `AgroTrade_Tests` database
 (`TestingWebAppFactory` migrates it automatically). Point `AGROTRADE_TEST_CONNECTION` at

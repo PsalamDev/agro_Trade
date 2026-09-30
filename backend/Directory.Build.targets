@@ -1,0 +1,34 @@
+<Project>
+
+  <!--
+    A running AgroTrade.Api memory-maps the managed DLLs in its own bin folder.
+    When MSBuild then tries to refresh those same files it fails with
+    MSB3021/MSB3027 ("The file is locked by AgroTrade.Api"). That reads like a
+    compile error but is only a failed file copy, and there is no MSBuild switch
+    that makes Copy tolerate a file the CLR holds open for the lifetime of the
+    process.
+
+    So stop the API as part of the build. Doing it here means a plain
+    `dotnet build` works from any directory - including from inside
+    src\AgroTrade.Api, which is where a developer will usually be - instead of
+    depending on someone remembering a helper script.
+
+    The target is a no-op when the API is not running, is skipped entirely on
+    non-Windows, and only ever stops processes started from this repository's own
+    output. Opt out with:
+
+        dotnet build -p:StopRunningApi=false
+  -->
+
+  <PropertyGroup>
+    <StopRunningApi Condition="'$(StopRunningApi)' == '' and '$(OS)' == 'Windows_NT'">true</StopRunningApi>
+  </PropertyGroup>
+
+  <Target Name="_StopRunningAgroTradeApi"
+          BeforeTargets="BeforeBuild"
+          Condition="'$(StopRunningApi)' == 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools/stop-api.ps1&quot;"
+          ContinueOnError="true" />
+  </Target>
+
+</Project>
