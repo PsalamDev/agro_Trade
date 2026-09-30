@@ -12,9 +12,15 @@
 // uploaded cover photo always wins over these.
 export const PRODUCT_IMAGE_MATCHES: ReadonlyArray<{ prefix: string; image: string }> = [
   { prefix: 'cocoa-beans', image: '/assets/cocoa.jpg' },
+  { prefix: 'cocoa-butter', image: '/assets/cocoa.jpg' },
+  { prefix: 'cocoa-powder', image: '/assets/cocoa.jpg' },
   { prefix: 'cashew-nuts', image: '/assets/cashew.jpg' },
+  { prefix: 'roasted-cashew', image: '/assets/cashew.jpg' },
   { prefix: 'palm-kernel', image: '/assets/palm-kernel.webp' },
+  { prefix: 'frozen', image: '/assets/fishery.svg' },
   { prefix: 'white-maize', image: '/assets/produce.svg' },
+  { prefix: 'yellow-maize', image: '/assets/produce.svg' },
+  { prefix: 'milled-rice', image: '/assets/produce.svg' },
   { prefix: 'arabica', image: '/assets/produce.svg' },
 ]
 

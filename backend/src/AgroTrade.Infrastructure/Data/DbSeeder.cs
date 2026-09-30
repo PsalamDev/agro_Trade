@@ -1,3 +1,4 @@
+using System.Text;
 using AgroTrade.Application.Common;
 using AgroTrade.Domain.Enums;
 using AgroTrade.Domain.Trade;
@@ -45,6 +46,7 @@ public sealed class DbSeeder(
         await SeedAdministratorAsync(ct);
         await SeedCategoriesAsync(ct);
         await SeedDemoCorridorsAsync(ct);
+        await SeedCompanyCatalogAsync(ct);
     }
 
     // ---- Administrator ----
@@ -166,7 +168,6 @@ public sealed class DbSeeder(
     private async Task SeedDemoCorridorsAsync(CancellationToken ct)
     {
         var cashewId = (await db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Slug == "cashew", ct))?.Id;
-        var maizeId = (await db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Slug == "maize", ct))?.Id;
         var cocoaId = (await db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Slug == "cocoa", ct))?.Id;
 
         const string password = "Demo@12345";
@@ -286,23 +287,6 @@ public sealed class DbSeeder(
             });
             db.Businesses.Add(uzuri);
             await db.SaveChangesAsync(ct);
-
-            if (maizeId is not null && cashewId is not null && company is not null)
-            {
-                await SeedProductAsync(company.Id, cashewId.Value, "Cashew Nuts W320", "0801", "KE", "Mombasa (MBA)",
-                    1800m, PriceUnit.PerTon, "USD", 120m, 5m, Incoterms.Fob, 14,
-                    ["T/T 50/50", "L/C at sight"],
-                    "Grade W320 | moisture 8% max | out-turn 50-52 lbs",
-                    ["50 kg jute bag", "1 MT jumbo bag"],
-                    ["Phytosanitary", "GlobalG.A.P.", "ISO 22000"], ct);
-
-                await SeedProductAsync(company.Id, maizeId.Value, "White Maize (Grade 1)", "1005", "KE", "Mombasa (MBA)",
-                    340m, PriceUnit.PerTon, "USD", 800m, 25m, Incoterms.Fob, 10,
-                    ["T/T advance", "L/C at sight"],
-                    "Grade 1 | moisture 13% max | test weight 72 kg/hl",
-                    ["50 kg PP bag"],
-                    ["Phytosanitary"], ct);
-            }
         }
 
         // ---- Exporter #2: WestGrain Co (Ghana) — verified ----
@@ -358,16 +342,6 @@ public sealed class DbSeeder(
             });
             db.Businesses.Add(westGrain);
             await db.SaveChangesAsync(ct);
-
-            if (cocoaId is not null && company is not null)
-            {
-                await SeedProductAsync(company.Id, cocoaId.Value, "Cocoa Beans (Fermented)", "1801", "GH", "Tema (TMA)",
-                    2450m, PriceUnit.PerTon, "USD", 60m, 10m, Incoterms.Fob, 12,
-                    ["L/C at sight", "T/T 50/50"],
-                    "Well fermented | moisture 7.5% max | bean count 95-100/100g",
-                    ["65 kg jute bag"],
-                    ["UTZ Certified", "Phytosanitary", "Fair Trade"], ct);
-            }
         }
 
         // ---- Importer: Delta Foods (Nigeria) + an open RFQ with a quotation ----
@@ -514,45 +488,269 @@ public sealed class DbSeeder(
         }
     }
 
-    private async Task SeedProductAsync(
-        Guid businessId, Guid categoryId, string name, string hsCode, string origin,
-        string port, decimal price, PriceUnit unit, string currency, decimal available,
-        decimal moq, Incoterms incoterms, int leadTimeDays,
-        List<string> paymentTerms, string qualitySpecs, List<string> packaging,
-        List<string> certifications, CancellationToken ct)
+    // ---- Company product catalogue ----
+
+    /// <summary>
+    /// The marketplace is single-supplier, so every listing belongs to the Company
+    /// business. This catalogue is the single source of truth for the demo range and is
+    /// applied on every startup: missing listings are <em>inserted</em>, existing ones are
+    /// only backfilled, never overwritten — so edits made through the UI survive a restart.
+    /// </summary>
+    private async Task SeedCompanyCatalogAsync(CancellationToken ct)
     {
-        if (await db.Products.AnyAsync(p => p.HsCode == hsCode && p.SellerBusinessId == businessId, ct))
+        var company = await db.Businesses.FirstOrDefaultAsync(
+            b => b.TradingName == "Achievers Global Consult", ct);
+        if (company is null)
         {
+            logger.LogInformation("Company business missing — skipping catalogue seed.");
             return;
         }
 
-        db.Products.Add(new Product
-        {
-            SellerBusinessId = businessId,
-            CategoryId = categoryId,
-            Name = name,
-            Slug = Slugify(name) + $"-{Guid.NewGuid():N}"[..8],
-            HsCode = hsCode,
-            OriginCountry = origin,
-            PortOfLoading = port,
-            Price = price,
-            PriceUnit = unit,
-            Currency = currency,
-            AvailableQuantity = available,
-            MinimumOrderQuantity = moq,
-            Incoterms = incoterms,
-            LeadTimeDays = leadTimeDays,
-            PaymentTermsOffered = JsonLists.ToJsonList(paymentTerms),
-            QualitySpecs = JsonLists.ToJsonDict(new Dictionary<string, string> { ["grade"] = qualitySpecs }),
-            PackagingOptions = JsonLists.ToJsonList(packaging),
-            Certifications = JsonLists.ToJsonList(certifications),
-            ListingStatus = ListingStatus.Active,
-            VerificationStatus = VerificationStatus.Verified,
-        });
+        var categoryIds = await db.Categories
+            .Where(c => c.ParentId != null)
+            .AsNoTracking()
+            .ToDictionaryAsync(c => c.Slug, c => c.Id, ct);
 
-        await db.SaveChangesAsync(ct);
+        // Keyed on name rather than HS code: several grades legitimately share one HS
+        // heading (e.g. W180 and W320 cashew are both 0801).
+        var existing = await db.Products
+            .Where(p => p.SellerBusinessId == company.Id)
+            .ToDictionaryAsync(p => p.Name, StringComparer.OrdinalIgnoreCase, ct);
+
+        var added = 0;
+
+        foreach (var item in CompanyCatalog)
+        {
+            if (!categoryIds.TryGetValue(item.CategorySlug, out var categoryId))
+            {
+                logger.LogWarning("Catalogue item '{Name}' skipped — unknown category '{Slug}'.",
+                    item.Name, item.CategorySlug);
+                continue;
+            }
+
+            if (!existing.TryGetValue(item.Name, out var product))
+            {
+                db.Products.Add(new Product
+                {
+                    SellerBusinessId = company.Id,
+                    CategoryId = categoryId,
+                    Name = item.Name,
+                    Slug = Slugify(item.Name) + $"-{Guid.NewGuid():N}"[..8],
+                    Description = item.Description,
+                    HsCode = item.HsCode,
+                    OriginCountry = item.Origin,
+                    PortOfLoading = item.Port,
+                    Price = item.Price,
+                    PriceUnit = PriceUnit.PerTon,
+                    Currency = "USD",
+                    AvailableQuantity = item.Available,
+                    MinimumOrderQuantity = item.Moq,
+                    Incoterms = item.Incoterm,
+                    LeadTimeDays = item.LeadTimeDays,
+                    PaymentTermsOffered = JsonLists.ToJsonList(item.PaymentTerms),
+                    QualitySpecs = JsonLists.ToJsonDict(new Dictionary<string, string>(item.Specs)),
+                    PackagingOptions = JsonLists.ToJsonList(item.Packaging),
+                    Certifications = JsonLists.ToJsonList(item.Certifications),
+                    ListingStatus = ListingStatus.Active,
+                    VerificationStatus = VerificationStatus.Verified,
+                });
+                added++;
+                continue;
+            }
+
+            // Backfill only. Pre-pivot seeds had no description and stored every spec in a
+            // single "grade" key, which rendered as one long row on the detail page.
+            if (string.IsNullOrWhiteSpace(product.Description))
+            {
+                product.Description = item.Description;
+            }
+
+            var legacySpecs = JsonLists.FromJsonDict(product.QualitySpecs);
+            if (legacySpecs.Count == 1 && legacySpecs.ContainsKey("grade"))
+            {
+                product.QualitySpecs = JsonLists.ToJsonDict(new Dictionary<string, string>(item.Specs));
+            }
+        }
+
+        if (added > 0)
+        {
+            await db.SaveChangesAsync(ct);
+        }
+
+        logger.LogInformation("Company catalogue applied — {Added} new listing(s), {Total} in catalogue.",
+            added, CompanyCatalog.Count);
     }
 
-    private static string Slugify(string value) =>
-        string.Concat(value.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-'));
+    /// <summary>One row of the demo range. Prices are indicative USD per metric ton.</summary>
+    private sealed record CatalogItem(
+        string Name,
+        string CategorySlug,
+        string HsCode,
+        string Origin,
+        string Port,
+        decimal Price,
+        decimal Available,
+        decimal Moq,
+        Incoterms Incoterm,
+        int LeadTimeDays,
+        string Description,
+        Dictionary<string, string> Specs,
+        List<string> PaymentTerms,
+        List<string> Packaging,
+        List<string> Certifications);
+
+    private static readonly IReadOnlyList<CatalogItem> CompanyCatalog =
+    [
+        // ---- Cocoa: Ghana -> Europe ----
+        new("Cocoa Beans (Fermented)", "cocoa", "1801", "GH", "Tema (TMA)",
+            2450m, 60m, 10m, Incoterms.Fob, 12,
+            "Sun-dried and well-fermented cocoa beans from Ashanti and Western North farmer cooperatives. "
+            + "Cut-test and moisture verified before vessel loading, with full traceability to the harvest window.",
+            new() { ["Grade"] = "Well fermented, 80% minimum", ["Moisture"] = "7.5% max", ["Bean count"] = "95-100 per 100 g", ["Total defects"] = "Below 5%", ["Crop year"] = "2025/26 main crop" },
+            ["L/C at sight", "T/T 50/50"],
+            ["65 kg jute bag", "250 kg bulk bag"],
+            ["UTZ Certified", "Phytosanitary", "Fair Trade"]),
+
+        new("Cocoa Butter Block 10 kg", "cocoa", "1804", "GH", "Tema (TMA)",
+            4350m, 40m, 5m, Incoterms.Cif, 21,
+            "Deodorised cocoa butter pressed from the current season's bean intake, moulded in 10 kg blocks "
+            + "and foil-wrapped for industrial chocolate and cosmetics lines.",
+            new() { ["Cocoa butter fat"] = "49-52%", ["Free fatty acid"] = "1.75% max", ["Moisture"] = "1% max", ["Block weight"] = "10 kg", ["Shelf life"] = "18 months" },
+            ["L/C at sight", "T/T 30/70"],
+            ["10 kg aluminium block, shrink-wrapped", "20 kg carton, 2 blocks"],
+            ["Food-grade certificate", "Halal"]),
+
+        new("Cocoa Powder (Alkalised)", "cocoa", "1801.32", "GH", "Tema (TMA)",
+            3980m, 35m, 5m, Incoterms.Cif, 18,
+            "Fully alkalised cocoa powder sieved to 200 mesh for bakeries and beverage manufacturers. "
+            + "Bulk and retail-packed quantities available from the Tema bonded warehouse.",
+            new() { ["Alkalisation"] = "Dutch process, pH 7.2-7.5", ["Fat content"] = "10-12%", ["Moisture"] = "3.5% max", ["Fineness"] = "200 mesh", ["Colour"] = "Brown to dark brown" },
+            ["L/C at sight", "T/T 30/70"],
+            ["25 kg kraft bag", "1 MT jumbo bag"],
+            ["Food-grade certificate", "ISO 22000"]),
+
+        // ---- Cashew: East Africa + Vietnam ----
+        new("Cashew Nuts W320", "cashew", "0801", "KE", "Mombasa (MBA)",
+            1800m, 120m, 5m, Incoterms.Fob, 14,
+            "Raw cashew kernels graded W320 from Coast and Rift Valley lots, hand-sorted and moisture-controlled "
+            + "for processors. The standard benchmark grade for our cashew corridor.",
+            new() { ["Grade"] = "W320", ["Moisture"] = "8% max", ["Out-turn"] = "50-52 lbs per 50 kg", ["Colour"] = "Pale cream", ["Total defects"] = "Under 3%" },
+            ["T/T 50/50", "L/C at sight"],
+            ["50 kg jute bag", "1 MT jumbo bag"],
+            ["Phytosanitary", "GlobalG.A.P.", "ISO 22000"]),
+
+        new("Cashew Nuts W180", "cashew", "0801", "GH", "Tema (TMA)",
+            2050m, 90m, 5m, Incoterms.Fob, 12,
+            "Premium whole cashew kernels, grade W180 — the largest count per pound, packed for snack and "
+            + "gift-grade roasters. Full moisture and aflatoxin screening included.",
+            new() { ["Grade"] = "W180", ["Moisture"] = "8% max", ["Count"] = "170-180 per lb", ["Colour"] = "Uniform pale cream", ["Aflatoxin"] = "Below 4 ppb" },
+            ["T/T 50/50", "L/C at sight"],
+            ["25 kg vacuum bag", "1 MT jumbo bag"],
+            ["Phytosanitary", "ISO 22000"]),
+
+        new("Roasted Cashew Kernels W240", "cashew", "0801.91", "VN", "Ho Chi Minh (SGN)",
+            3450m, 25m, 2m, Incoterms.Cif, 18,
+            "Salt-roasted, ready-to-eat cashew kernels in retail and catering packs, produced on our Vietnam "
+            + "packing line. Shelf-stable, with nitrogen-flushed options for export.",
+            new() { ["Grade"] = "W240 roasted", ["Roast"] = "180°C, low smoke", ["Salting"] = "1.2% sea salt", ["Moisture"] = "2.5% max", ["Shelf life"] = "12 months" },
+            ["T/T 30/70", "L/C at sight"],
+            ["250 g retail pouch", "5 kg catering pack"],
+            ["Halal", "Food-grade certificate"]),
+
+        // ---- Palm kernel: Nigeria ----
+        new("Palm Kernel", "palm-kernels", "0803", "NG", "Port Harcourt (PHC)",
+            620m, 200m, 25m, Incoterms.Fob, 8,
+            "Kernel-grade palm nuts recovered at our Port Harcourt crushing plant, dried and sieved for "
+            + "oleochemical and feed clients. Shipment-ready within a week of order confirmation.",
+            new() { ["Moisture"] = "8% max", ["Free fatty acid"] = "Below 5%", ["Oil content"] = "48-50%", ["Impurities"] = "1.5% max", ["Screening"] = "Sieved 8-12 mm" },
+            ["T/T advance", "L/C at sight"],
+            ["50 kg PP bag", "1 MT jumbo bag"],
+            ["Phytosanitary", "GlobalG.A.P."]),
+
+        new("Palm Kernel Cake (PKC)", "palm-kernels", "2304", "NG", "Port Harcourt (PHC)",
+            185m, 300m, 25m, Incoterms.Fob, 8,
+            "Press cake left after kernel oil extraction, pelletised for aquaculture and livestock feed. "
+            + "Consistent protein content, with every lot tested at the mill.",
+            new() { ["Crude protein"] = "15-18%", ["Moisture"] = "8% max", ["Crude fibre"] = "Below 18%", ["Pellet diameter"] = "6 mm", ["Aflatoxin"] = "Below 20 ppb" },
+            ["T/T advance", "L/C at sight"],
+            ["40 kg PP bag", "1 MT bulk bag"],
+            ["Phytosanitary", "Feed-mill acceptance test"]),
+
+        // ---- Fishery: Nigeria + Ghana -> Asia ----
+        new("Frozen Atlantic Mackerel (HLSO)", "frozen-fish", "0303", "NG", "Lagos (LOS)",
+            1450m, 150m, 25m, Incoterms.Cif, 16,
+            "Frozen whole mackerel, headless and gutted, block-frozen on board within hours of landing. "
+            + "Twelve-month shelf life at -18°C for Asian and Middle Eastern retail chains.",
+            new() { ["Species"] = "Scomber scombrus", ["Size"] = "300-500 g per piece", ["Freezing"] = "Block frozen at sea", ["Glass ice"] = "65-70%", ["Shelf life"] = "12 months at -18°C" },
+            ["L/C at sight", "T/T 50/50"],
+            ["20 kg carton block", "40ft reefer container"],
+            ["Health certificate", "MSC chain of custody"]),
+
+        new("Frozen Shrimp HLSO 16/20", "frozen-fish", "0306", "GH", "Tema (TMA)",
+            5200m, 45m, 5m, Incoterms.Cif, 24,
+            "Headless shell-on shrimp, block-frozen at 16/20 count per pound for foodservice and retail. "
+            + "Individually quick-frozen and plate-graded for consistent piece weight.",
+            new() { ["Count"] = "16/20 per lb", ["Species"] = "Litopenaeus setiferus", ["Freezing"] = "IQF on plate", ["Glazing"] = "10% max", ["Pack"] = "10 kg master carton" },
+            ["L/C at sight", "T/T 30/70"],
+            ["10 kg master carton", "20ft reefer container"],
+            ["Health certificate", "HACCP", "Halal"]),
+
+        // ---- Grains: East Africa + Nigeria ----
+        new("White Maize (Grade 1)", "maize", "1005", "KE", "Mombasa (MBA)",
+            340m, 800m, 25m, Incoterms.Fob, 10,
+            "Dry white maize from Rift Valley cooperatives, cleaned and graded for milling and feed use. "
+            + "Moisture and aflatoxin tested per lot before bagging.",
+            new() { ["Grade"] = "Grade 1", ["Moisture"] = "13% max", ["Test weight"] = "72 kg/hl", ["Foreign matter"] = "Below 2%", ["Aflatoxin"] = "Below 5 ppb" },
+            ["T/T advance", "L/C at sight"],
+            ["50 kg PP bag", "1 MT jumbo bag"],
+            ["Phytosanitary"]),
+
+        new("Yellow Maize (Grade 2)", "maize", "1005", "NG", "Lagos (LOS)",
+            295m, 600m, 25m, Incoterms.Fob, 9,
+            "Yellow maize from our own Kano aggregation, suitable for feed mills and starch processing. "
+            + "Dried to a stable moisture so it holds through the shipping season.",
+            new() { ["Grade"] = "Grade 2", ["Moisture"] = "13.5% max", ["Test weight"] = "68 kg/hl", ["Foreign matter"] = "Below 3%", ["Storage"] = "Aerated flat store" },
+            ["T/T advance", "T/T 50/50"],
+            ["50 kg PP bag", "Bulk vessel option"],
+            ["Phytosanitary"]),
+
+        new("Milled Rice 5% Broken", "rice", "1004", "NG", "Lagos (LOS)",
+            620m, 450m, 25m, Incoterms.Cif, 15,
+            "Parboiled milled rice polished to 5% broken, packed at our Lagos mill for West African "
+            + "distribution. Consistent grain length across the season.",
+            new() { ["Broken"] = "5% max", ["Grain length"] = "6.2 mm average", ["Moisture"] = "13% max", ["Parboiled"] = "Yes", ["Packing"] = "50 kg woven PP bag" },
+            ["L/C at sight", "T/T 50/50"],
+            ["50 kg woven PP bag", "1 MT jumbo bag"],
+            ["NAFDAC", "Phytosanitary"]),
+    ];
+
+    /// <summary>
+    /// Lowercase, hyphen-separated, collapsing runs of separators so "White Maize
+    /// (Grade 1)" becomes "white-maize-grade-1" rather than "white-maize--grade-1--".
+    /// </summary>
+    private static string Slugify(string value)
+    {
+        var slug = new StringBuilder(value.Length);
+        var pendingSeparator = false;
+
+        foreach (var c in value.ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(c))
+            {
+                if (pendingSeparator && slug.Length > 0)
+                {
+                    slug.Append('-');
+                }
+
+                slug.Append(c);
+                pendingSeparator = false;
+            }
+            else
+            {
+                pendingSeparator = true;
+            }
+        }
+
+        return slug.ToString();
+    }
 }
