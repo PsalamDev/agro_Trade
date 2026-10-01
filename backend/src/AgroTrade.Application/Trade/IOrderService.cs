@@ -4,10 +4,9 @@ using AgroTrade.Domain.Enums;
 namespace AgroTrade.Application.Trade;
 
 /// <summary>
-/// Trade execution, task 2.1: orders created from an accepted quotation (lossless) or by
-/// manual entry, with buyer/seller order lists and detail reads (plan §03 — Orders).
-/// Lifecycle transitions beyond Placed, inventory reservation, documents, payments and
-/// shipments are tasks 2.2-2.6.
+/// Trade execution: orders created from an accepted quotation (lossless) or by manual entry,
+/// buyer/seller order lists, detail reads, and the order lifecycle with stock reservation
+/// (plan §03 — Orders).
 /// </summary>
 public interface IOrderService
 {
@@ -21,4 +20,7 @@ public interface IOrderService
     Task<PagedResult<OrderCardDto>> GetSellingAsync(Guid userId, OrderListQuery query, CancellationToken ct = default);
 
     Task<OrderDetailDto> GetAsync(Guid id, Guid userId, CancellationToken ct = default);
+
+    // ---- Lifecycle (task 2.2) ----
+    Task<OrderDetailDto> TransitionAsync(Guid id, Guid userId, OrderTransitionRequest request, CancellationToken ct = default);
 }

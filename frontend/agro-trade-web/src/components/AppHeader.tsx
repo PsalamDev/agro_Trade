@@ -12,6 +12,7 @@ import {
   LogOutIcon,
   MenuIcon,
   MessageIcon,
+  PackageIcon,
   SearchIcon,
   ShieldCheckIcon,
 } from './icons'
@@ -43,6 +44,7 @@ export function AppHeader() {
   const tradingLinks = [
     { to: '/rfqs', label: 'Find RFQs', icon: <SearchIcon className="h-4 w-4" />, show: true },
     { to: '/my/rfqs', label: 'My RFQs', icon: <FileTextIcon className="h-4 w-4" />, show: true },
+    { to: '/dashboard/orders', label: 'Orders', icon: <PackageIcon className="h-4 w-4" />, show: true },
     { to: '/messages', label: 'Messages', icon: <MessageIcon className="h-4 w-4" />, show: true },
     { to: '/my/products', label: 'My listings', icon: <GridIcon className="h-4 w-4" />, show: isCompany },
     { to: '/business', label: 'Business', icon: <BuildingIcon className="h-4 w-4" />, show: true },

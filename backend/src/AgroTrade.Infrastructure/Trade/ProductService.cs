@@ -15,7 +15,8 @@ namespace AgroTrade.Infrastructure.Trade;
 /// </summary>
 public sealed partial class ProductService(
     AgroTradeDbContext db,
-    IFileStorage fileStorage) : IProductService
+    IFileStorage fileStorage,
+    IInventoryService inventory) : IProductService
 {
     public async Task<PagedResult<ProductCardDto>> SearchAsync(ProductSearchQuery query, CancellationToken ct = default)
     {
@@ -157,7 +158,19 @@ public sealed partial class ProductService(
         };
 
         db.Products.Add(product);
+
+        // Seed the stock row from the level declared at creation so the listing is orderable
+        // straight away. Both rows go in together; Product.AvailableQuantity is the mirror of
+        // Inventory.Available, never the source of truth.
+        db.Inventories.Add(new Inventory
+        {
+            ProductId = product.Id,
+            QuantityOnHand = request.AvailableQuantity,
+            QuantityReserved = 0,
+        });
+
         await db.SaveChangesAsync(ct);
+
         var created = await FindProductAsync(product.Id.ToString(), includeSeller: true, ct);
         return await ToDetailAsync(created!, ct);
     }
@@ -184,7 +197,6 @@ public sealed partial class ProductService(
         if (request.Price is not null) product.Price = request.Price.Value;
         if (request.PriceUnit is not null) product.PriceUnit = (PriceUnit)request.PriceUnit.Value;
         if (request.Currency is not null) product.Currency = request.Currency.ToUpperInvariant();
-        if (request.AvailableQuantity is not null) product.AvailableQuantity = request.AvailableQuantity.Value;
         if (request.MinimumOrderQuantity is not null) product.MinimumOrderQuantity = request.MinimumOrderQuantity.Value;
         if (request.Incoterms is not null) product.Incoterms = (Incoterms)request.Incoterms.Value;
         if (request.LeadTimeDays is not null) product.LeadTimeDays = request.LeadTimeDays.Value;
@@ -207,6 +219,19 @@ public sealed partial class ProductService(
                 product.VerificationStatus = VerificationStatus.Verified;
             }
             product.ListingStatus = target;
+        }
+
+        if (request.AvailableQuantity is not null)
+        {
+            // The edit form's stock field is a seller-declared level, not a live availability
+            // figure, so it goes through the inventory service: that clamps reservations
+            // already held by live orders and re-derives the listing's availability from it.
+            // It also flushes the field edits above, so the save below is a no-op.
+            await inventory.SetStockAsync(
+                product.Id,
+                ownerUserId,
+                new SetStockRequest { QuantityOnHand = request.AvailableQuantity.Value },
+                ct);
         }
 
         await db.SaveChangesAsync(ct);

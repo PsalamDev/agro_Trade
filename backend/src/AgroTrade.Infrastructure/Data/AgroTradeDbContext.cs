@@ -33,6 +33,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+    public DbSet<Inventory> Inventories => Set<Inventory>();
 
     // Trade requests
     public DbSet<TradeRequest> TradeRequests => Set<TradeRequest>();
@@ -305,6 +306,21 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
                 .WithMany()
                 .HasForeignKey(o => o.DestinationAddressId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Inventory>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.QuantityOnHand).HasPrecision(18, 2);
+            e.Property(i => i.QuantityReserved).HasPrecision(18, 2);
+            e.Property(i => i.RowVersion).IsRowVersion();
+            // One stock row per listing; the unique ProductId is what makes the
+            // reserve-on-order path safe to reason about.
+            e.HasIndex(i => i.ProductId).IsUnique();
+            e.HasOne(i => i.Product)
+                .WithOne(p => p.Inventory)
+                .HasForeignKey<Inventory>(i => i.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<OrderItem>(e =>

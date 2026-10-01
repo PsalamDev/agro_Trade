@@ -204,6 +204,23 @@ public sealed class CreateManualOrderRequestValidator : AbstractValidator<Create
     }
 }
 
+public sealed class OrderTransitionRequestValidator : AbstractValidator<OrderTransitionRequest>
+{
+    public OrderTransitionRequestValidator()
+    {
+        RuleFor(x => x.To).Must(status => EnumChecks.In<OrderStatus>((int)status));
+        RuleFor(x => x.Reason).MaximumLength(500);
+    }
+}
+
+public sealed class SetStockRequestValidator : AbstractValidator<SetStockRequest>
+{
+    public SetStockRequestValidator()
+    {
+        RuleFor(x => x.QuantityOnHand).GreaterThanOrEqualTo(0);
+    }
+}
+
 public sealed class SendMessageRequestValidator : AbstractValidator<SendMessageRequest>
 {
     public SendMessageRequestValidator()

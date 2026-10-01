@@ -446,6 +446,42 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.ToTable("Categories");
                 });
 
+            modelBuilder.Entity("AgroTrade.Domain.Trade.Inventory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("QuantityOnHand")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("QuantityReserved")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId")
+                        .IsUnique();
+
+                    b.ToTable("Inventories");
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Trade.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1418,6 +1454,17 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AgroTrade.Domain.Trade.Inventory", b =>
+                {
+                    b.HasOne("AgroTrade.Domain.Trade.Product", "Product")
+                        .WithOne("Inventory")
+                        .HasForeignKey("AgroTrade.Domain.Trade.Inventory", "ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Trade.Order", b =>
                 {
                     b.HasOne("AgroTrade.Infrastructure.Identity.ApplicationUser", null)
@@ -1647,6 +1694,8 @@ namespace AgroTrade.Infrastructure.Data.Migrations
             modelBuilder.Entity("AgroTrade.Domain.Trade.Product", b =>
                 {
                     b.Navigation("Images");
+
+                    b.Navigation("Inventory");
                 });
 
             modelBuilder.Entity("AgroTrade.Domain.Trade.TradeRequest", b =>

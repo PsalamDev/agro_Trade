@@ -77,6 +77,7 @@ public static class DependencyInjection
 
         // Trade execution (Phase 2)
         services.AddScoped<IOrderService, OrderService>();
+        services.AddScoped<IInventoryService, InventoryService>();
 
         return services;
     }

@@ -15,7 +15,7 @@ namespace AgroTrade.Infrastructure.Trade;
 /// than referenced, so later edits to the RFQ or quotation cannot rewrite what was agreed
 /// (plan §02 — Orders).
 /// </summary>
-public sealed class OrderService(AgroTradeDbContext db) : IOrderService
+public sealed class OrderService(AgroTradeDbContext db, IInventoryService inventory) : IOrderService
 {
     public async Task<OrderDetailDto> CreateFromQuotationAsync(
         Guid buyerUserId,
@@ -112,7 +112,7 @@ public sealed class OrderService(AgroTradeDbContext db) : IOrderService
             link: $"/dashboard/orders/{order.Id}",
             ct);
 
-        await db.SaveChangesAsync(ct);
+        await SaveAsync(ct);
         return await ToDetailAsync(order, buyerUserId, ct);
     }
 
@@ -202,7 +202,13 @@ public sealed class OrderService(AgroTradeDbContext db) : IOrderService
             link: $"/dashboard/orders/{order.Id}",
             ct);
 
-        await db.SaveChangesAsync(ct);
+        // Manual orders are placed on creation, so hold the stock now. Reservation is computed
+        // from the in-memory lines and lands in the same SaveChanges as the order itself — if
+        // stock is short the whole thing fails together and nothing is left behind.
+        await inventory.ReserveAsync(
+            inventory.QuantitiesFor(order.Items.Select(i => (i.ProductId, i.Quantity))), ct);
+
+        await SaveAsync(ct);
         return await ToDetailAsync(order, buyerUserId, ct);
     }
 
@@ -266,7 +272,163 @@ public sealed class OrderService(AgroTradeDbContext db) : IOrderService
         return Map(order, isBuyer);
     }
 
+    public async Task<OrderDetailDto> TransitionAsync(
+        Guid id, Guid userId, OrderTransitionRequest request, CancellationToken ct = default)
+    {
+        var order = await db.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == id, ct)
+            ?? throw ApiException.NotFound("ORDER_NOT_FOUND", "Order not found.");
+
+        var party = await PartyAsync(order, userId, ct);
+
+        if (party == OrderParty.Outsider)
+        {
+            // Same 404 as a missing order: a non-party should not learn the order exists.
+            throw ApiException.NotFound("ORDER_NOT_FOUND", "Order not found.");
+        }
+
+        var from = order.Status;
+        var to = request.To;
+
+        if (OrderLifecycle.IsTerminal(from))
+        {
+            throw ApiException.Conflict(
+                "ORDER_FINAL_STATE",
+                $"Order {order.OrderNumber} is {from} and can no longer change.");
+        }
+
+        if (!OrderLifecycle.IsLegal(from, to))
+        {
+            throw ApiException.Conflict(
+                "ORDER_ILLEGAL_TRANSITION",
+                $"An order cannot go from {from} to {to}. From {from} it may go to: {OrderLifecycle.NextOptions(from)}.");
+        }
+
+        if (!OrderLifecycle.CanPerform(from, to, party))
+        {
+            throw ApiException.Forbidden(
+                "ORDER_TRANSITION_NOT_YOURS",
+                $"The {RequiredParty(to).ToString().ToLowerInvariant()} moves an order to {to}, not the {party.ToString().ToLowerInvariant()}.");
+        }
+
+        var wanted = inventory.QuantitiesFor(order.Items.Select(i => (i.ProductId, i.Quantity)));
+
+        // Stock moves with the order: held at placement, consumed on confirmation, released
+        // on cancellation. Consignment orders (raised from a quotation) hold nothing, so the
+        // reservation is empty and these calls are no-ops.
+        if (to == OrderStatus.Placed)
+        {
+            await inventory.ReserveAsync(wanted, ct);
+        }
+        else if (OrderLifecycle.CommitsStock(to))
+        {
+            await inventory.CommitAsync(wanted, ct);
+        }
+        else if (to == OrderStatus.Cancelled)
+        {
+            await inventory.ReleaseAsync(wanted, ct);
+        }
+
+        order.Status = to;
+
+        if (to == OrderStatus.Completed)
+        {
+            order.CompletedAtUtc = DateTime.UtcNow;
+        }
+
+        if (to == OrderStatus.Cancelled)
+        {
+            order.Notes = AppendLine(order.Notes, $"Cancelled: {request.Reason?.Trim() ?? "no reason given"}");
+        }
+
+        await NotifyCounterpartyAsync(
+            order,
+            party,
+            NotificationType.Order,
+            $"Order {order.OrderNumber} is now {to}",
+            TransitionNarrative(from, to),
+            ct);
+
+        await SaveAsync(ct);
+        return await ToDetailAsync(order, userId, ct);
+    }
+
     // ---- Helpers ----
+
+    /// <summary>Which side of the trade the caller is on, for authorisation decisions.</summary>
+    private async Task<OrderParty> PartyAsync(Order order, Guid userId, CancellationToken ct)
+    {
+        if (order.BuyerUserId == userId)
+        {
+            return OrderParty.Buyer;
+        }
+
+        return await db.Businesses
+            .AsNoTracking()
+            .AnyAsync(b => b.Id == order.SellerBusinessId && b.OwnerUserId == userId, ct)
+            ? OrderParty.Seller
+            : OrderParty.Outsider;
+    }
+
+    /// <summary>Party the lifecycle rules require for a given target state, for error messages.</summary>
+    private static OrderParty RequiredParty(OrderStatus to) => to switch
+    {
+        OrderStatus.Placed or OrderStatus.Completed => OrderParty.Buyer,
+        _ => OrderParty.Seller,
+    };
+
+    private static string TransitionNarrative(OrderStatus from, OrderStatus to) => (from, to) switch
+    {
+        (OrderStatus.Placed, OrderStatus.Confirmed) => "The seller confirmed the order and reserved stock for dispatch.",
+        (OrderStatus.Confirmed, OrderStatus.InTransit) => "The consignment has been dispatched.",
+        (OrderStatus.InTransit, OrderStatus.Delivered) => "The consignment has been delivered.",
+        (OrderStatus.Delivered, OrderStatus.Completed) => "The buyer confirmed receipt. The order is complete.",
+        (_, OrderStatus.Cancelled) => "The order was cancelled.",
+        (_, OrderStatus.Placed) => "The buyer placed the order.",
+        _ => $"The order moved from {from} to {to}.",
+    };
+
+    /// <summary>Appends to a note without discarding what is already there.</summary>
+    private static string? AppendLine(string? existing, string line)
+    {
+        var trimmed = existing?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? line : $"{trimmed}\n{line}";
+    }
+
+    /// <summary>Tells the other side of the trade, not the caller who made the change.</summary>
+    private async Task NotifyCounterpartyAsync(
+        Order order,
+        OrderParty actor,
+        NotificationType type,
+        string title,
+        string body,
+        CancellationToken ct)
+    {
+        var recipient = actor == OrderParty.Buyer
+            ? await SellerOwnerUserIdAsync(order.SellerBusinessId, ct)
+            : order.BuyerUserId;
+
+        await NotifyAsync(recipient, type, title, body, $"/dashboard/orders/{order.Id}", ct);
+    }
+
+    /// <summary>
+    /// Saves, translating a lost rowversion race into a clean 409. Two parties acting on the
+    /// same order at once must not surface as a 500.
+    /// </summary>
+    private async Task SaveAsync(CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw ApiException.Conflict(
+                "ORDER_CHANGED",
+                "This order was updated by someone else at the same time. Reload it and try again.");
+        }
+    }
 
     private IQueryable<Order> OrdersWithDetail() =>
         db.Orders

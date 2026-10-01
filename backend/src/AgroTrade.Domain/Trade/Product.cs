@@ -26,6 +26,11 @@ public sealed class Product : IAuditableEntity
     public PriceUnit PriceUnit { get; set; }
     /// <summary>ISO-4217.</summary>
     public string Currency { get; set; } = "USD";
+    /// <summary>
+    /// Bookable stock, denormalised from <see cref="Inventory"/> as OnHand - Reserved so the
+    /// marketplace can show live availability without a join. Written only by
+    /// <c>InventoryService</c>; seller edits route through it too.
+    /// </summary>
     public decimal AvailableQuantity { get; set; }
     /// <summary>Minimum order quantity (bulk trade).</summary>
     public decimal MinimumOrderQuantity { get; set; }
@@ -48,4 +53,10 @@ public sealed class Product : IAuditableEntity
 
     public Business? SellerBusiness { get; set; }
     public List<ProductImage> Images { get; set; } = [];
+
+    /// <summary>
+    /// Per-listing stock. Null until seeded or backfilled — the marketplace treats a null
+    /// Inventory as zero available rather than guessing.
+    /// </summary>
+    public Inventory? Inventory { get; set; }
 }

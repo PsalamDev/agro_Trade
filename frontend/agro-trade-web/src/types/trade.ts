@@ -77,6 +77,67 @@ export const DOCUMENT_TYPE = {
   Other: 99,
 } as const
 
+// ---- Orders (task 2.1 + 2.2; plan §02 — Orders) ----
+
+export const ORDER_STATUSES = ['Draft', 'Placed', 'Confirmed', 'In transit', 'Delivered', 'Completed', 'Cancelled'] as const
+export const ORDER_STATUS = {
+  Draft: 0,
+  Placed: 1,
+  Confirmed: 2,
+  InTransit: 3,
+  Delivered: 4,
+  Completed: 5,
+  Cancelled: 6,
+} as const
+
+export type OrderStatusValue = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS]
+
+export const PAYMENT_STATUSES = ['No payment due', 'Payment pending', 'Part paid', 'Paid', 'Refunded', 'Payment failed'] as const
+export const PAYMENT_STATUS = {
+  None: 0,
+  Pending: 1,
+  PartiallyPaid: 2,
+  Paid: 3,
+  Refunded: 4,
+  Failed: 5,
+} as const
+
+/** Which side of an order the signed-in user is. */
+export type OrderParty = 'buyer' | 'seller' | 'outsider'
+
+/**
+ * Client mirror of the server's OrderLifecycle rules. The server is authoritative — it
+ * re-checks every transition and answers 409/403 if this table drifts — but the UI has to
+ * know which buttons to render, so the rules are mirrored here rather than inferred.
+ *
+ * Cancel is offered to either party and only before the goods are in transit: once a
+ * consignment has sailed, unwinding it is a dispute rather than a status change.
+ */
+const ORDER_ACTIONS: Record<number, ReadonlyArray<{ to: OrderStatusValue; parties: readonly OrderParty[]; label: string; destructive?: boolean }>> = {
+  [ORDER_STATUS.Draft]: [
+    { to: ORDER_STATUS.Placed, parties: ['buyer'], label: 'Place order' },
+    { to: ORDER_STATUS.Cancelled, parties: ['buyer', 'seller'], label: 'Cancel order', destructive: true },
+  ],
+  [ORDER_STATUS.Placed]: [
+    { to: ORDER_STATUS.Confirmed, parties: ['seller'], label: 'Confirm order' },
+    { to: ORDER_STATUS.Cancelled, parties: ['buyer', 'seller'], label: 'Cancel order', destructive: true },
+  ],
+  [ORDER_STATUS.Confirmed]: [
+    { to: ORDER_STATUS.InTransit, parties: ['seller'], label: 'Mark as dispatched' },
+    { to: ORDER_STATUS.Cancelled, parties: ['buyer', 'seller'], label: 'Cancel order', destructive: true },
+  ],
+  [ORDER_STATUS.InTransit]: [{ to: ORDER_STATUS.Delivered, parties: ['seller'], label: 'Mark as delivered' }],
+  [ORDER_STATUS.Delivered]: [{ to: ORDER_STATUS.Completed, parties: ['buyer'], label: 'Confirm receipt' }],
+  [ORDER_STATUS.Completed]: [],
+  [ORDER_STATUS.Cancelled]: [],
+}
+
+/** Transitions the given party may drive from the current status. */
+export function orderActions(status: number, party: OrderParty): ReadonlyArray<{ to: OrderStatusValue; label: string; destructive?: boolean }> {
+  if (party === 'outsider') return []
+  return (ORDER_ACTIONS[status] ?? []).filter((a) => a.parties.includes(party))
+}
+
 export function labelOf(list: readonly string[], value: number): string {
   return list[value] ?? `Unknown (${value})`
 }
@@ -434,4 +495,86 @@ export interface NotificationDto {
   link: string | null
   isRead: boolean
   createdAtUtc: string
+}
+
+// ---- Orders ----
+
+export interface OrderItemDto {
+  id: string
+  /** Null for lines raised from a quotation: a consignment, not a catalog listing. */
+  productId: string | null
+  productNameSnapshot: string
+  productSkuSnapshot: string | null
+  quantity: number
+  unit: number
+  unitPrice: number
+  lineTotal: number
+  currency: string
+}
+
+export interface OrderCardDto {
+  id: string
+  orderNumber: string
+  status: number
+  paymentStatus: number
+  currency: string
+  total: number
+  sellerTradingName: string
+  buyerDisplayName: string
+  incoterms: number
+  portOfLoading: string | null
+  portOfDischarge: string | null
+  itemCount: number
+  expectedDeliveryUtc: string | null
+  placedAtUtc: string | null
+  createdAtUtc: string | null
+}
+
+export interface OrderDetailDto {
+  id: string
+  orderNumber: string
+  quotationId: string | null
+  tradeRequestId: string | null
+  rfqNumber: string | null
+  status: number
+  paymentStatus: number
+  buyerUserId: string
+  buyerDisplayName: string
+  sellerBusinessId: string
+  sellerTradingName: string
+  currency: string
+  subtotal: number
+  discount: number
+  total: number
+  amountPaid: number
+  balanceDue: number
+  incoterms: number
+  portOfLoading: string | null
+  portOfDischarge: string | null
+  paymentTerms: number
+  destinationCountry: string | null
+  transportMode: number | null
+  destinationAddressId: string | null
+  expectedDeliveryUtc: string | null
+  placedAtUtc: string | null
+  completedAtUtc: string | null
+  createdAtUtc: string | null
+  updatedAtUtc: string | null
+  notes: string | null
+  items: OrderItemDto[]
+  /** Empty until task 2.5 records off-platform payments. */
+  payments: unknown[]
+  /** Empty until task 2.3 lands trade document upload. */
+  documents: unknown[]
+}
+
+export interface OrderTransitionRequest {
+  to: number
+  reason?: string
+}
+
+export interface OrderListParams {
+  status?: number
+  page?: number
+  pageSize?: number
 }

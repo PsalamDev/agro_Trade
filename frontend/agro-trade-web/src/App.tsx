@@ -16,6 +16,8 @@ import RfqDirectoryPage from './pages/RfqDirectoryPage'
 import RfqPublishPage from './pages/RfqPublishPage'
 import RfqDetailPage from './pages/RfqDetailPage'
 import MyRfqsPage from './pages/MyRfqsPage'
+import OrdersListPage from './pages/OrdersListPage'
+import OrderDetailPage from './pages/OrderDetailPage'
 import MessagesPage from './pages/MessagesPage'
 import NotificationsPage from './pages/NotificationsPage'
 import BusinessHubPage from './pages/BusinessHubPage'
@@ -101,6 +103,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <MyRfqsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/orders"
+          element={
+            <ProtectedRoute>
+              <OrdersListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/orders/:id"
+          element={
+            <ProtectedRoute>
+              <OrderDetailPage />
             </ProtectedRoute>
           }
         />

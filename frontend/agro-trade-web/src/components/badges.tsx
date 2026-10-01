@@ -1,6 +1,8 @@
 import {
   INCOTERMS,
   LISTING_STATUSES,
+  ORDER_STATUSES,
+  PAYMENT_STATUSES,
   QUOTATION_STATUSES,
   RFQ_STATUSES,
   VERIFICATION_STATUSES,
@@ -84,6 +86,39 @@ export function QuotationPill({ status }: { status: number }) {
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tones[status] ?? 'bg-stone-100 text-stone-700'}`}>
       {labelOf(QUOTATION_STATUSES, status)}
+    </span>
+  )
+}
+
+export function OrderStatusPill({ status }: { status: number }) {
+  const tones: Record<number, string> = {
+    0: 'bg-stone-100 text-stone-700',
+    1: 'bg-blue-100 text-blue-800',
+    2: 'bg-cyan-100 text-cyan-800',
+    3: 'bg-amber-100 text-amber-800',
+    4: 'bg-teal-100 text-teal-800',
+    5: 'bg-emerald-100 text-emerald-800',
+    6: 'bg-red-100 text-red-800',
+  }
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tones[status] ?? 'bg-stone-100 text-stone-700'}`}>
+      {labelOf(ORDER_STATUSES, status)}
+    </span>
+  )
+}
+
+export function OrderPaymentPill({ status }: { status: number }) {
+  const tones: Record<number, string> = {
+    0: 'bg-stone-100 text-stone-600',
+    1: 'bg-amber-100 text-amber-800',
+    2: 'bg-amber-100 text-amber-800',
+    3: 'bg-emerald-100 text-emerald-800',
+    4: 'bg-stone-100 text-stone-600',
+    5: 'bg-red-100 text-red-800',
+  }
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tones[status] ?? 'bg-stone-100 text-stone-600'}`}>
+      {labelOf(PAYMENT_STATUSES, status)}
     </span>
   )
 }

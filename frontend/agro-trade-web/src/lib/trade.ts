@@ -12,6 +12,10 @@ import type {
   HsCodeEntryDto,
   MessageDto,
   NotificationDto,
+  OrderCardDto,
+  OrderDetailDto,
+  OrderListParams,
+  OrderTransitionRequest,
   PagedResult,
   ProductCardDto,
   ProductDetailDto,
@@ -221,6 +225,30 @@ export function markNotificationRead(id: string): Promise<NotificationDto> {
 
 export function markAllNotificationsRead(): Promise<void> {
   return unwrap(api.post('/me/notifications/read-all'))
+}
+
+// ---- Orders ----
+
+/** Orders the signed-in user is buying. */
+export function getMyOrders(params: OrderListParams = {}): Promise<PagedResult<OrderCardDto>> {
+  return unwrap(api.get<PagedResult<OrderCardDto>>(`/orders${query({ ...params })}`))
+}
+
+/** Orders against businesses the signed-in user sells for. */
+export function getSellingOrders(params: OrderListParams = {}): Promise<PagedResult<OrderCardDto>> {
+  return unwrap(api.get<PagedResult<OrderCardDto>>(`/orders/selling${query({ ...params })}`))
+}
+
+export function getOrder(id: string): Promise<OrderDetailDto> {
+  return unwrap(api.get<OrderDetailDto>(`/orders/${id}`))
+}
+
+/**
+ * Drives an order to its next state. The server decides whether the transition is legal and
+ * whether this user is allowed to make it; `to` is an OrderStatus value.
+ */
+export function transitionOrder(id: string, request: OrderTransitionRequest): Promise<OrderDetailDto> {
+  return unwrap(api.post<OrderDetailDto>(`/orders/${id}/transitions`, request))
 }
 
 // ---- Admin ----

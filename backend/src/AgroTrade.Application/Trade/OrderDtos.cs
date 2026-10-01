@@ -53,6 +53,19 @@ public sealed record OrderListQuery
     public int PageSize { get; init; } = 20;
 }
 
+/// <summary>
+/// Moves an order to the next state. Who may perform which transition is enforced by the
+/// service: the buyer places and confirms receipt, the seller confirms and dispatches, and
+/// either party may cancel until the goods are in transit.
+/// </summary>
+public sealed record OrderTransitionRequest
+{
+    public OrderStatus To { get; init; }
+
+    /// <summary>Reason, recorded against the order. Required when cancelling.</summary>
+    public string? Reason { get; init; }
+}
+
 public sealed record OrderCardDto
 {
     public Guid Id { get; init; }

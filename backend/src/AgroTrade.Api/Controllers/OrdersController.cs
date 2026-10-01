@@ -16,7 +16,8 @@ namespace AgroTrade.Api.Controllers;
 public class OrdersController(
     IOrderService orderService,
     IValidator<CreateOrderFromQuotationRequest> fromQuotationValidator,
-    IValidator<CreateManualOrderRequest> manualValidator) : ControllerBase
+    IValidator<CreateManualOrderRequest> manualValidator,
+    IValidator<OrderTransitionRequest> transitionValidator) : ControllerBase
 {
     /// <summary>Converts an accepted quotation into an order, preserving all trade terms.</summary>
     [HttpPost("orders/from-quotation")]
@@ -81,6 +82,21 @@ public class OrdersController(
     public async Task<ActionResult<OrderDetailDto>> Get(Guid id, CancellationToken ct)
     {
         return Ok(await orderService.GetAsync(id, User.GetUserId(), ct));
+    }
+
+    /// <summary>
+    /// Moves an order to the next state. Which transitions exist, and which side of the trade
+    /// may perform them, is decided by OrderLifecycle — the endpoint just forwards.
+    /// </summary>
+    [HttpPost("orders/{id:guid}/transitions")]
+    [Authorize]
+    [ProducesResponseType(typeof(OrderDetailDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<OrderDetailDto>> Transition(
+        Guid id, OrderTransitionRequest request, CancellationToken ct)
+    {
+        EnsureBody(request);
+        await transitionValidator.ValidateAndThrowAsync(request, ct);
+        return Ok(await orderService.TransitionAsync(id, User.GetUserId(), request, ct));
     }
 
     private static void EnsureBody(object? request)

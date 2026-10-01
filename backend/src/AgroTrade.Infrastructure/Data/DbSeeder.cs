@@ -517,7 +517,17 @@ public sealed class DbSeeder(
             .Where(p => p.SellerBusinessId == company.Id)
             .ToDictionaryAsync(p => p.Name, StringComparer.OrdinalIgnoreCase, ct);
 
+        // Listings that already have a stock row. The Inventory table arrived after these
+        // products, so anything missing gets one below rather than staying unorderable.
+        var catalogProductIds = existing.Values.Select(p => p.Id).ToList();
+        var stocked = (await db.Inventories
+                .Where(i => catalogProductIds.Contains(i.ProductId))
+                .Select(i => i.ProductId)
+                .ToListAsync(ct))
+            .ToHashSet();
+
         var added = 0;
+        var stockRowsAdded = 0;
 
         foreach (var item in CompanyCatalog)
         {
@@ -528,9 +538,11 @@ public sealed class DbSeeder(
                 continue;
             }
 
-            if (!existing.TryGetValue(item.Name, out var product))
+            Product product;
+
+            if (!existing.TryGetValue(item.Name, out var found))
             {
-                db.Products.Add(new Product
+                product = new Product
                 {
                     SellerBusinessId = company.Id,
                     CategoryId = categoryId,
@@ -553,32 +565,50 @@ public sealed class DbSeeder(
                     Certifications = JsonLists.ToJsonList(item.Certifications),
                     ListingStatus = ListingStatus.Active,
                     VerificationStatus = VerificationStatus.Verified,
-                });
+                };
+                db.Products.Add(product);
                 added++;
-                continue;
+            }
+            else
+            {
+                product = found;
+
+                // Backfill only. Pre-pivot seeds had no description and stored every spec in a
+                // single "grade" key, which rendered as one long row on the detail page.
+                if (string.IsNullOrWhiteSpace(product.Description))
+                {
+                    product.Description = item.Description;
+                }
+
+                var legacySpecs = JsonLists.FromJsonDict(product.QualitySpecs);
+                if (legacySpecs.Count == 1 && legacySpecs.ContainsKey("grade"))
+                {
+                    product.QualitySpecs = JsonLists.ToJsonDict(new Dictionary<string, string>(item.Specs));
+                }
             }
 
-            // Backfill only. Pre-pivot seeds had no description and stored every spec in a
-            // single "grade" key, which rendered as one long row on the detail page.
-            if (string.IsNullOrWhiteSpace(product.Description))
+            // Every listing needs a stock row or orders against it fail with STOCK_NOT_SET.
+            // Seeded from the level the listing advertises, which for a new product is the
+            // catalogue's own figure and for an existing one is whatever it last published.
+            if (!stocked.Contains(product.Id))
             {
-                product.Description = item.Description;
-            }
-
-            var legacySpecs = JsonLists.FromJsonDict(product.QualitySpecs);
-            if (legacySpecs.Count == 1 && legacySpecs.ContainsKey("grade"))
-            {
-                product.QualitySpecs = JsonLists.ToJsonDict(new Dictionary<string, string>(item.Specs));
+                db.Inventories.Add(new Inventory
+                {
+                    ProductId = product.Id,
+                    QuantityOnHand = product.AvailableQuantity,
+                    QuantityReserved = 0,
+                });
+                stockRowsAdded++;
             }
         }
 
-        if (added > 0)
+        if (added + stockRowsAdded > 0)
         {
             await db.SaveChangesAsync(ct);
         }
 
-        logger.LogInformation("Company catalogue applied — {Added} new listing(s), {Total} in catalogue.",
-            added, CompanyCatalog.Count);
+        logger.LogInformation("Company catalogue applied — {Added} new listing(s), {StockRows} new stock row(s), {Total} in catalogue.",
+            added, stockRowsAdded, CompanyCatalog.Count);
     }
 
     /// <summary>One row of the demo range. Prices are indicative USD per metric ton.</summary>
