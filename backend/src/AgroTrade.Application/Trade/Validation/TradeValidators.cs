@@ -221,6 +221,24 @@ public sealed class SetStockRequestValidator : AbstractValidator<SetStockRequest
     }
 }
 
+public sealed class ReviewDocumentRequestValidator : AbstractValidator<ReviewDocumentRequest>
+{
+    public ReviewDocumentRequestValidator()
+    {
+        RuleFor(x => x.Status)
+            .Must(s => s == DocumentStatus.Verified || s == DocumentStatus.Rejected)
+            .WithMessage("A review can only verify or reject a document.");
+
+        // Conditional rather than NotEmpty: an approval needs no explanation, but a rejection
+        // without one leaves the uploader with nothing to act on.
+        RuleFor(x => x.Notes)
+            .NotEmpty()
+            .When(x => x.Status == DocumentStatus.Rejected)
+            .WithMessage("Rejecting a document requires a note explaining why.")
+            .MaximumLength(2000);
+    }
+}
+
 public sealed class SendMessageRequestValidator : AbstractValidator<SendMessageRequest>
 {
     public SendMessageRequestValidator()

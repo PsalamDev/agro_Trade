@@ -3,19 +3,22 @@ using AgroTrade.Application.Trade;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using AgroTrade.Domain.Enums;
 
 namespace AgroTrade.Api.Controllers;
 
 /// <summary>
 /// Admin operations: business verification queue, review approve/reject with notes,
-/// and category management (plan §03 — Admin).
+/// category management, and the trade document review queue (plan §03 — Admin).
 /// </summary>
 [ApiController]
 [Route("api/v1/admin")]
 [Authorize(Policy = Policies.Administrator)]
 public class AdminController(
     IBusinessService businessService,
-    IValidator<ReviewVerificationRequest> reviewValidator) : ControllerBase
+    ITradeDocumentService documentService,
+    IValidator<ReviewVerificationRequest> reviewValidator,
+    IValidator<ReviewDocumentRequest> documentReviewValidator) : ControllerBase
 {
     [HttpGet("businesses")]
     [ProducesResponseType(typeof(PagedResult<BusinessSummaryDto>), StatusCodes.Status200OK)]
@@ -40,6 +43,33 @@ public class AdminController(
         EnsureBody(request);
         await reviewValidator.ValidateAndThrowAsync(request, ct);
         return Ok(await businessService.ReviewVerificationAsync(id, User.GetUserId(), request, ct));
+    }
+
+    [HttpGet("documents")]
+    [ProducesResponseType(typeof(PagedResult<TradeDocumentDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<TradeDocumentDto>>> SearchDocuments(
+        [FromQuery] int? status, [FromQuery] int? docType, [FromQuery] string? q,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        return Ok(await documentService.SearchQueueAsync(new TradeDocumentSearchQuery
+        {
+            Status = status is null ? null : (DocumentStatus)status.Value,
+            DocType = docType is null ? null : (DocumentType)docType.Value,
+            Q = q,
+            Page = page,
+            PageSize = pageSize,
+        }, ct));
+    }
+
+    [HttpPost("documents/{id:guid}/review")]
+    [ProducesResponseType(typeof(TradeDocumentDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<TradeDocumentDto>> ReviewDocument(
+        Guid id, ReviewDocumentRequest request, CancellationToken ct)
+    {
+        EnsureBody(request);
+        await documentReviewValidator.ValidateAndThrowAsync(request, ct);
+        return Ok(await documentService.ReviewAsync(id, User.GetUserId(), request, ct));
     }
 
     private static void EnsureBody(object? request)

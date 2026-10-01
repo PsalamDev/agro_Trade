@@ -61,7 +61,8 @@ public sealed class OrderService(AgroTradeDbContext db, IInventoryService invent
 
         var order = new Order
         {
-            OrderNumber = await NextOrderNumberAsync(ct),
+            // Filled in under lock immediately before the insert; see SequenceAllocator.
+            OrderNumber = string.Empty,
             QuotationId = quotation.Id,
             TradeRequestId = quotation.TradeRequestId,
             BuyerUserId = buyerUserId,
@@ -100,19 +101,36 @@ public sealed class OrderService(AgroTradeDbContext db, IInventoryService invent
 
         db.Orders.Add(order);
 
-        // The RFQ and quotation are now spent; leaving them 'Accepted' would let a buyer
-        // keep converting the same quote if the unique index were ever dropped.
-        rfq.Status = RfqStatus.ConvertedToOrder;
+        var sellerOwnerUserId = await SellerOwnerUserIdAsync(quotation.SupplierBusinessId, ct);
+        var rfqTitle = rfq.Title;
 
-        await NotifyAsync(
-            recipientUserId: await SellerOwnerUserIdAsync(quotation.SupplierBusinessId, ct),
-            type: NotificationType.Order,
-            title: $"New order {order.OrderNumber}",
-            body: $"{rfq.Title} was converted into an order.",
-            link: $"/dashboard/orders/{order.Id}",
+        // The number is assigned inside this call because it is only knowable immediately before
+        // the insert, and the read that picks it must be locked against the insert that uses it;
+        // see SequenceAllocator.
+        await SequenceAllocator.AllocateAsync(
+            db,
+            table: "Orders",
+            column: "OrderNumber",
+            prefix: OrderNumberPrefix(),
+            assign: number => order.OrderNumber = number,
+            save: async token =>
+            {
+                // The RFQ and quotation are now spent; leaving them 'Accepted' would let a buyer
+                // keep converting the same quote if the unique index were ever dropped.
+                rfq.Status = RfqStatus.ConvertedToOrder;
+
+                await NotifyAsync(
+                    recipientUserId: sellerOwnerUserId,
+                    type: NotificationType.Order,
+                    title: $"New order {order.OrderNumber}",
+                    body: $"{rfqTitle} was converted into an order.",
+                    link: $"/dashboard/orders/{order.Id}",
+                    token);
+
+                await SaveAsync(token);
+            },
             ct);
 
-        await SaveAsync(ct);
         return await ToDetailAsync(order, buyerUserId, ct);
     }
 
@@ -148,7 +166,8 @@ public sealed class OrderService(AgroTradeDbContext db, IInventoryService invent
 
         var order = new Order
         {
-            OrderNumber = await NextOrderNumberAsync(ct),
+            // Filled in under lock immediately before the insert; see SequenceAllocator.
+            OrderNumber = string.Empty,
             BuyerUserId = buyerUserId,
             SellerBusinessId = seller.Id,
             Status = OrderStatus.Placed,
@@ -194,21 +213,32 @@ public sealed class OrderService(AgroTradeDbContext db, IInventoryService invent
 
         db.Orders.Add(order);
 
-        await NotifyAsync(
-            recipientUserId: seller.OwnerUserId,
-            type: NotificationType.Order,
-            title: $"New order {order.OrderNumber}",
-            body: $"You received an order worth {currency} {order.Total:N2}.",
-            link: $"/dashboard/orders/{order.Id}",
-            ct);
-
         // Manual orders are placed on creation, so hold the stock now. Reservation is computed
         // from the in-memory lines and lands in the same SaveChanges as the order itself — if
         // stock is short the whole thing fails together and nothing is left behind.
         await inventory.ReserveAsync(
             inventory.QuantitiesFor(order.Items.Select(i => (i.ProductId, i.Quantity))), ct);
 
-        await SaveAsync(ct);
+        await SequenceAllocator.AllocateAsync(
+            db,
+            table: "Orders",
+            column: "OrderNumber",
+            prefix: OrderNumberPrefix(),
+            assign: number => order.OrderNumber = number,
+            save: async token =>
+            {
+                await NotifyAsync(
+                    recipientUserId: seller.OwnerUserId,
+                    type: NotificationType.Order,
+                    title: $"New order {order.OrderNumber}",
+                    body: $"You received an order worth {currency} {order.Total:N2}.",
+                    link: $"/dashboard/orders/{order.Id}",
+                    token);
+
+                await SaveAsync(token);
+            },
+            ct);
+
         return await ToDetailAsync(order, buyerUserId, ct);
     }
 
@@ -588,31 +618,15 @@ public sealed class OrderService(AgroTradeDbContext db, IInventoryService invent
             IssuedOnUtc = d.IssuedOnUtc,
             ExpiresOnUtc = d.ExpiresOnUtc,
             CreatedAtUtc = d.CreatedAtUtc,
+            // The order already carries its own identity, so no extra lookup is needed here.
+            OrderNumber = order.OrderNumber,
+            OrderCounterparty = order.SellerBusiness?.TradingName,
+            UploadedByUserId = d.UploadedByUserId,
         }).ToList(),
     };
 
-    /// <summary>
-    /// Per-year sequence, matching the RFQ number scheme. Computed from existing rows rather
-    /// than a sequence object; the unique index on OrderNumber is the actual guarantee.
-    /// </summary>
-    private async Task<string> NextOrderNumberAsync(CancellationToken ct)
-    {
-        var prefix = $"AG-{DateTime.UtcNow.Year}-";
-        var existing = await db.Orders
-            .AsNoTracking()
-            .Where(o => o.OrderNumber.StartsWith(prefix))
-            .Select(o => o.OrderNumber)
-            .ToListAsync(ct);
-
-        var next = existing.Count == 0
-            ? 1
-            : existing
-                .Select(n => int.TryParse(n[prefix.Length..], out var v) ? v : 0)
-                .DefaultIfEmpty(0)
-                .Max() + 1;
-
-        return $"{prefix}{next:D6}";
-    }
+    /// <summary>Per-year prefix, matching the RFQ number scheme.</summary>
+    private static string OrderNumberPrefix() => $"AG-{DateTime.UtcNow.Year}-";
 
     private async Task<Guid?> DefaultAddressIdAsync(Guid userId, CancellationToken ct) =>
         await db.Addresses

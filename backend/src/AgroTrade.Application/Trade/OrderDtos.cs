@@ -177,4 +177,44 @@ public sealed record TradeDocumentDto
     public DateTime? IssuedOnUtc { get; init; }
     public DateTime? ExpiresOnUtc { get; init; }
     public DateTime? CreatedAtUtc { get; init; }
+
+    // ---- Context the queue and the detail page need, added in task 2.3 ----
+
+    /// <summary>Order number, so a document is identifiable in an admin list without a second lookup.</summary>
+    public string OrderNumber { get; init; } = string.Empty;
+
+    public string? OrderCounterparty { get; init; }
+    public Guid? UploadedByUserId { get; init; }
+    public string? UploadedByDisplayName { get; init; }
+}
+
+/// <summary>Admin review queue filter. Nulls mean "any".</summary>
+public sealed class TradeDocumentSearchQuery
+{
+    public DocumentStatus? Status { get; init; }
+    public DocumentType? DocType { get; init; }
+    public string? Q { get; init; }
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+}
+
+public sealed record UploadTradeDocumentRequest
+{
+    public DocumentType DocType { get; init; }
+    /// <summary>Reference printed on the paper, e.g. "INV-2026-0042".</summary>
+    public string? DocumentReference { get; init; }
+    public DateTime? IssuedOnUtc { get; init; }
+    public DateTime? ExpiresOnUtc { get; init; }
+
+    /// <summary>File metadata, taken from the validated upload rather than the form fields.</summary>
+    public string FileName { get; init; } = string.Empty;
+    public string ContentType { get; init; } = "application/octet-stream";
+}
+
+public sealed record ReviewDocumentRequest
+{
+    /// <summary>Verified or Rejected.</summary>
+    public DocumentStatus Status { get; init; }
+    /// <summary>Required when rejecting: the uploader needs to know what to fix.</summary>
+    public string? Notes { get; init; }
 }

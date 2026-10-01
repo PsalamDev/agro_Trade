@@ -23,7 +23,8 @@ public sealed class RfqService(AgroTradeDbContext db) : IRfqService
         var rfq = new TradeRequest
         {
             BuyerUserId = buyerUserId,
-            RfqNumber = await NextRfqNumberAsync(ct),
+            // Filled in under lock immediately before the insert; see SequenceAllocator.
+            RfqNumber = string.Empty,
             Title = request.Title.Trim(),
             Description = request.Description?.Trim(),
             CategoryId = request.CategoryId,
@@ -45,7 +46,18 @@ public sealed class RfqService(AgroTradeDbContext db) : IRfqService
         };
 
         db.TradeRequests.Add(rfq);
-        await db.SaveChangesAsync(ct);
+
+        // Assigned immediately before the insert, which is the only moment it is knowable;
+        // see SequenceAllocator for why the number and the insert are one unit.
+        await SequenceAllocator.AllocateAsync(
+            db,
+            table: "TradeRequests",
+            column: "RfqNumber",
+            prefix: RfqNumberPrefix(),
+            assign: number => rfq.RfqNumber = number,
+            save: token => db.SaveChangesAsync(token),
+            ct);
+
         return await ToDetailAsync(rfq, buyerUserId, ct);
     }
 
@@ -379,20 +391,8 @@ public sealed class RfqService(AgroTradeDbContext db) : IRfqService
         return await baseQuery.OrderBy(b => b.CreatedAtUtc).FirstOrDefaultAsync(ct);
     }
 
-    private async Task<string> NextRfqNumberAsync(CancellationToken ct)
-    {
-        var year = DateTime.UtcNow.Year;
-        var prefix = $"RFQ-{year}-";
-        var max = await db.TradeRequests
-            .AsNoTracking()
-            .Where(r => r.RfqNumber.StartsWith(prefix))
-            .Select(r => r.RfqNumber)
-            .ToListAsync(ct);
-        var next = max.Count == 0
-            ? 1
-            : max.Select(n => int.TryParse(n[prefix.Length..], out var v) ? v : 0).DefaultIfEmpty(0).Max() + 1;
-        return $"{prefix}{next:D6}";
-    }
+    /// <summary>Per-year prefix for RFQ numbers.</summary>
+    private static string RfqNumberPrefix() => $"RFQ-{DateTime.UtcNow.Year}-";
 
     private async Task ExpireOverdueAsync(CancellationToken ct)
     {
