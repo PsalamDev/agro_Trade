@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { OrderPaymentPill, OrderStatusPill } from '../components/badges'
+import { OrderDocumentsPanel } from '../components/OrderDocumentsPanel'
 import { ConfirmDialog } from '../components/overlays'
 import { Button, Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { problemFrom } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
-import { getMyBusinesses, getOrder, transitionOrder } from '../lib/trade'
+import { getOrder, transitionOrder } from '../lib/trade'
 import { ORDER_STATUS, PRICE_UNITS, PAYMENT_TERMS, SHIPMENT_MODES, labelOf, orderActions } from '../types/trade'
 import type { OrderDetailDto, OrderParty } from '../types/trade'
 
@@ -39,7 +40,6 @@ export default function OrderDetailPage() {
   const { user } = useAuth()
 
   const [order, setOrder] = useState<OrderDetailDto | null>(null)
-  const [businessIds, setBusinessIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<{ code?: string; detail?: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [actingTo, setActingTo] = useState<number | null>(null)
@@ -47,31 +47,36 @@ export default function OrderDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
 
+  // The server resolves which side this user is on from actual business ownership, so the page
+  // no longer has to fetch the user's businesses to work it out — which also means a Company
+  // user who owns a different business is correctly treated as an outsider here.
   const party: OrderParty = useMemo(() => {
-    if (!user || !order) return 'outsider'
-    if (user.id === order.buyerUserId) return 'buyer'
-    if (businessIds.has(order.sellerBusinessId)) return 'seller'
+    if (!order) return 'outsider'
+    if (order.isBuyer) return 'buyer'
+    if (order.isSeller) return 'seller'
     return 'outsider'
-  }, [user, order, businessIds])
+  }, [order])
 
   const load = useCallback(async () => {
     if (!id) return
     setLoading(true)
     setError(null)
     try {
-      // Ownership is decided by whether the user actually owns the selling business, not by
-      // holding the Company role: a Company user who owns a different business is still an
-      // outsider here. The list call is allowed to fail on its own without failing the page.
-      const [detail, mine] = await Promise.all([
-        getOrder(id),
-        getMyBusinesses().catch(() => []),
-      ])
-      setOrder(detail)
-      setBusinessIds(new Set(mine.map((b) => b.id)))
+      setOrder(await getOrder(id))
     } catch (err) {
       setError(problemFrom(err))
     } finally {
       setLoading(false)
+    }
+  }, [id])
+
+  /** Reload without the spinner, for after an upload or a withdrawal. */
+  const refresh = useCallback(async () => {
+    if (!id) return
+    try {
+      setOrder(await getOrder(id))
+    } catch (err) {
+      setError(problemFrom(err))
     }
   }, [id])
 
@@ -237,15 +242,28 @@ export default function OrderDetailPage() {
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">
                   <Card>
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">Buyer</h3>
-                    <p className="mt-1 font-medium">{order.buyerDisplayName}</p>
+                    <p className="mt-1 font-medium">
+                      {order.buyerDisplayName}
+                      {order.isBuyer ? ' (you)' : ''}
+                    </p>
                     <p className="mt-1 font-mono text-xs text-stone-400">{order.buyerUserId}</p>
                   </Card>
                   <Card>
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">Seller</h3>
-                    <p className="mt-1 font-medium">{order.sellerTradingName}</p>
+                    <p className="mt-1 font-medium">
+                      {order.sellerTradingName}
+                      {order.isSeller ? ' (you)' : ''}
+                    </p>
                     <p className="mt-1 font-mono text-xs text-stone-400">{order.sellerBusinessId}</p>
                   </Card>
                 </div>
+
+                <OrderDocumentsPanel
+                  order={order}
+                  documents={order.documents}
+                  userId={user?.id ?? null}
+                  onChanged={refresh}
+                />
               </Card>
             </div>
 

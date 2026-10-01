@@ -101,6 +101,12 @@ public sealed record OrderDetailDto
     public Guid SellerBusinessId { get; init; }
     public string SellerTradingName { get; init; } = string.Empty;
 
+    // Which side the caller is on, resolved from actual business ownership rather than from the
+    // Company role. Carried on the DTO so the detail page can render the right actions without
+    // fetching the caller's businesses on every load.
+    public bool IsBuyer { get; init; }
+    public bool IsSeller { get; init; }
+
     public string Currency { get; init; } = string.Empty;
     public decimal Subtotal { get; init; }
     public decimal Discount { get; init; }

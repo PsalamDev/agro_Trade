@@ -7,9 +7,10 @@ own origins and destinations. A domestic retail marketplace is a follow-on phase
 
 **Core trade journey:** Discover → Source → Verify → Negotiate → Trade → Ship → Deliver
 
-> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) started.**
+> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.3.**
 > The full journey is *Discover → Source → Verify → Negotiate → Trade → Ship → Deliver*; the
-> first four steps are built and the fifth (order placement) has just landed. See
+> first four steps are built, and the fifth (order placement, fulfilment, and trade
+> paperwork) is landed through task 2.3. See
 > [Current status](#current-status) below and [`docs/01-roadmap.md`](docs/01-roadmap.md)
 > for the full phase plan.
 
@@ -107,7 +108,7 @@ another SQL Server to run tests somewhere else (CI does this).
 
 ## Current status
 
-Phases 0 and 1 are complete. Phase 2 is underway (task 2.1 of 2.7 landed).
+Phases 0 and 1 are complete. Phase 2 is underway (tasks 2.1–2.3 of 2.7 landed).
 
 ### Phase 0 — Foundations (complete)
 
@@ -149,8 +150,8 @@ Tasks 2.1–2.7 per the roadmap:
 | # | Task | Status |
 | --- | --- | --- |
 | 2.1 | Order model (incoterms, ports, payment terms, currency) + handoff from accepted quotation | **Done** |
-| 2.2 | Order lifecycle + inventory reservation + buyer/seller inboxes | Not started |
-| 2.3 | Trade document upload + statuses + admin verification queue | Not started |
+| 2.2 | Order lifecycle + inventory reservation + buyer/seller inboxes | **Done** |
+| 2.3 | Trade document upload + statuses + admin verification queue | **Done** |
 | 2.4 | Payment gateway adapter #1 (sandbox) + idempotent webhook | Not started |
 | 2.5 | Off-platform payment recording + transaction ledger | Not started |
 | 2.6 | Shipment record + tracking events + guest tracking | Not started |
@@ -162,8 +163,27 @@ Trade terms are **snapshotted** onto the order at handoff, so later edits to the
 quotation cannot rewrite what was agreed, and a quotation can only ever be converted once
 (enforced by a filtered unique index, not just an application check).
 
-`Payments`, `Transactions` and `TradeDocuments` exist as schema only so later tasks have
-something to hang off — there are no endpoints for them yet.
+Task 2.2 added the legal state machine (`OrderLifecycle`), `POST /orders/{id}/transitions`,
+and `Inventory`. `Product.AvailableQuantity` is a denormalised mirror of
+`Inventory.Available = OnHand − Reserved`, written only by `InventoryService`: stock is
+reserved when an order is `Placed`, committed on `Confirmed`, and released on `Cancelled`.
+Both parties get an order inbox — buyers at `/orders`, the selling business at
+`/orders/selling` — and the server, not the UI, decides which transitions a given party may
+make.
+
+Task 2.3 filled in `TradeDocuments` as **order-scoped** paperwork. Both parties upload and
+both see everything on the order they share, so there is no per-document visibility flag and
+a third party gets 404 rather than 403. An upload lands directly in `Uploaded` (a `Draft`
+nobody can review is not a state worth having); the admin queue at `/admin/documents` then
+verifies or rejects. Rejecting requires notes, re-reviewing to the same verdict is a 409, a
+verified document cannot be withdrawn, and cancelled or completed orders are closed to
+uploads. The uploader is notified on both verdicts.
+
+Task 2.3 also fixed a latent bug in order and RFQ numbering. Numbers were allocated as
+`MAX(suffix) + 1`, a read-then-write that two simultaneous creators can race, losing to a
+unique-index violation surfaced as an unhandled 500. `SequenceAllocator` takes a range lock
+over the indexed number column (`UPDLOCK, HOLDLOCK` in a serialisable transaction), so a
+second allocator blocks and then sees the row it would otherwise have missed.
 
 ## Documentation Index
 

@@ -25,6 +25,7 @@ import BusinessOnboardingPage from './pages/BusinessOnboardingPage'
 import BusinessDetailPage from './pages/BusinessDetailPage'
 import PublicBusinessPage from './pages/PublicBusinessPage'
 import AdminVerificationPage from './pages/AdminVerificationPage'
+import AdminDocumentsPage from './pages/AdminDocumentsPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RequireRole } from './components/RequireRole'
 
@@ -169,6 +170,14 @@ export default function App() {
           element={
             <RequireRole roles={ADMIN_ROLES}>
               <AdminVerificationPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/documents"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminDocumentsPage />
             </RequireRole>
           }
         />

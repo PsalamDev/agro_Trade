@@ -230,13 +230,25 @@ public sealed class OrderFlowTests : IClassFixture<TestingWebAppFactory>
         var order = await created.Content.ReadFromJsonAsync<OrderDetailDto>();
         Assert.NotNull(order);
 
-        // Buyer can read it
+        // Buyer can read it, and is told they are the buyer
         var asBuyer = await GetAsync($"/api/v1/orders/{order!.Id}", buyerToken);
         Assert.Equal(HttpStatusCode.OK, asBuyer.StatusCode);
+        var buyerView = await asBuyer.Content.ReadFromJsonAsync<OrderDetailDto>();
+        Assert.True(buyerView!.IsBuyer);
+        Assert.False(buyerView.IsSeller);
 
         // Seller can read it, and sees it in the selling list
         var asSeller = await GetAsync($"/api/v1/orders/{order.Id}", supplierToken);
         Assert.Equal(HttpStatusCode.OK, asSeller.StatusCode);
+
+        // The seller is told they are the seller, and sees who they are selling to rather than
+        // the buyer being labelled "You" — which is what this page showed before it carried
+        // the party flags.
+        var sellerView = await asSeller.Content.ReadFromJsonAsync<OrderDetailDto>();
+        Assert.False(sellerView!.IsBuyer);
+        Assert.True(sellerView.IsSeller);
+        Assert.NotEqual("You", sellerView.BuyerDisplayName);
+        Assert.False(string.IsNullOrWhiteSpace(sellerView.BuyerDisplayName));
 
         var selling = await GetAsync("/api/v1/orders/selling", supplierToken);
         Assert.Equal(HttpStatusCode.OK, selling.StatusCode);
@@ -481,6 +493,9 @@ public sealed class OrderFlowTests : IClassFixture<TestingWebAppFactory>
         public Guid? TradeRequestId { get; init; }
         public OrderStatus Status { get; init; }
         public PaymentStatus PaymentStatus { get; init; }
+        public string BuyerDisplayName { get; init; } = "";
+        public bool IsBuyer { get; init; }
+        public bool IsSeller { get; init; }
         public string Currency { get; init; } = "";
         public decimal Subtotal { get; init; }
         public decimal Discount { get; init; }

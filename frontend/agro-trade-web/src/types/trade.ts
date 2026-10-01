@@ -77,6 +77,47 @@ export const DOCUMENT_TYPE = {
   Other: 99,
 } as const
 
+/**
+ * Document types that may attach to an order, as label/value pairs.
+ *
+ * A narrower set than DOCUMENT_TYPES: a trade document is paperwork for one shipment, so the
+ * KYC types (business registration, tax ID, proof of address) are not offered — those belong
+ * to business verification, which is a separate flow with its own queue.
+ *
+ * Pairs rather than a positional label list because the wire values are not contiguous: the
+ * server numbers these 0-7 with 99 for 'Other', so indexing a dense array by the value would
+ * label every 'Other' as something else.
+ */
+export const TRADE_DOCUMENT_TYPE_OPTIONS = [
+  { value: 0, label: 'Commercial invoice' },
+  { value: 1, label: 'Packing list' },
+  { value: 2, label: 'Certificate of origin' },
+  { value: 3, label: 'Bill of lading' },
+  { value: 4, label: 'Phytosanitary certificate' },
+  { value: 5, label: 'Inspection certificate' },
+  { value: 6, label: 'Export permit' },
+  { value: 7, label: 'Import permit' },
+  { value: 99, label: 'Other' },
+] as const
+
+export const TRADE_DOCUMENT_TYPE_LABELS = TRADE_DOCUMENT_TYPE_OPTIONS.map((o) => o.label)
+export const TRADE_DOCUMENT_TYPE_VALUES = TRADE_DOCUMENT_TYPE_OPTIONS.map((o) => o.value)
+
+/** Label for a trade document type value; unknown values render as their number. */
+export function tradeDocumentLabel(value: number): string {
+  return TRADE_DOCUMENT_TYPE_OPTIONS.find((o) => o.value === value)?.label ?? `Unknown (${value})`
+}
+
+export const DOCUMENT_STATUSES = ['Draft', 'Uploaded', 'Under review', 'Verified', 'Rejected', 'Expired'] as const
+export const DOCUMENT_STATUS = {
+  Draft: 0,
+  Uploaded: 1,
+  UnderReview: 2,
+  Verified: 3,
+  Rejected: 4,
+  Expired: 5,
+} as const
+
 // ---- Orders (task 2.1 + 2.2; plan §02 — Orders) ----
 
 export const ORDER_STATUSES = ['Draft', 'Placed', 'Confirmed', 'In transit', 'Delivered', 'Completed', 'Cancelled'] as const
@@ -542,6 +583,13 @@ export interface OrderDetailDto {
   buyerDisplayName: string
   sellerBusinessId: string
   sellerTradingName: string
+  /**
+   * Which side the viewer is on, resolved server-side from actual business ownership. Prefer
+   * these over inferring from the Company role: a Company user who owns a different business is
+   * still an outsider here.
+   */
+  isBuyer: boolean
+  isSeller: boolean
   currency: string
   subtotal: number
   discount: number
@@ -563,9 +611,74 @@ export interface OrderDetailDto {
   notes: string | null
   items: OrderItemDto[]
   /** Empty until task 2.5 records off-platform payments. */
-  payments: unknown[]
-  /** Empty until task 2.3 lands trade document upload. */
-  documents: unknown[]
+  payments: PaymentDto[]
+  documents: TradeDocumentDto[]
+}
+
+// ---- Trade documents (task 2.3) ----
+
+export interface TradeDocumentDto {
+  id: string
+  orderId: string
+  docType: number
+  /** Reference printed on the paper, e.g. "INV-2026-0042". */
+  documentReference: string | null
+  fileUrl: string | null
+  fileName: string | null
+  fileSizeBytes: number | null
+  contentType: string | null
+  status: number
+  reviewNotes: string | null
+  reviewedByUserId: string | null
+  reviewedAtUtc: string | null
+  issuedOnUtc: string | null
+  expiresOnUtc: string | null
+  createdAtUtc: string | null
+  /** Present on the order page and the admin queue; empty on an order-scoped read of a document. */
+  orderNumber: string
+  orderCounterparty: string | null
+  uploadedByUserId: string | null
+  uploadedByDisplayName: string | null
+}
+
+export interface PaymentDto {
+  id: string
+  orderId: string
+  reference: string
+  amount: number
+  currency: string
+  provider: number
+  method: number
+  status: number
+  remittanceReference: string | null
+  bankName: string | null
+  valueDateUtc: string | null
+  initiatedAtUtc: string
+  paidAtUtc: string | null
+  failureReason: string | null
+  notes: string | null
+}
+
+/** Fields the upload form collects. File metadata comes from the validated upload. */
+export interface UploadTradeDocumentRequest {
+  docType: number
+  documentReference?: string
+  issuedOnUtc?: string
+  expiresOnUtc?: string
+}
+
+export interface ReviewDocumentRequest {
+  status: number
+  /** Required by the server when rejecting. */
+  notes?: string
+}
+
+export interface DocumentSearchParams {
+  status?: number
+  docType?: number
+  q?: string
+  page?: number
+  pageSize?: number
 }
 
 export interface OrderTransitionRequest {

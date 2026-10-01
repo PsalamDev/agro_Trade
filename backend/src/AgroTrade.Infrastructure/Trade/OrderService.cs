@@ -288,18 +288,15 @@ public sealed class OrderService(AgroTradeDbContext db, IInventoryService invent
             throw ApiException.NotFound("ORDER_NOT_FOUND", "Order not found.");
         }
 
-        var isBuyer = order.BuyerUserId == userId;
-        var isSeller = await db.Businesses
-            .AsNoTracking()
-            .AnyAsync(b => b.Id == order.SellerBusinessId && b.OwnerUserId == userId, ct);
-
-        if (!isBuyer && !isSeller)
+        var party = await PartyAsync(order, userId, ct);
+        if (party == OrderParty.Outsider)
         {
             // Same 404 as a missing order: a non-party should not learn the order exists.
             throw ApiException.NotFound("ORDER_NOT_FOUND", "Order not found.");
         }
 
-        return Map(order, isBuyer);
+        // Already loaded through OrdersWithDetail, so map it directly rather than reloading.
+        return await DetailAsync(order, party, ct);
     }
 
     public async Task<OrderDetailDto> TransitionAsync(
@@ -526,15 +523,37 @@ public sealed class OrderService(AgroTradeDbContext db, IInventoryService invent
         };
     }
 
+    /// <summary>
+    /// Reloads the order with its full detail graph, then maps it. Callers hold a partially
+    /// loaded or just-written entity — a newly created order, or one fetched with only its
+    /// items — so the payments, documents, seller and RFQ that <see cref="Map"/> reads off the
+    /// navigations are not populated on what they pass in.
+    /// </summary>
     private async Task<OrderDetailDto> ToDetailAsync(Order order, Guid userId, CancellationToken ct)
     {
         var loaded = await OrdersWithDetail()
             .FirstAsync(o => o.Id == order.Id, ct);
 
-        return Map(loaded, isBuyer: loaded.BuyerUserId == userId);
+        return await DetailAsync(loaded, await PartyAsync(loaded, userId, ct), ct);
     }
 
-    private static OrderDetailDto Map(Order order, bool isBuyer) => new()
+    /// <summary>Maps an order already loaded through <see cref="OrdersWithDetail"/>.</summary>
+    private async Task<OrderDetailDto> DetailAsync(Order loaded, OrderParty party, CancellationToken ct)
+    {
+        // Order has no Buyer navigation (only BuyerUserId), so the name is resolved with the
+        // same one-line lookup RfqService uses. The buyer never needs it — they see "You".
+        var buyerName = party == OrderParty.Buyer
+            ? "You"
+            : await db.Users
+                .AsNoTracking()
+                .Where(u => u.Id == loaded.BuyerUserId)
+                .Select(u => u.DisplayName)
+                .FirstOrDefaultAsync(ct) ?? "Buyer";
+
+        return Map(loaded, party, buyerName);
+    }
+
+    private static OrderDetailDto Map(Order order, OrderParty party, string buyerDisplayName) => new()
     {
         Id = order.Id,
         OrderNumber = order.OrderNumber,
@@ -544,10 +563,11 @@ public sealed class OrderService(AgroTradeDbContext db, IInventoryService invent
         Status = order.Status,
         PaymentStatus = order.PaymentStatus,
         BuyerUserId = order.BuyerUserId,
-        // The buyer is always the caller here, since GetAsync already established that.
-        BuyerDisplayName = "You",
+        BuyerDisplayName = buyerDisplayName,
         SellerBusinessId = order.SellerBusinessId,
         SellerTradingName = order.SellerBusiness?.TradingName ?? string.Empty,
+        IsBuyer = party == OrderParty.Buyer,
+        IsSeller = party == OrderParty.Seller,
         Currency = order.Currency,
         Subtotal = order.Subtotal,
         Discount = order.Discount,

@@ -1,4 +1,5 @@
 import {
+  DOCUMENT_STATUSES,
   INCOTERMS,
   LISTING_STATUSES,
   ORDER_STATUSES,
@@ -119,6 +120,22 @@ export function OrderPaymentPill({ status }: { status: number }) {
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tones[status] ?? 'bg-stone-100 text-stone-600'}`}>
       {labelOf(PAYMENT_STATUSES, status)}
+    </span>
+  )
+}
+
+export function DocumentStatusPill({ status }: { status: number }) {
+  const tones: Record<number, string> = {
+    0: 'bg-stone-100 text-stone-700',
+    1: 'bg-blue-100 text-blue-800',
+    2: 'bg-amber-100 text-amber-800',
+    3: 'bg-emerald-100 text-emerald-800',
+    4: 'bg-red-100 text-red-800',
+    5: 'bg-stone-200 text-stone-600',
+  }
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tones[status] ?? 'bg-stone-100 text-stone-700'}`}>
+      {labelOf(DOCUMENT_STATUSES, status)}
     </span>
   )
 }

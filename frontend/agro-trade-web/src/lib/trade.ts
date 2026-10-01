@@ -9,6 +9,7 @@ import type {
   CreateProductRequest,
   CreateQuotationRequest,
   CreateTradeRequestRequest,
+  DocumentSearchParams,
   HsCodeEntryDto,
   MessageDto,
   NotificationDto,
@@ -23,13 +24,16 @@ import type {
   ProductSearchParams,
   QuotationDto,
   RegisterBusinessRequest,
+  ReviewDocumentRequest,
   ReviewVerificationRequest,
   RfqListParams,
   SendMessageRequest,
   TradeCountriesRequest,
+  TradeDocumentDto,
   TradeRequestCardDto,
   TradeRequestDetailDto,
   UpdateBusinessRequest,
+  UploadTradeDocumentRequest,
   UpdateProductRequest,
   VerificationStateDto,
 } from '../types/trade'
@@ -251,6 +255,42 @@ export function transitionOrder(id: string, request: OrderTransitionRequest): Pr
   return unwrap(api.post<OrderDetailDto>(`/orders/${id}/transitions`, request))
 }
 
+// ---- Trade documents ----
+
+/**
+ * Documents on an order. Both parties see every document on the order they share, so there is
+ * no per-document visibility to filter on here.
+ */
+export function getOrderDocuments(orderId: string): Promise<TradeDocumentDto[]> {
+  return unwrap(api.get<TradeDocumentDto[]>(`/orders/${orderId}/documents`))
+}
+
+/**
+ * Attach a document to an order. Either party may upload; the server refuses a cancelled or
+ * completed order, and rejects an expiry date earlier than the issue date.
+ */
+export function uploadOrderDocument(
+  orderId: string,
+  request: UploadTradeDocumentRequest,
+  file: File,
+): Promise<TradeDocumentDto> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('docType', String(request.docType))
+  if (request.documentReference) form.append('documentReference', request.documentReference)
+  if (request.issuedOnUtc) form.append('issuedOnUtc', request.issuedOnUtc)
+  if (request.expiresOnUtc) form.append('expiresOnUtc', request.expiresOnUtc)
+  return unwrap(api.post<TradeDocumentDto>(`/orders/${orderId}/documents`, form))
+}
+
+/**
+ * Withdraw a document. Permitted for the uploader (and an admin) while it is unverified; a
+ * verified document is 400 DOCUMENT_ALREADY_VERIFIED and stays on the record.
+ */
+export function deleteOrderDocument(documentId: string): Promise<void> {
+  return unwrap(api.delete(`/documents/${documentId}`))
+}
+
 // ---- Admin ----
 
 export function adminSearchBusinesses(params: { status?: number; q?: string; page?: number; pageSize?: number } = {}): Promise<PagedResult<BusinessSummaryDto>> {
@@ -259,4 +299,17 @@ export function adminSearchBusinesses(params: { status?: number; q?: string; pag
 
 export function reviewBusinessVerification(id: string, request: ReviewVerificationRequest): Promise<BusinessDetailDto> {
   return unwrap(api.post<BusinessDetailDto>(`/admin/businesses/${id}/verification/review`, request))
+}
+
+/** The admin trade-document queue. Unset filters mean "any". */
+export function adminSearchDocuments(params: DocumentSearchParams = {}): Promise<PagedResult<TradeDocumentDto>> {
+  return unwrap(api.get<PagedResult<TradeDocumentDto>>(`/admin/documents${query({ ...params })}`))
+}
+
+/**
+ * Verify or reject a document. Notes are required by the server when rejecting: a rejection
+ * the uploader cannot act on is not a usable outcome.
+ */
+export function reviewDocument(id: string, request: ReviewDocumentRequest): Promise<TradeDocumentDto> {
+  return unwrap(api.post<TradeDocumentDto>(`/admin/documents/${id}/review`, request))
 }

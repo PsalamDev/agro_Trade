@@ -48,7 +48,8 @@ export function AppHeader() {
     { to: '/messages', label: 'Messages', icon: <MessageIcon className="h-4 w-4" />, show: true },
     { to: '/my/products', label: 'My listings', icon: <GridIcon className="h-4 w-4" />, show: isCompany },
     { to: '/business', label: 'Business', icon: <BuildingIcon className="h-4 w-4" />, show: true },
-    { to: '/admin/verification', label: 'Admin', icon: <ShieldCheckIcon className="h-4 w-4" />, show: isAdmin },
+    { to: '/admin/verification', label: 'Business verification', icon: <ShieldCheckIcon className="h-4 w-4" />, show: isAdmin },
+    { to: '/admin/documents', label: 'Document review', icon: <FileTextIcon className="h-4 w-4" />, show: isAdmin },
   ].filter((link) => link.show)
 
   const primaryLinks = [
