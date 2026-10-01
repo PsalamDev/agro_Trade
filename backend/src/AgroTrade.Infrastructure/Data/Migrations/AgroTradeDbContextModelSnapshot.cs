@@ -680,7 +680,14 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("IdempotencyKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTime>("InitiatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastEventAtUtc")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("Method")
@@ -698,6 +705,10 @@ namespace AgroTrade.Infrastructure.Data.Migrations
 
                     b.Property<int>("Provider")
                         .HasColumnType("int");
+
+                    b.Property<string>("ProviderRef")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Reference")
                         .IsRequired()
@@ -719,12 +730,86 @@ namespace AgroTrade.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique()
+                        .HasFilter("[IdempotencyKey] IS NOT NULL");
+
                     b.HasIndex("Reference")
                         .IsUnique();
 
                     b.HasIndex("OrderId", "Status");
 
+                    b.HasIndex("Provider", "ProviderRef")
+                        .IsUnique()
+                        .HasFilter("[ProviderRef] IS NOT NULL");
+
                     b.ToTable("Payments");
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.PaymentWebhookEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("ExternalEventId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("PaymentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Provider")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProviderRef")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("ReceivedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Signature")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReceivedAtUtc");
+
+                    b.HasIndex("Provider", "ExternalEventId")
+                        .IsUnique();
+
+                    b.HasIndex("Provider", "ProviderRef");
+
+                    b.ToTable("PaymentWebhookEvents");
                 });
 
             modelBuilder.Entity("AgroTrade.Domain.Trade.Product", b =>
@@ -1162,7 +1247,9 @@ namespace AgroTrade.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PaymentId");
+                    b.HasIndex("PaymentId")
+                        .IsUnique()
+                        .HasFilter("[PaymentId] IS NOT NULL AND [Type] = 0");
 
                     b.HasIndex("Reference")
                         .IsUnique();

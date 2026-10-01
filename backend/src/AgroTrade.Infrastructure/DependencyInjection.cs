@@ -7,6 +7,7 @@ using AgroTrade.Infrastructure.Communication;
 using AgroTrade.Infrastructure.Data;
 using AgroTrade.Infrastructure.Email;
 using AgroTrade.Infrastructure.Identity;
+using AgroTrade.Infrastructure.Payments;
 using AgroTrade.Infrastructure.Storage;
 using AgroTrade.Infrastructure.Trade;
 using Microsoft.AspNetCore.Identity;
@@ -62,6 +63,16 @@ public static class DependencyInjection
         services.AddOptions<AuthOptions>()
             .Bind(configuration.GetSection(AuthOptions.SectionName));
 
+        // Validated on start rather than allowed to be blank: this secret is the only thing
+        // between a stranger with the webhook URL and the ability to mark invoices paid.
+        services.AddOptions<PaymentOptions>()
+            .Bind(configuration.GetSection(PaymentOptions.SectionName))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.SigningSecret),
+                "Payments:SigningSecret must be set — webhooks cannot be verified without it.")
+            .Validate(o => o.SupportedCurrencies is { Length: > 0 },
+                "Payments:SupportedCurrencies must name at least one corridor.")
+            .ValidateOnStart();
+
         services.AddScoped<IAccessTokenService, JwtAccessTokenService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailSender, ConsoleEmailSender>();
@@ -79,6 +90,17 @@ public static class DependencyInjection
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<ITradeDocumentService, TradeDocumentService>();
+
+        // Payments (task 2.4). The gateway is the only adapter, and it is registered rather
+        // than injected by name, so adding a corridor means adding an IPaymentGateway to this
+        // list and nothing else. SandboxPaymentGateway is also resolved concretely for the
+        // simulator; the singleton list below keeps both the interface and that concrete
+        // instance pointing at the same object.
+        services.AddSingleton<SandboxPaymentGateway>();
+        services.AddSingleton<IPaymentGateway>(sp => sp.GetRequiredService<SandboxPaymentGateway>());
+        services.AddSingleton<IPaymentGatewayResolver, PaymentGatewayResolver>();
+        services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<ISandboxPaymentSimulator, SandboxPaymentSimulator>();
 
         return services;
     }

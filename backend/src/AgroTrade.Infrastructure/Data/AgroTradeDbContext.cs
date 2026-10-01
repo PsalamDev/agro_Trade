@@ -45,6 +45,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     public DbSet<TradeDocument> TradeDocuments => Set<TradeDocument>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<PaymentWebhookEvent> PaymentWebhookEvents => Set<PaymentWebhookEvent>();
 
     // Communication
     public DbSet<Message> Messages => Set<Message>();
@@ -378,10 +379,42 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.Property(p => p.Notes).HasMaxLength(1000);
             e.HasIndex(p => p.Reference).IsUnique();
             e.HasIndex(p => new { p.OrderId, p.Status });
+            e.Property(p => p.ProviderRef).HasMaxLength(100);
+            e.Property(p => p.IdempotencyKey).HasMaxLength(100);
+            // A gateway names only its own charge id, so this is the column a webhook is
+            // matched on. Filtered because a manual transfer has no gateway to name one.
+            e.HasIndex(p => new { p.Provider, p.ProviderRef })
+                .IsUnique()
+                .HasFilter("[ProviderRef] IS NOT NULL");
+            // Client-supplied retry guard. Generated when absent, so the filter keeps those
+            // rows out of the index rather than forcing every payment to carry a key.
+            e.HasIndex(p => p.IdempotencyKey)
+                .IsUnique()
+                .HasFilter("[IdempotencyKey] IS NOT NULL");
             e.HasOne(p => p.Order)
                 .WithMany(o => o.Payments)
                 .HasForeignKey(p => p.OrderId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<PaymentWebhookEvent>(e =>
+        {
+            e.HasKey(w => w.Id);
+            e.Property(w => w.ExternalEventId).HasMaxLength(100).IsRequired();
+            e.Property(w => w.EventType).HasMaxLength(80).IsRequired();
+            e.Property(w => w.ProviderRef).HasMaxLength(100).IsRequired();
+            e.Property(w => w.Signature).HasMaxLength(200);
+            e.Property(w => w.Outcome).HasMaxLength(40);
+            // Payload is deliberately unlengthed: it is the provider's document, not ours, and
+            // truncating it would defeat the point of keeping it.
+            e.Property(w => w.Payload).IsRequired();
+            // The idempotency guard. A redelivered event fails this insert, and the handler
+            // reads that as "already applied" and answers 200 without touching the payment.
+            e.HasIndex(w => new { w.Provider, w.ExternalEventId }).IsUnique();
+            e.HasIndex(w => new { w.Provider, w.ProviderRef });
+            e.HasIndex(w => w.ReceivedAtUtc);
+            // No relationship to Payment, on purpose — see the entity's remarks. This is a
+            // RESTRICT-free, navigation-free registration so the row outlives its payment.
         });
 
         builder.Entity<Transaction>(e =>
@@ -394,6 +427,13 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.Property(t => t.ExternalReference).HasMaxLength(100);
             e.HasIndex(t => t.Reference).IsUnique();
             e.HasIndex(t => new { t.OrderId, t.OccurredAtUtc });
+            // One settlement row per payment. The webhook handler already dedupes, but a
+            // ledger that can double-count a payment is worse than one that is merely slow to
+            // reconcile, so the constraint is also enforced here where it cannot be bypassed.
+            // Filtered to Type = Payment because a refund legitimately shares the PaymentId.
+            e.HasIndex(t => t.PaymentId)
+                .IsUnique()
+                .HasFilter("[PaymentId] IS NOT NULL AND [Type] = 0");
             // Restrict, not Cascade: Payments already cascades from Order, and Payments
             // back-references Transactions via SetNull. Cascading from both sides makes
             // Orders -> Payments -> ... -> Transactions -> Orders a cycle, which SQL

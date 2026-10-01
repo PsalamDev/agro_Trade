@@ -239,6 +239,34 @@ public sealed class ReviewDocumentRequestValidator : AbstractValidator<ReviewDoc
     }
 }
 
+public sealed class InitiatePaymentRequestValidator : AbstractValidator<InitiatePaymentRequest>
+{
+    public InitiatePaymentRequestValidator()
+    {
+        // Null means "the outstanding balance", which the service resolves against the order.
+        // An explicit amount must be a real, positive slice of what is owed.
+        RuleFor(x => x.Amount)
+            .GreaterThan(0)
+            .When(x => x.Amount is not null)
+            .WithMessage("A payment amount must be greater than zero.")
+            .LessThanOrEqualTo(100_000_000)
+            .WithMessage("That payment amount is implausibly large.");
+
+        RuleFor(x => x.IdempotencyKey).MaximumLength(100);
+        RuleFor(x => x.Notes).MaximumLength(1000);
+    }
+}
+
+public sealed class SimulatePaymentRequestValidator : AbstractValidator<SimulatePaymentRequest>
+{
+    public SimulatePaymentRequestValidator()
+    {
+        RuleFor(x => x.Outcome)
+            .Must(o => o == SimulateOutcomes.Succeeded || o == SimulateOutcomes.Failed)
+            .WithMessage($"Outcome must be '{SimulateOutcomes.Succeeded}' or '{SimulateOutcomes.Failed}'.");
+    }
+}
+
 public sealed class SendMessageRequestValidator : AbstractValidator<SendMessageRequest>
 {
     public SendMessageRequestValidator()

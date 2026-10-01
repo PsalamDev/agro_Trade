@@ -27,6 +27,29 @@ public sealed class Payment : IAuditableEntity
     public string? BankName { get; set; }
     public DateTime? ValueDateUtc { get; set; }
 
+    /// <summary>
+    /// The gateway's own charge id, e.g. <c>sbx_9f2c…</c>. This is what a webhook names, and
+    /// the only way to match an inbound event back to a payment — a gateway has no idea about
+    /// our references. Null for a manual transfer, which has no gateway.
+    /// </summary>
+    public string? ProviderRef { get; set; }
+
+    /// <summary>
+    /// Makes initiation idempotent: repeating the request with the same key returns the
+    /// original payment rather than raising a second charge at the gateway. Generated when the
+    /// caller does not supply one, which covers retries of *our* API but not a user who
+    /// genuinely wants to pay twice — that case gets a new key and a new payment.
+    /// </summary>
+    public string? IdempotencyKey { get; set; }
+
+    /// <summary>
+    /// When the most recently applied gateway event arrived. Webhooks are not delivered in
+    /// order, so an event older than this has been superseded by one already applied and is
+    /// recorded but not acted on — otherwise a late <c>payment.failed</c> could undo a
+    /// <c>payment.succeeded</c>.
+    /// </summary>
+    public DateTime? LastEventAtUtc { get; set; }
+
     public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
     public string? FailureReason { get; set; }
 

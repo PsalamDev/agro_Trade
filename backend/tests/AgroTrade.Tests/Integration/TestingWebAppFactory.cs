@@ -40,6 +40,10 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("Auth__AutoConfirmEmail", "true");
         // TestServer has no RemoteIpAddress — everyone shares one rate-limit partition.
         Environment.SetEnvironmentVariable("RateLimit__AuthPermitLimit", "100000");
+        // Webhook signatures are HMAC'd with this, so it has to be a known value or the tests
+        // cannot produce a body the API will accept. Payments:SigningSecret is validated on
+        // start, so it cannot simply be left empty here.
+        Environment.SetEnvironmentVariable("Payments__SigningSecret", "test-webhook-signing-secret-0123456789");
         Environment.SetEnvironmentVariable("Serilog__MinimumLevel__Default", "Warning");
     }
 

@@ -11,6 +11,7 @@ import type {
   CreateTradeRequestRequest,
   DocumentSearchParams,
   HsCodeEntryDto,
+  InitiatePaymentRequest,
   MessageDto,
   NotificationDto,
   OrderCardDto,
@@ -22,6 +23,7 @@ import type {
   ProductDetailDto,
   ProductImageDto,
   ProductSearchParams,
+  PaymentDto,
   QuotationDto,
   RegisterBusinessRequest,
   ReviewDocumentRequest,
@@ -253,6 +255,35 @@ export function getOrder(id: string): Promise<OrderDetailDto> {
  */
 export function transitionOrder(id: string, request: OrderTransitionRequest): Promise<OrderDetailDto> {
   return unwrap(api.post<OrderDetailDto>(`/orders/${id}/transitions`, request))
+}
+
+// ---- Payments ----
+
+/** Payments on an order. Visible to both parties. */
+export function getOrderPayments(orderId: string): Promise<PaymentDto[]> {
+  return unwrap(api.get<PaymentDto[]>(`/orders/${orderId}/payments`))
+}
+
+export function getPayment(id: string): Promise<PaymentDto> {
+  return unwrap(api.get<PaymentDto>(`/payments/${id}`))
+}
+
+/**
+ * Raises a gateway charge against an order. Buyer only, and refused on a closed order.
+ *
+ * Pass a stable `idempotencyKey` and a retry is safe: the same key returns the original payment
+ * rather than raising a second charge. Generate one per attempt, keep it across retries.
+ */
+export function initiatePayment(orderId: string, request: InitiatePaymentRequest = {}): Promise<PaymentDto> {
+  return unwrap(api.post<PaymentDto>(`/orders/${orderId}/payments`, request))
+}
+
+/**
+ * Sandbox checkout: drives a charge to settled or failed by dispatching a real signed webhook
+ * through the production handler. Scoped under /sandbox so it is unmistakably a dev affordance.
+ */
+export function settleSandboxPayment(id: string, outcome: 'succeeded' | 'failed'): Promise<PaymentDto> {
+  return unwrap(api.post<PaymentDto>(`/sandbox/payments/${id}/settle`, { outcome }))
 }
 
 // ---- Trade documents ----

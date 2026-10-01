@@ -147,25 +147,6 @@ public sealed record OrderItemDto
     public string Currency { get; init; } = string.Empty;
 }
 
-public sealed record PaymentDto
-{
-    public Guid Id { get; init; }
-    public Guid OrderId { get; init; }
-    public string Reference { get; init; } = string.Empty;
-    public decimal Amount { get; init; }
-    public string Currency { get; init; } = string.Empty;
-    public PaymentProvider Provider { get; init; }
-    public PaymentMethod Method { get; init; }
-    public PaymentStatus Status { get; init; }
-    public string? RemittanceReference { get; init; }
-    public string? BankName { get; init; }
-    public DateTime? ValueDateUtc { get; init; }
-    public DateTime InitiatedAtUtc { get; init; }
-    public DateTime? PaidAtUtc { get; init; }
-    public string? FailureReason { get; init; }
-    public string? Notes { get; init; }
-}
-
 public sealed record TradeDocumentDto
 {
     public Guid Id { get; init; }

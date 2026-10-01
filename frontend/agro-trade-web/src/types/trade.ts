@@ -610,7 +610,7 @@ export interface OrderDetailDto {
   updatedAtUtc: string | null
   notes: string | null
   items: OrderItemDto[]
-  /** Empty until task 2.5 records off-platform payments. */
+  /** Gateway and off-platform payments (task 2.4 + 2.5). */
   payments: PaymentDto[]
   documents: TradeDocumentDto[]
 }
@@ -641,15 +641,35 @@ export interface TradeDocumentDto {
   uploadedByDisplayName: string | null
 }
 
+export const PAYMENT_PROVIDERS = ['Recorded off-platform', 'Sandbox gateway'] as const
+export const PAYMENT_PROVIDER = {
+  ManualTransfer: 0,
+  SandboxGateway: 1,
+} as const
+
+export const PAYMENT_METHODS = ['Bank transfer', 'Letter of credit', 'Card / gateway'] as const
+export const PAYMENT_METHOD = {
+  BankTransfer: 0,
+  LetterOfCredit: 1,
+  Gateway: 2,
+} as const
+
+/** Outcomes the sandbox charge can be driven to. Kept in step with the server. */
+export const SIMULATE_OUTCOMES = ['succeeded', 'failed'] as const
+export type SimulateOutcome = (typeof SIMULATE_OUTCOMES)[number]
+
 export interface PaymentDto {
   id: string
   orderId: string
+  orderNumber: string
   reference: string
   amount: number
   currency: string
   provider: number
   method: number
   status: number
+  /** The gateway's charge id. Null for a manual transfer, which has no gateway. */
+  providerRef: string | null
   remittanceReference: string | null
   bankName: string | null
   valueDateUtc: string | null
@@ -657,6 +677,22 @@ export interface PaymentDto {
   paidAtUtc: string | null
   failureReason: string | null
   notes: string | null
+  /** Where the payer completes the charge. Sandbox only; null once settled. */
+  nextActionUrl: string | null
+  /** Outstanding against the order, on the list view only. */
+  orderBalanceDue: number | null
+}
+
+/**
+ * Caller-supplied retry guard. Repeating an initiation with the same key returns the original
+ * payment instead of raising a second charge, so a request that times out can simply be retried.
+ * Generate one per attempt and reuse it across retries.
+ */
+export interface InitiatePaymentRequest {
+  /** Defaults to the order's outstanding balance. */
+  amount?: number
+  idempotencyKey?: string
+  notes?: string
 }
 
 /** Fields the upload form collects. File metadata comes from the validated upload. */

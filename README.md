@@ -7,10 +7,10 @@ own origins and destinations. A domestic retail marketplace is a follow-on phase
 
 **Core trade journey:** Discover → Source → Verify → Negotiate → Trade → Ship → Deliver
 
-> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.3.**
+> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.4.**
 > The full journey is *Discover → Source → Verify → Negotiate → Trade → Ship → Deliver*; the
-> first four steps are built, and the fifth (order placement, fulfilment, and trade
-> paperwork) is landed through task 2.3. See
+> first four steps are built, and the fifth (order placement, payment, and trade
+> paperwork) is landed through task 2.4. See
 > [Current status](#current-status) below and [`docs/01-roadmap.md`](docs/01-roadmap.md)
 > for the full phase plan.
 
@@ -108,7 +108,7 @@ another SQL Server to run tests somewhere else (CI does this).
 
 ## Current status
 
-Phases 0 and 1 are complete. Phase 2 is underway (tasks 2.1–2.3 of 2.7 landed).
+Phases 0 and 1 are complete. Phase 2 is underway (tasks 2.1–2.4 of 2.7 landed).
 
 ### Phase 0 — Foundations (complete)
 
@@ -152,7 +152,7 @@ Tasks 2.1–2.7 per the roadmap:
 | 2.1 | Order model (incoterms, ports, payment terms, currency) + handoff from accepted quotation | **Done** |
 | 2.2 | Order lifecycle + inventory reservation + buyer/seller inboxes | **Done** |
 | 2.3 | Trade document upload + statuses + admin verification queue | **Done** |
-| 2.4 | Payment gateway adapter #1 (sandbox) + idempotent webhook | Not started |
+| 2.4 | Payment gateway adapter #1 (sandbox) + idempotent webhook | **Done** |
 | 2.5 | Off-platform payment recording + transaction ledger | Not started |
 | 2.6 | Shipment record + tracking events + guest tracking | Not started |
 | 2.7 | Admin dashboard (all queues + KPIs) | Not started |
@@ -184,6 +184,58 @@ Task 2.3 also fixed a latent bug in order and RFQ numbering. Numbers were alloca
 unique-index violation surfaced as an unhandled 500. `SequenceAllocator` takes a range lock
 over the indexed number column (`UPDLOCK, HOLDLOCK` in a serialisable transaction), so a
 second allocator blocks and then sees the row it would otherwise have missed.
+
+Task 2.4 added the payment gateway seam and the first adapter behind it: a **sandbox gateway**
+with no third-party SDK and no provider account. `IPaymentGateway` is deliberately tiny, and
+gateway selection runs through `IPaymentGatewayResolver`, which matches an order's currency
+against each registered adapter's `SupportedCurrencies`. `PaymentProvider` identifies *who* the
+counterparty is and is append-only, so a second corridor is a registration rather than a new enum
+value per currency. The sandbox settles **USD only**; an order in another currency is refused with
+`CORRIDOR_UNSUPPORTED` before any payment row exists, rather than raising a charge that would
+never arrive.
+
+The sandbox deliberately does **not** settle inline. It raises a `pending` charge with a
+checkout URL, and settlement arrives later as a signed event pushed through the real
+`POST /payments/webhooks/{provider}`. A sandbox that flipped `pending → paid` synchronously would
+prove nothing about the four things this task exists to get right: asynchronous delivery,
+at-least-once redelivery, out-of-order events, and signature verification.
+
+Those defences, each with a test:
+
+- **Signature.** HMAC-SHA256 over the exact bytes received, compared in constant time, with an
+  optional `sha256=` prefix. The endpoint takes the raw body rather than a bound model, because
+  re-serialising would produce different bytes. A bad signature is 400, not 401 — the caller is
+  not a user of ours and cannot log in.
+- **Idempotency.** A unique index on `PaymentWebhookEvents (Provider, ExternalEventId)`.
+  Deduplication is the *failed insert*, not a pre-check, because a pre-check races with a
+  concurrent redelivery. A redelivery is answered **200**; any other status tells the gateway to
+  retry an event we already applied.
+- **Ordering.** An event older than `Payment.LastEventAtUtc` is recorded but not applied, so a
+  late `payment.failed` cannot undo a `payment.succeeded`.
+- **Outbound retries.** `Payment.IdempotencyKey`, client-suppliable and uniquely indexed. The
+  same key with a different order or amount is a 409 `IDEMPOTENCY_KEY_REUSED`, so the guard
+  cannot hide a client bug behind a success.
+
+Settlement writes a `Transactions` row and rolls the order's `PaymentStatus` up, with a filtered
+unique index on `Transactions (PaymentId)` so a payment cannot be double-counted. The uploader
+of an event is not trusted to be the payer: a gateway settles its own charges, and the sandbox's
+"simulate" affordance lives in a separate service so `PaymentService` never names the sandbox.
+
+Two latent defects were found and fixed while testing this against the live API, both invisible to
+the suite as first written:
+
+- The payment was never added to the change tracker, so `SaveChanges` succeeded having written
+  nothing — payments were returned by the API but never persisted.
+- Inbound event timestamps were compared as raw `DateTime` ticks, which ignores
+  `DateTime.Kind`. A gateway sending `14:00:00+01:00` read as an hour *later* than a genuine
+  `13:00:00Z`, which was enough for a stale `payment.failed` to overwrite a settled payment. The
+  ordering decision now normalises to UTC first. Both are covered by tests that fail without the
+  fix.
+
+Webhook bodies are parsed case-insensitively and the sandbox emits camelCase, matching what real
+gateways send. Under the strict default the sandbox round-tripped its own PascalCase perfectly and
+every test passed — but a real provider's camelCase payload would have deserialised to nulls and
+been rejected as malformed.
 
 ## Documentation Index
 

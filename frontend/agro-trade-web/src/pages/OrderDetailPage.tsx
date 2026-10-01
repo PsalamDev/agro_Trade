@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { OrderPaymentPill, OrderStatusPill } from '../components/badges'
 import { OrderDocumentsPanel } from '../components/OrderDocumentsPanel'
+import { OrderPaymentsPanel } from '../components/OrderPaymentsPanel'
 import { ConfirmDialog } from '../components/overlays'
 import { Button, Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { problemFrom } from '../lib/api'
@@ -257,6 +258,8 @@ export default function OrderDetailPage() {
                     <p className="mt-1 font-mono text-xs text-stone-400">{order.sellerBusinessId}</p>
                   </Card>
                 </div>
+
+                <OrderPaymentsPanel order={order} payments={order.payments} onChanged={refresh} />
 
                 <OrderDocumentsPanel
                   order={order}
