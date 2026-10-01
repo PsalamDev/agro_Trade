@@ -163,6 +163,47 @@ public sealed class CreateQuotationRequestValidator : AbstractValidator<CreateQu
     }
 }
 
+public sealed class CreateOrderFromQuotationRequestValidator : AbstractValidator<CreateOrderFromQuotationRequest>
+{
+    public CreateOrderFromQuotationRequestValidator()
+    {
+        RuleFor(x => x.QuotationId).NotEmpty();
+        RuleFor(x => x.Notes).MaximumLength(2000);
+    }
+}
+
+public sealed class CreateManualOrderRequestValidator : AbstractValidator<CreateManualOrderRequest>
+{
+    public CreateManualOrderRequestValidator()
+    {
+        RuleFor(x => x.SellerBusinessId).NotEmpty();
+        RuleFor(x => x.Currency).NotEmpty().Length(3);
+        RuleFor(x => x.Incoterms).Must(EnumChecks.In<Incoterms>);
+        RuleFor(x => x.PaymentTerms).Must(EnumChecks.In<PaymentTerms>);
+        RuleFor(x => x.TransportMode).Must(EnumChecks.IsNullOrIn<ShipmentMode>);
+        RuleFor(x => x.PortOfLoading).MaximumLength(120);
+        RuleFor(x => x.PortOfDischarge).MaximumLength(120);
+        RuleFor(x => x.DestinationCountry).Length(2)
+            .WithMessage("DestinationCountry must be an ISO-3166 alpha-2 code.");
+        RuleFor(x => x.Notes).MaximumLength(2000);
+        RuleFor(x => x.Discount).GreaterThanOrEqualTo(0);
+
+        RuleFor(x => x.Items)
+            .NotEmpty().WithMessage("An order needs at least one line item.")
+            .Must(items => items != null && items.Count <= 100)
+            .WithMessage("An order cannot have more than 100 line items.");
+
+        RuleForEach(x => x.Items).ChildRules(item =>
+        {
+            item.RuleFor(i => i.ProductName).NotEmpty().MaximumLength(200);
+            item.RuleFor(i => i.Sku).MaximumLength(64);
+            item.RuleFor(i => i.Quantity).GreaterThan(0);
+            item.RuleFor(i => i.UnitPrice).GreaterThanOrEqualTo(0);
+            item.RuleFor(i => i.Unit).Must(EnumChecks.In<PriceUnit>);
+        });
+    }
+}
+
 public sealed class SendMessageRequestValidator : AbstractValidator<SendMessageRequest>
 {
     public SendMessageRequestValidator()

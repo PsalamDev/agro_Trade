@@ -89,6 +89,67 @@ public enum QuotationStatus
     Expired = 6,
 }
 
+/// <summary>Order lifecycle (plan §02 — Orders). Values are append-only.</summary>
+public enum OrderStatus
+{
+    /// <summary>Created from an accepted quotation or manual entry; nothing committed yet.</summary>
+    Draft = 0,
+    /// <summary>Buyer has placed the order; seller is preparing to fulfil.</summary>
+    Placed = 1,
+    /// <summary>Seller has confirmed and is moving the goods.</summary>
+    Confirmed = 2,
+    /// <summary>Goods dispatched; awaiting arrival.</summary>
+    InTransit = 3,
+    /// <summary>Delivered, awaiting buyer confirmation.</summary>
+    Delivered = 4,
+    /// <summary>Buyer confirmed receipt. Terminal-success state.</summary>
+    Completed = 5,
+    Cancelled = 6,
+}
+
+/// <summary>Payment state rolled up across an order's Payments (plan §02 — Payments).</summary>
+public enum PaymentStatus
+{
+    None = 0,
+    Pending = 1,
+    PartiallyPaid = 2,
+    Paid = 3,
+    Refunded = 4,
+    Failed = 5,
+}
+
+public enum PaymentProvider
+{
+    /// <summary>Bank transfer / T/T / L/C recorded off-platform — no webhook, no gateway.</summary>
+    ManualTransfer = 0,
+    SandboxGateway = 1,
+}
+
+public enum PaymentMethod
+{
+    BankTransfer = 0,
+    LetterOfCredit = 1,
+    Gateway = 2,
+}
+
+public enum TransactionType
+{
+    Payment = 0,
+    Refund = 1,
+    Fee = 2,
+}
+
+public enum ShipmentStatus
+{
+    Pending = 0,
+    Booked = 1,
+    Departed = 2,
+    InTransit = 3,
+    Arrived = 4,
+    Delivered = 5,
+    Exception = 6,
+}
+
 public enum PaymentTerms
 {
     TtAdvance = 1,

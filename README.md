@@ -7,8 +7,15 @@ own origins and destinations. A domestic retail marketplace is a follow-on phase
 
 **Core trade journey:** Discover → Source → Verify → Negotiate → Trade → Ship → Deliver
 
-> **Status: Phase 0 (foundations) in progress.** Monorepo with a functioning ASP.NET Core
-> API (auth & identity complete) and a React web app scaffolded and wired to it.
+> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) started.**
+> The full journey is *Discover → Source → Verify → Negotiate → Trade → Ship → Deliver*; the
+> first four steps are built and the fifth (order placement) has just landed. See
+> [Current status](#current-status) below and [`docs/01-roadmap.md`](docs/01-roadmap.md)
+> for the full phase plan.
+
+> **Product pivot:** the demo data runs as a single supplier — Achievers Global Consult —
+> rather than a multi-supplier marketplace. The domain model still supports multiple
+> businesses per RFQ; only the seeded demo has one seller.
 
 ## Repository Layout
 
@@ -98,7 +105,11 @@ another SQL Server to run tests somewhere else (CI does this).
 > test assembly. Enable **Developer Mode** (Settings → Privacy & security → For developers)
 > — the official workaround that disables SAC for local development. CI is unaffected.
 
-## Phase 0 — What's working
+## Current status
+
+Phases 0 and 1 are complete. Phase 2 is underway (task 2.1 of 2.7 landed).
+
+### Phase 0 — Foundations (complete)
 
 Backend (verifiable live, and covered by the integration suite):
 
@@ -112,11 +123,47 @@ Backend (verifiable live, and covered by the integration suite):
   [FluentValidation], rate limiting on `/auth`, CORS, Serilog, health endpoints
   (`/health` liveness, `/health/ready` readiness)
 
-Frontend (builds clean; wired to the API):
+### Phase 1 — Cross-border sourcing core (complete)
 
-- Landing page, sign-in, registration with role chips, forgot/reset password, confirm email
-- Protected dashboard with profile editing; axios client with bearer-token attachment and
-  transparent access-token refresh on 401
+- Businesses with legal/trading name, country and type; **imports-from / exports-to**
+  reachability; document uploads; submit-for-verification with admin approve/reject and a
+  **Verified badge** that drives marketplace trust filters
+- Export listings carrying real trade terms: origin country, HS code, price + currency,
+  available quantity, MOQ, packaging, certifications, incoterms, lead time, port of loading
+- Marketplace search/filter by commodity, origin country, exports-to destination,
+  verified-only, currency, price range, HS code, with pagination and sort
+- RFQs: destination country + port, preferred incoterm, transport mode, required
+  certifications, deadline, budget; open directory; supplier quotations carrying complete
+  trade terms; side-by-side comparison; negotiation thread
+- Messaging (general + per RFQ) and in-app notifications
+- Frontend: landing, marketplace, product detail, RFQ publish/browse/compare, negotiation,
+  messaging, notifications, business profile + verification, admin queues, my listings/RFQs
+
+Seeded demo: 13 listings across cocoa, cashew, palm kernel, frozen fish, maize and rice,
+all under Achievers Global Consult, idempotently re-applied on every startup.
+
+### Phase 2 — Trade execution (in progress)
+
+Tasks 2.1–2.7 per the roadmap:
+
+| # | Task | Status |
+| --- | --- | --- |
+| 2.1 | Order model (incoterms, ports, payment terms, currency) + handoff from accepted quotation | **Done** |
+| 2.2 | Order lifecycle + inventory reservation + buyer/seller inboxes | Not started |
+| 2.3 | Trade document upload + statuses + admin verification queue | Not started |
+| 2.4 | Payment gateway adapter #1 (sandbox) + idempotent webhook | Not started |
+| 2.5 | Off-platform payment recording + transaction ledger | Not started |
+| 2.6 | Shipment record + tracking events + guest tracking | Not started |
+| 2.7 | Admin dashboard (all queues + KPIs) | Not started |
+
+Task 2.1 delivered `Orders` / `OrderItems` / `Payments` / `Transactions` / `TradeDocuments`
+plus `POST /orders/from-quotation`, `POST /orders`, and the buyer/seller order reads.
+Trade terms are **snapshotted** onto the order at handoff, so later edits to the RFQ or
+quotation cannot rewrite what was agreed, and a quotation can only ever be converted once
+(enforced by a filtered unique index, not just an application check).
+
+`Payments`, `Transactions` and `TradeDocuments` exist as schema only so later tasks have
+something to hang off — there are no endpoints for them yet.
 
 ## Documentation Index
 

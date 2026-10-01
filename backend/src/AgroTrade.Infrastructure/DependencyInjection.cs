@@ -75,6 +75,9 @@ public static class DependencyInjection
         services.AddScoped<IRfqService, RfqService>();
         services.AddScoped<ICommunicationService, CommunicationService>();
 
+        // Trade execution (Phase 2)
+        services.AddScoped<IOrderService, OrderService>();
+
         return services;
     }
 }

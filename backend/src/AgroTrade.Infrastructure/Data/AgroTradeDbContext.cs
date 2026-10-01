@@ -38,6 +38,13 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     public DbSet<TradeRequest> TradeRequests => Set<TradeRequest>();
     public DbSet<Quotation> Quotations => Set<Quotation>();
 
+    // Trade execution (Phase 2)
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<TradeDocument> TradeDocuments => Set<TradeDocument>();
+    public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<Transaction> Transactions => Set<Transaction>();
+
     // Communication
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<Notification> Notifications => Set<Notification>();
@@ -71,6 +78,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
         ConfigureBusiness(builder);
         ConfigureCatalog(builder);
         ConfigureTradeRequests(builder);
+        ConfigureOrders(builder);
         ConfigureCommunication(builder);
     }
 
@@ -250,6 +258,140 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
                 .WithMany()
                 .HasForeignKey(q => q.SupplierBusinessId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    private static void ConfigureOrders(ModelBuilder builder)
+    {
+        builder.Entity<Order>(e =>
+        {
+            e.HasKey(o => o.Id);
+            e.Property(o => o.OrderNumber).HasMaxLength(20).IsRequired();
+            e.Property(o => o.Currency).HasMaxLength(3).IsRequired();
+            e.Property(o => o.Subtotal).HasPrecision(18, 2);
+            e.Property(o => o.Discount).HasPrecision(18, 2);
+            e.Property(o => o.Total).HasPrecision(18, 2);
+            e.Property(o => o.PortOfLoading).HasMaxLength(120);
+            e.Property(o => o.PortOfDischarge).HasMaxLength(120);
+            e.Property(o => o.DestinationCountry).HasMaxLength(2);
+            e.Property(o => o.Notes).HasMaxLength(2000);
+            e.Property(o => o.RowVersion).IsRowVersion();
+            e.HasIndex(o => o.OrderNumber).IsUnique();
+            // A quotation can only be converted once, so this guards against a double handoff.
+            e.HasIndex(o => o.QuotationId).IsUnique().HasFilter("[QuotationId] IS NOT NULL");
+            e.HasIndex(o => new { o.BuyerUserId, o.Status });
+            e.HasIndex(o => new { o.SellerBusinessId, o.Status });
+            e.HasIndex(o => o.PlacedAtUtc);
+            // Navigation properties are named explicitly. Relying on convention here makes
+            // EF pair the nav with the FK twice and create shadow FKs (QuotationId1, etc.),
+            // because the entity declares both a nav and a matching scalar.
+            e.HasOne(o => o.Quotation)
+                .WithMany()
+                .HasForeignKey(o => o.QuotationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(o => o.TradeRequest)
+                .WithMany()
+                .HasForeignKey(o => o.TradeRequestId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(o => o.BuyerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(o => o.SellerBusiness)
+                .WithMany()
+                .HasForeignKey(o => o.SellerBusinessId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(o => o.DestinationAddress)
+                .WithMany()
+                .HasForeignKey(o => o.DestinationAddressId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<OrderItem>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.ProductNameSnapshot).HasMaxLength(200).IsRequired();
+            e.Property(i => i.ProductSkuSnapshot).HasMaxLength(64);
+            e.Property(i => i.Quantity).HasPrecision(18, 2);
+            e.Property(i => i.UnitPrice).HasPrecision(18, 2);
+            e.Property(i => i.LineTotal).HasPrecision(18, 2);
+            e.Property(i => i.Currency).HasMaxLength(3).IsRequired();
+            e.HasIndex(i => i.OrderId);
+            e.HasIndex(i => i.ProductId);
+            e.HasOne(i => i.Order)
+                .WithMany(o => o.Items)
+                .HasForeignKey(i => i.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // SetNull, not Cascade: a deleted listing must never erase agreed order history.
+            e.HasOne(i => i.Product)
+                .WithMany()
+                .HasForeignKey(i => i.ProductId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<TradeDocument>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.DocumentReference).HasMaxLength(100);
+            e.Property(d => d.FileUrl).HasMaxLength(600);
+            e.Property(d => d.FileName).HasMaxLength(260);
+            e.Property(d => d.ContentType).HasMaxLength(120);
+            e.Property(d => d.ReviewNotes).HasMaxLength(2000);
+            e.HasIndex(d => new { d.OrderId, d.DocType });
+            e.HasIndex(d => new { d.Status, d.DocType });
+            e.HasIndex(d => d.UploadedByUserId);
+            e.HasOne(d => d.Order)
+                .WithMany(o => o.Documents)
+                .HasForeignKey(d => d.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(d => d.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Payment>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Reference).HasMaxLength(32).IsRequired();
+            e.Property(p => p.Amount).HasPrecision(18, 2);
+            e.Property(p => p.Currency).HasMaxLength(3).IsRequired();
+            e.Property(p => p.RemittanceReference).HasMaxLength(100);
+            e.Property(p => p.BankName).HasMaxLength(120);
+            e.Property(p => p.FailureReason).HasMaxLength(500);
+            e.Property(p => p.Notes).HasMaxLength(1000);
+            e.HasIndex(p => p.Reference).IsUnique();
+            e.HasIndex(p => new { p.OrderId, p.Status });
+            e.HasOne(p => p.Order)
+                .WithMany(o => o.Payments)
+                .HasForeignKey(p => p.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<Transaction>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Reference).HasMaxLength(32).IsRequired();
+            e.Property(t => t.Amount).HasPrecision(18, 2);
+            e.Property(t => t.Currency).HasMaxLength(3).IsRequired();
+            e.Property(t => t.Narrative).HasMaxLength(500);
+            e.Property(t => t.ExternalReference).HasMaxLength(100);
+            e.HasIndex(t => t.Reference).IsUnique();
+            e.HasIndex(t => new { t.OrderId, t.OccurredAtUtc });
+            // Restrict, not Cascade: Payments already cascades from Order, and Payments
+            // back-references Transactions via SetNull. Cascading from both sides makes
+            // Orders -> Payments -> ... -> Transactions -> Orders a cycle, which SQL
+            // Server rejects outright (error 1785). A ledger row outliving its order's
+            // deletion is also the safer accounting behaviour - delete the order's payments
+            // first, or mark the order cancelled instead.
+            e.HasOne(t => t.Order)
+                .WithMany()
+                .HasForeignKey(t => t.OrderId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(t => t.Payment)
+                .WithMany()
+                .HasForeignKey(t => t.PaymentId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 
