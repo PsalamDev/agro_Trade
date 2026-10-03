@@ -737,6 +737,10 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.HasIndex("Reference")
                         .IsUnique();
 
+                    b.HasIndex("OrderId", "RemittanceReference")
+                        .IsUnique()
+                        .HasFilter("[RemittanceReference] IS NOT NULL");
+
                     b.HasIndex("OrderId", "Status");
 
                     b.HasIndex("Provider", "ProviderRef")

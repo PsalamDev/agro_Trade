@@ -24,6 +24,33 @@ public interface IPaymentService
     Task<PaymentDto> GetAsync(Guid paymentId, Guid userId, CancellationToken ct = default);
 
     /// <summary>
+    /// Records an off-platform payment — a bank transfer or letter of credit — against an order,
+    /// already settled, with the bank's remittance reference.
+    ///
+    /// <para>
+    /// <b>Seller only.</b> This is the deliberate inverse of
+    /// <see cref="InitiateAsync"/>: the buyer is the party that sends the money, but only the
+    /// beneficiary of the account can observe that it arrived. Letting the buyer attest to their
+    /// own transfer would let anyone mark an order paid and demand dispatch against funds the
+    /// platform cannot verify exist.
+    /// </para>
+    ///
+    /// <para>
+    /// Safe to retry via <see cref="RecordManualPaymentRequest.IdempotencyKey"/>, and separately
+    /// guarded by the remittance reference, which is unique per order.
+    /// </para>
+    /// </summary>
+    Task<PaymentDto> RecordManualAsync(
+        Guid orderId, Guid userId, RecordManualPaymentRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// The order's ledger: one immutable row per money movement, oldest first. Both parties may
+    /// read it. This is the financial record, not the list of attempts.
+    /// </summary>
+    Task<IReadOnlyList<TransactionDto>> ListTransactionsAsync(
+        Guid orderId, Guid userId, CancellationToken ct = default);
+
+    /// <summary>
     /// Verifies, deduplicates and applies one gateway event. <paramref name="rawBody"/> must be
     /// the exact bytes received: the signature covers them, and a re-serialised payload will
     /// not verify.
@@ -73,6 +100,56 @@ public sealed class SimulatePaymentRequest
     public string Outcome { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// An off-platform payment the seller confirms has landed: a bank transfer, or a letter of credit
+/// presented and honoured.
+/// </summary>
+/// <remarks>
+/// Recorded as already settled rather than pending. There is no provider to ask, so a "pending"
+/// state here would mean "waiting for a human to type something", and the record would exist only
+/// to be updated. The value date carries the timing instead.
+/// </remarks>
+public sealed class RecordManualPaymentRequest
+{
+    /// <summary>
+    /// Settled amount. Positive and no more than the order's outstanding balance. Partial payments
+    /// are the norm — a deposit against the balance is the common trade term.
+    /// </summary>
+    public decimal Amount { get; init; }
+
+    /// <summary>
+    /// Bank transfer or letter of credit. <see cref="PaymentMethod.Gateway"/> is refused: a
+    /// gateway payment is raised through <see cref="InitiatePaymentRequest"/>, not typed in.
+    /// </summary>
+    public PaymentMethod Method { get; init; } = PaymentMethod.BankTransfer;
+
+    /// <summary>
+    /// The bank's own reference for the transfer — the UTR/narrative on the remittance advice.
+    /// Required, and unique per order: it is the field an auditor reconciles against, so the same
+    /// trace id recorded twice is a double-count, not a second transfer.
+    /// </summary>
+    public string RemittanceReference { get; init; } = string.Empty;
+
+    /// <summary>Sending or receiving bank, so the buyer can match it against their statement.</summary>
+    public string? BankName { get; init; }
+
+    /// <summary>
+    /// When the funds actually landed. Defaults to now. Must not be in the future: a value date
+    /// ahead of today describes money that has not arrived yet. Send UTC; a value with no offset
+    /// is read as UTC.
+    /// </summary>
+    public DateTime? ValueDateUtc { get; init; }
+
+    public string? Notes { get; init; }
+
+    /// <summary>
+    /// Optional caller-supplied retry guard, as on <see cref="InitiatePaymentRequest"/>. Guards a
+    /// retried request; the remittance reference guards a genuine double-entry, which is the more
+    /// likely mistake and is caught regardless of keys.
+    /// </summary>
+    public string? IdempotencyKey { get; init; }
+}
+
 /// <summary>Simulated outcomes, kept in step with <see cref="GatewayStatuses"/>.</summary>
 public static class SimulateOutcomes
 {
@@ -119,4 +196,36 @@ public sealed record PaymentDto
 
     /// <summary>Set when this payment is outstanding against the order, for the list view.</summary>
     public decimal? OrderBalanceDue { get; init; }
+}
+
+/// <summary>
+/// One immutable ledger entry. Unlike <see cref="PaymentDto"/>, which is a mutable attempt, this
+/// is the financial history: it is written once when money moves and never edited.
+/// </summary>
+public sealed record TransactionDto
+{
+    public Guid Id { get; init; }
+    public Guid OrderId { get; init; }
+
+    /// <summary>Ledger reference, e.g. "TXN-2026-000001".</summary>
+    public string Reference { get; init; } = string.Empty;
+
+    public TransactionType Type { get; init; }
+
+    /// <summary>Positive for money in, negative for money out.</summary>
+    public decimal Amount { get; init; }
+
+    public string Currency { get; init; } = string.Empty;
+
+    /// <summary>The payment that produced this entry, if there was one.</summary>
+    public Guid? PaymentId { get; init; }
+
+    /// <summary>That payment's reference, resolved so the ledger reads without a second lookup.</summary>
+    public string? PaymentReference { get; init; }
+
+    /// <summary>The counterparty's own reference — the gateway charge id, or the bank's trace id.</summary>
+    public string? ExternalReference { get; init; }
+
+    public DateTime OccurredAtUtc { get; init; }
+    public string? Narrative { get; init; }
 }

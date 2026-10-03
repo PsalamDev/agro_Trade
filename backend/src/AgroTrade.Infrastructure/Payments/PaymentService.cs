@@ -234,6 +234,240 @@ public sealed class PaymentService(
         return await ToDtoAsync(payment, charge.NextActionUrl, ct);
     }
 
+    // ---- Off-platform payments (task 2.5) ----
+
+    /// <remarks>
+    /// Writes across three commits — the payment row, the ledger row, then the order rollup and
+    /// notifications — because <c>PAY-</c> and <c>TXN-</c> references come from two different
+    /// max-plus-one sequences and each allocator owns its own transaction. A request that fails
+    /// between them can therefore leave a settled payment with no ledger entry. The retry path
+    /// repairs that; see the idempotency branch below. Collapsing this to one commit needs an
+    /// allocator that can number two sequences inside a single transaction, which is a change to
+    /// infrastructure shared with RFQ and order numbering and is not this task's to make.
+    /// </remarks>
+    public async Task<PaymentDto> RecordManualAsync(
+        Guid orderId, Guid userId, RecordManualPaymentRequest request, CancellationToken ct = default)
+    {
+        var order = await db.Orders
+            .AsNoTracking()
+            .Include(o => o.Payments)
+            .FirstOrDefaultAsync(o => o.Id == orderId, ct)
+            ?? throw ApiException.NotFound("ORDER_NOT_FOUND", "Order not found.");
+
+        // The seller records it, not the buyer. The buyer sends the money; only the beneficiary
+        // of the account can see it land. A buyer attesting to their own transfer would let
+        // anyone mark an order paid and demand dispatch against funds we cannot verify — the
+        // exact claim this record exists to make trustworthy.
+        if (await PartyAsync(order, userId, ct) != OrderParty.Seller)
+        {
+            throw ApiException.NotFound("ORDER_NOT_FOUND", "Order not found.");
+        }
+
+        // Money already in hand for a cancelled or completed order is a recovery, not a payment.
+        // Recording it as one would let the ledger imply the platform handled a live transaction
+        // it never could have.
+        if (order.Status is OrderStatus.Cancelled or OrderStatus.Completed)
+        {
+            throw ApiException.Conflict(
+                "ORDER_CLOSED",
+                order.Status == OrderStatus.Cancelled
+                    ? "This order was cancelled, so nothing can be recorded against it."
+                    : "This order is already complete.");
+        }
+
+        var idempotencyKey = request.IdempotencyKey?.Trim();
+        if (!string.IsNullOrEmpty(idempotencyKey))
+        {
+            var replay = await db.Payments
+                .FirstOrDefaultAsync(p => p.IdempotencyKey == idempotencyKey, ct);
+
+            if (replay is not null)
+            {
+                // Same rule as the gateway path: a retry guard that only matched on the key would
+                // hand back the wrong payment and hide the client bug behind a success.
+                if (replay.OrderId != orderId || replay.Amount != request.Amount)
+                {
+                    throw ApiException.Conflict(
+                        "IDEMPOTENCY_KEY_REUSED",
+                        "That idempotency key was already used for a different payment.");
+                }
+
+                // Recording spans three commits — the payment row, then the ledger row, then the
+                // order rollup — because each reference comes from a different max-plus-one
+                // sequence and each allocator owns its own transaction. So a request that dies
+                // between them can leave a settled payment with no ledger entry behind it. It
+                // cannot be prevented here without a single allocator spanning two sequences,
+                // which is a bigger change than this task should make to shared infrastructure.
+                //
+                // It can be *repaired*, though, and a retry is exactly when that should happen.
+                // RecordLedgerAsync is a no-op when the row is already there, so this is free on
+                // the ordinary replay path and only does work after a torn commit.
+                await RecordLedgerAsync(replay, ct);
+                await db.SaveChangesAsync(ct);
+
+                return await ToDtoAsync(replay, ct: ct);
+            }
+        }
+
+        var remittanceReference = request.RemittanceReference.Trim();
+
+        // The bank's trace id is unique per order. Recording the same transfer twice is the
+        // likeliest mistake here — a double-click, or a second pass over a statement — and it
+        // silently doubles the order's paid figure if it is not caught.
+        var duplicateRef = await db.Payments
+            .FirstOrDefaultAsync(
+                p => p.OrderId == orderId && p.RemittanceReference == remittanceReference, ct);
+
+        if (duplicateRef is not null)
+        {
+            throw ApiException.Conflict(
+                "REMITTANCE_REFERENCE_REUSED",
+                $"Remittance reference {remittanceReference} is already recorded on this order.");
+        }
+
+        var paid = order.Payments.Where(p => p.Status == PaymentStatus.Paid).Sum(p => p.Amount);
+        var balanceDue = order.Total - paid;
+
+        if (balanceDue <= 0)
+        {
+            throw ApiException.Conflict(
+                "NOTHING_OUTSTANDING",
+                "This order is already paid in full.");
+        }
+
+        if (request.Amount > balanceDue)
+        {
+            throw ApiException.BadRequest(
+                "AMOUNT_EXCEEDS_BALANCE",
+                $"Only {balanceDue:N2} {order.Currency} is outstanding on this order.");
+        }
+
+        var valueDate = ToUtc(request.ValueDateUtc);
+
+        // A value date ahead of now describes money that has not arrived. Accepting it would put a
+        // ledger entry dated later than today's settlements into a chronological sequence, and
+        // the paid figure would then be true only as of some future moment.
+        if (valueDate is { } stated && stated > DateTime.UtcNow)
+        {
+            throw ApiException.BadRequest(
+                "VALUE_DATE_IN_FUTURE",
+                "The value date cannot be in the future — the funds have to have arrived.");
+        }
+
+        var now = DateTime.UtcNow;
+
+        var payment = new Payment
+        {
+            OrderId = order.Id,
+            Amount = request.Amount,
+            // The order's currency, never converted. A multi-currency order would need two
+            // entries in two currencies; there is no rate table here to pretend otherwise.
+            Currency = order.Currency,
+            Provider = PaymentProvider.ManualTransfer,
+            Method = request.Method,
+            // Already settled. There is no provider to ask, so "pending" would only mean
+            // "waiting for a human to come back and type something".
+            Status = PaymentStatus.Paid,
+            RemittanceReference = remittanceReference,
+            BankName = request.BankName?.Trim(),
+            ValueDateUtc = valueDate,
+            InitiatedAtUtc = now,
+            PaidAtUtc = valueDate ?? now,
+            Notes = request.Notes?.Trim(),
+            IdempotencyKey = string.IsNullOrEmpty(idempotencyKey)
+                ? Guid.NewGuid().ToString("N")
+                : idempotencyKey,
+        };
+
+        db.Payments.Add(payment);
+
+        await SequenceAllocator.AllocateAsync(
+            db,
+            table: "Payments",
+            column: "Reference",
+            prefix: ReferencePrefix(),
+            assign: reference => payment.Reference = reference,
+            save: ct => db.SaveChangesAsync(ct),
+            ct);
+
+        await RecordLedgerAsync(payment, ct);
+
+        var rolled = await RollUpOrderAsync(order.Id, ct);
+
+        // The seller is the actor, so only the buyer is told. Both are notified on a gateway
+        // settlement because there the buyer initiated and the seller learned; here that is
+        // reversed, and a notification telling someone what they just did is noise.
+        await NotifyAsync(payment, rolled, was: PaymentStatus.None, skipUserId: userId, ct);
+
+        await db.SaveChangesAsync(ct);
+
+        logger.LogInformation(
+            "Manual payment {Reference} recorded against order {OrderId} for {Amount} {Currency} (remittance {RemittanceReference})",
+            payment.Reference, orderId, payment.Amount, payment.Currency, payment.RemittanceReference);
+
+        return await ToDtoAsync(payment, ct: ct);
+    }
+
+    public async Task<IReadOnlyList<TransactionDto>> ListTransactionsAsync(
+        Guid orderId, Guid userId, CancellationToken ct = default)
+    {
+        // A missing order and someone with no stake in it are the same answer, deliberately: a
+        // 403 would confirm an order exists, which is itself private.
+        if (await PartyForOrderIdAsync(orderId, userId, ct) == OrderParty.Outsider)
+        {
+            throw ApiException.NotFound("ORDER_NOT_FOUND", "Order not found.");
+        }
+
+        // Oldest first, with the reference as a tie-break so the order is stable for entries that
+        // share a timestamp — which a same-day set of transfers will.
+        return await db.Transactions
+            .AsNoTracking()
+            .Where(t => t.OrderId == orderId)
+            .OrderBy(t => t.OccurredAtUtc)
+            .ThenBy(t => t.Reference)
+            .Select(t => new TransactionDto
+            {
+                Id = t.Id,
+                OrderId = t.OrderId,
+                Reference = t.Reference,
+                Type = t.Type,
+                Amount = t.Amount,
+                Currency = t.Currency,
+                PaymentId = t.PaymentId,
+                PaymentReference = t.Payment == null ? null : t.Payment.Reference,
+                ExternalReference = t.ExternalReference,
+                OccurredAtUtc = t.OccurredAtUtc,
+                Narrative = t.Narrative,
+            })
+            .ToListAsync(ct);
+    }
+
+    /// <summary>Party lookup for a bare order id, for reads that have no order loaded.</summary>
+    private async Task<OrderParty> PartyForOrderIdAsync(Guid orderId, Guid userId, CancellationToken ct)
+    {
+        var buyerId = await db.Orders
+            .AsNoTracking()
+            .Where(o => o.Id == orderId)
+            .Select(o => (Guid?)o.BuyerUserId)
+            .FirstOrDefaultAsync(ct);
+
+        if (buyerId is null)
+        {
+            return OrderParty.Outsider;
+        }
+
+        if (buyerId == userId)
+        {
+            return OrderParty.Buyer;
+        }
+
+        return await db.Orders
+            .AsNoTracking()
+            .AnyAsync(o => o.Id == orderId && db.Businesses.Any(b => b.Id == o.SellerBusinessId && b.OwnerUserId == userId), ct)
+            ? OrderParty.Seller
+            : OrderParty.Outsider;
+    }
+
     public async Task<IReadOnlyList<PaymentDto>> ListForOrderAsync(
         Guid orderId, Guid userId, CancellationToken ct = default)
     {
@@ -406,6 +640,30 @@ public sealed class PaymentService(
             return new WebhookAck(false, record.Outcome, payment.Id, payment.Status.ToString());
         }
 
+        // A settlement is terminal. Money that has settled on a card rail does not un-settle: if
+        // the gateway genuinely takes it back, that is a refund, which is a separate entry with a
+        // separate reference — not a failure arriving late.
+        //
+        // The ordering check above does not cover this. It compares timestamps, and a
+        // payment.failed stamped genuinely *after* the success sails through, because by
+        // timestamp it is the newest word. Applying it would be the worst outcome available: the
+        // payment flips to Failed while the ledger keeps its "settled" row, so the order's paid
+        // figure and the financial record disagree, permanently and invisibly. Refunds are out
+        // of scope until they can be booked as compensating entries, so the honest thing now is
+        // to record the event and decline to act on it.
+        if (payment.Status == PaymentStatus.Paid && target != PaymentStatus.Paid)
+        {
+            record.Outcome = PaymentWebhookEvent.Outcomes.SupersedesSettlement;
+            record.ProcessedAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+
+            logger.LogWarning(
+                "Refusing webhook {EventId} for payment {Reference}: {EventType} would undo a settled payment",
+                record.ExternalEventId, payment.Reference, record.EventType);
+
+            return new WebhookAck(false, record.Outcome, payment.Id, payment.Status.ToString());
+        }
+
         var was = payment.Status;
         payment.Status = target.Value;
         payment.LastEventAtUtc = ToUtc(record.OccurredAtUtc) ?? record.ReceivedAtUtc;
@@ -427,7 +685,7 @@ public sealed class PaymentService(
 
         var order = await RollUpOrderAsync(payment.OrderId, ct);
 
-        await NotifyAsync(payment, order, was, ct);
+        await NotifyAsync(payment, order, was, ct: ct);
 
         await db.SaveChangesAsync(ct);
 
@@ -470,8 +728,12 @@ public sealed class PaymentService(
             Currency = payment.Currency,
             PaymentId = payment.Id,
             OccurredAtUtc = payment.PaidAtUtc ?? DateTime.UtcNow,
-            Narrative = $"Payment {payment.Reference} settled via gateway",
-            ExternalReference = payment.ProviderRef,
+            Narrative = LedgerNarrative(payment),
+            // Whichever identity the counterparty gave the money: the gateway's charge id, or the
+            // bank's trace id. This is the column an auditor reconciles against, so leaving it
+            // null for a manual transfer would drop the only externally-verifiable detail on the
+            // entry.
+            ExternalReference = payment.ProviderRef ?? payment.RemittanceReference,
         };
 
         db.Transactions.Add(entry);
@@ -518,7 +780,26 @@ public sealed class PaymentService(
         return order;
     }
 
-    private async Task NotifyAsync(Payment payment, Order? order, PaymentStatus was, CancellationToken ct)
+    /// <summary>
+    /// Describes a settlement in words, distinguishing the two very different ways money arrives.
+    /// "via gateway" on a bank transfer would be a lie recorded permanently in the ledger.
+    /// </summary>
+    private static string LedgerNarrative(Payment payment) => payment.Method switch
+    {
+        PaymentMethod.BankTransfer =>
+            $"Bank transfer {payment.RemittanceReference} received"
+                + (payment.BankName is null ? "" : $" via {payment.BankName}"),
+        PaymentMethod.LetterOfCredit =>
+            $"Letter of credit presented and honoured ({payment.RemittanceReference})",
+        _ => $"Payment {payment.Reference} settled",
+    };
+
+    private async Task NotifyAsync(
+        Payment payment,
+        Order? order,
+        PaymentStatus was,
+        Guid? skipUserId = null,
+        CancellationToken ct = default)
     {
         if (order is null)
         {
@@ -531,17 +812,21 @@ public sealed class PaymentService(
             .Select(b => (Guid?)b.OwnerUserId)
             .FirstOrDefaultAsync(ct);
 
+        // The party that performed the action does not need telling about it.
+        var tellSeller = sellerOwnerId is not null && sellerOwnerId != skipUserId;
+        var tellBuyer = order.BuyerUserId != skipUserId;
+
         var link = $"/dashboard/orders/{order.Id}";
 
         if (payment.Status == PaymentStatus.Paid && was != PaymentStatus.Paid)
         {
             // The seller hearing they have been paid is the commercially important half of
             // this event; the buyer already knows they paid.
-            if (sellerOwnerId is not null)
+            if (tellSeller)
             {
                 db.Notifications.Add(new Domain.Communication.Notification
                 {
-                    UserId = sellerOwnerId.Value,
+                    UserId = sellerOwnerId!.Value,
                     Type = NotificationType.Payment,
                     Title = $"Payment received on order {order.OrderNumber}",
                     Body = $"{payment.Reference} settled for {payment.Amount:N2} {payment.Currency}.",
@@ -549,33 +834,39 @@ public sealed class PaymentService(
                 });
             }
 
-            db.Notifications.Add(new Domain.Communication.Notification
-            {
-                UserId = order.BuyerUserId,
-                Type = NotificationType.Payment,
-                Title = $"Payment {payment.Reference} received",
-                Body = order.PaymentStatus == PaymentStatus.Paid
-                    ? $"{order.OrderNumber} is now paid in full."
-                    : $"A partial payment of {payment.Amount:N2} {payment.Currency} was received.",
-                Link = link,
-            });
-        }
-        else if (payment.Status == PaymentStatus.Failed && was != PaymentStatus.Failed)
-        {
-            db.Notifications.Add(new Domain.Communication.Notification
-            {
-                UserId = order.BuyerUserId,
-                Type = NotificationType.Payment,
-                Title = $"Payment {payment.Reference} failed",
-                Body = payment.FailureReason ?? "The gateway declined this charge.",
-                Link = link,
-            });
-
-            if (sellerOwnerId is not null)
+            if (tellBuyer)
             {
                 db.Notifications.Add(new Domain.Communication.Notification
                 {
-                    UserId = sellerOwnerId.Value,
+                    UserId = order.BuyerUserId,
+                    Type = NotificationType.Payment,
+                    Title = $"Payment {payment.Reference} received",
+                    Body = order.PaymentStatus == PaymentStatus.Paid
+                        ? $"{order.OrderNumber} is now paid in full."
+                        : $"A partial payment of {payment.Amount:N2} {payment.Currency} was received.",
+                    Link = link,
+                });
+            }
+        }
+        else if (payment.Status == PaymentStatus.Failed && was != PaymentStatus.Failed)
+        {
+            if (tellBuyer)
+            {
+                db.Notifications.Add(new Domain.Communication.Notification
+                {
+                    UserId = order.BuyerUserId,
+                    Type = NotificationType.Payment,
+                    Title = $"Payment {payment.Reference} failed",
+                    Body = payment.FailureReason ?? "The gateway declined this charge.",
+                    Link = link,
+                });
+            }
+
+            if (tellSeller)
+            {
+                db.Notifications.Add(new Domain.Communication.Notification
+                {
+                    UserId = sellerOwnerId!.Value,
                     Type = NotificationType.Payment,
                     Title = $"Payment on order {order.OrderNumber} failed",
                     Body = $"{payment.Reference} was declined. The order is still outstanding.",

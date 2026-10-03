@@ -267,6 +267,34 @@ public sealed class SimulatePaymentRequestValidator : AbstractValidator<Simulate
     }
 }
 
+public sealed class RecordManualPaymentRequestValidator : AbstractValidator<RecordManualPaymentRequest>
+{
+    public RecordManualPaymentRequestValidator()
+    {
+        RuleFor(x => x.Amount)
+            .GreaterThan(0)
+            .WithMessage("A payment amount must be greater than zero.")
+            .LessThanOrEqualTo(100_000_000)
+            .WithMessage("That payment amount is implausibly large.");
+
+        // A gateway method here would mean someone is hand-typing a charge that already has a
+        // gateway-side identity, or worse, inventing one that no charge will ever match.
+        RuleFor(x => x.Method)
+            .Must(m => m is PaymentMethod.BankTransfer or PaymentMethod.LetterOfCredit)
+            .WithMessage("An off-platform payment must be a bank transfer or a letter of credit.");
+
+        // Required, not optional: the whole content of this record is "this trace id arrived".
+        RuleFor(x => x.RemittanceReference)
+            .NotEmpty()
+            .WithMessage("The bank's remittance reference is required.")
+            .MaximumLength(100);
+
+        RuleFor(x => x.BankName).MaximumLength(120);
+        RuleFor(x => x.Notes).MaximumLength(1000);
+        RuleFor(x => x.IdempotencyKey).MaximumLength(100);
+    }
+}
+
 public sealed class SendMessageRequestValidator : AbstractValidator<SendMessageRequest>
 {
     public SendMessageRequestValidator()

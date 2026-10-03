@@ -298,6 +298,140 @@ public sealed class PaymentFlowTests : IClassFixture<TestingWebAppFactory>
     }
 
     [Fact]
+    public async Task ASettledPaymentIsNotUnsettledByANewerFailingEvent()
+    {
+        var (buyerToken, _) = await SeedTradeAsync("terminal");
+        var orderId = await SeedOrderAsync(buyerToken);
+        var payment = await InitiateAsync(orderId, buyerToken);
+
+        var settledAt = DateTime.UtcNow;
+        var success = _sandbox.BuildEvent(payment.ProviderRef!, "succeeded", settledAt);
+        await PostWebhookAsync(success.Payload, success.Signature);
+
+        // Newest word by timestamp, so the ordering check waves it through. It is still wrong to
+        // apply: money that settled on a card rail does not un-settle, and a gateway that really
+        // clawed it back is describing a refund, which needs a compensating ledger entry. Letting
+        // this through would flip the payment to Failed while the ledger kept claiming the
+        // settlement — the order's paid figure and the financial record, disagreeing permanently
+        // and invisibly.
+        var newerFailure = _sandbox.BuildEvent(
+            payment.ProviderRef!, "failed", settledAt.AddMinutes(30), "Reversed.");
+        var response = await PostWebhookAsync(newerFailure.Payload, newerFailure.Signature);
+
+        // 200: the gateway has nothing to fix by retrying an event we have deliberately declined.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var ack = await response.Content.ReadFromJsonAsync<WebhookAckMirror>();
+        Assert.Equal(PaymentWebhookEvent.Outcomes.SupersedesSettlement, ack!.Outcome);
+        Assert.Equal(PaymentStatus.Paid.ToString(), ack.Status);
+
+        var settled = await GetPaymentAsync(payment.Id, buyerToken);
+        Assert.Equal(PaymentStatus.Paid, settled!.Status);
+        Assert.Null(settled.FailureReason);
+
+        // Exactly one ledger row, still describing a real settlement, and the order still counts
+        // the money. The whole point: these two figures must never disagree.
+        Assert.Equal(1, await CountLedgerRowsAsync(payment.Id));
+        var order = await GetAuthenticatedAsync($"/api/v1/orders/{orderId}", buyerToken);
+        Assert.Equal(
+            PaymentStatus.Paid,
+            (await order.Content.ReadFromJsonAsync<OrderPaymentMirror>())!.PaymentStatus);
+    }
+
+    [Fact]
+    public async Task TheDeclinedSettlementIsStillRecordedForAudit()
+    {
+        var (buyerToken, _) = await SeedTradeAsync("terminalaudit");
+        var orderId = await SeedOrderAsync(buyerToken);
+        var payment = await InitiateAsync(orderId, buyerToken);
+
+        var settledAt = DateTime.UtcNow;
+        var success = _sandbox.BuildEvent(payment.ProviderRef!, "succeeded", settledAt);
+        await PostWebhookAsync(success.Payload, success.Signature);
+
+        var newerFailure = _sandbox.BuildEvent(
+            payment.ProviderRef!, "failed", settledAt.AddMinutes(10), "Reversed.");
+        await PostWebhookAsync(newerFailure.Payload, newerFailure.Signature);
+
+        // Refusing to act on an event is not the same as pretending it never arrived. If a real
+        // gateway really does report a reversal, this row is the evidence that it said so.
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider
+            .GetRequiredService<AgroTrade.Infrastructure.Data.AgroTradeDbContext>();
+
+        var declined = await db.PaymentWebhookEvents.AsNoTracking()
+            .SingleAsync(e => e.ExternalEventId == newerFailure.EventId);
+
+        Assert.Equal(PaymentWebhookEvent.Outcomes.SupersedesSettlement, declined.Outcome);
+        Assert.Equal(payment.Id, declined.PaymentId);
+        Assert.NotNull(declined.ProcessedAtUtc);
+    }
+
+    [Fact]
+    public async Task ARetryRepairsAPaymentWhoseLedgerRowWasNeverWritten()
+    {
+        var (buyerToken, sellerToken) = await SeedTradeAsync("repair");
+        var orderId = await SeedOrderAsync(buyerToken, sellerToken);
+        var key = $"repair-{Guid.NewGuid():N}";
+
+        var first = await PostAuthenticatedAsync(
+            $"/api/v1/orders/{orderId}/payments/manual", sellerToken,
+            new { amount = 4000m, remittanceReference = "UTR-REPAIR-001", idempotencyKey = key });
+        var payment = await first.Content.ReadFromJsonAsync<PaymentDtoMirror>();
+
+        // Simulate the torn commit: the payment row is durable, its ledger entry is not. This is
+        // reachable because PAY- and TXN- references come from two sequences with two
+        // transactions, so the two writes cannot be atomic.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider
+                .GetRequiredService<AgroTrade.Infrastructure.Data.AgroTradeDbContext>();
+            await db.Transactions.Where(t => t.PaymentId == payment!.Id).ExecuteDeleteAsync();
+        }
+
+        Assert.Equal(0, await CountLedgerRowsAsync(payment!.Id));
+
+        // The retry is the repair. Without it the order would keep a settled payment with no
+        // financial record behind it, permanently and invisibly.
+        var retry = await PostAuthenticatedAsync(
+            $"/api/v1/orders/{orderId}/payments/manual", sellerToken,
+            new { amount = 4000m, remittanceReference = "UTR-REPAIR-001", idempotencyKey = key });
+        Assert.Equal(HttpStatusCode.Created, retry.StatusCode);
+
+        Assert.Equal(1, await CountLedgerRowsAsync(payment.Id));
+        var entries = await GetLedgerAsync(orderId, sellerToken);
+        Assert.Equal("UTR-REPAIR-001", Assert.Single(entries).ExternalReference);
+
+        // And the repair is not itself a second payment.
+        Assert.Equal(1, await PaymentCountAsync(orderId));
+    }
+
+    [Fact]
+    public async Task AnOrdinaryReplayWritesNoSecondLedgerRow()
+    {
+        var (buyerToken, sellerToken) = await SeedTradeAsync("replay");
+        var orderId = await SeedOrderAsync(buyerToken, sellerToken);
+        var key = $"replay-{Guid.NewGuid():N}";
+
+        var first = await PostAuthenticatedAsync(
+            $"/api/v1/orders/{orderId}/payments/manual", sellerToken,
+            new { amount = 4000m, remittanceReference = "UTR-REPLAY-001", idempotencyKey = key });
+        var payment = await first.Content.ReadFromJsonAsync<PaymentDtoMirror>();
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var response = await PostAuthenticatedAsync(
+                $"/api/v1/orders/{orderId}/payments/manual", sellerToken,
+                new { amount = 4000m, remittanceReference = "UTR-REPLAY-001", idempotencyKey = key });
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        }
+
+        // The repair on the replay path must be a no-op when nothing is broken, or a client that
+        // retries out of caution would quietly duplicate its own ledger.
+        Assert.Equal(1, await CountLedgerRowsAsync(payment!.Id));
+        Assert.Equal(1, await PaymentCountAsync(orderId));
+    }
+
+    [Fact]
     public async Task StaleEventCarryingANonUtcOffset_IsStillRecognisedAsStale()
     {
         var (buyerToken, _) = await SeedTradeAsync("offset");
@@ -603,6 +737,20 @@ public sealed class PaymentFlowTests : IClassFixture<TestingWebAppFactory>
         return await db.Transactions.AsNoTracking().CountAsync(t => t.PaymentId == paymentId);
     }
 
+    private async Task<List<TransactionDtoMirror>> GetLedgerAsync(Guid orderId, string token)
+    {
+        var response = await GetAuthenticatedAsync($"/api/v1/orders/{orderId}/transactions", token);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<TransactionDtoMirror>>() ?? [];
+    }
+
+    private async Task<int> PaymentCountAsync(Guid orderId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AgroTrade.Infrastructure.Data.AgroTradeDbContext>();
+        return await db.Payments.AsNoTracking().CountAsync(p => p.OrderId == orderId);
+    }
+
     // ---- Webhook delivery ----
 
     private Task<HttpResponseMessage> PostWebhookAsync(string payload, string? signature)
@@ -722,6 +870,21 @@ public sealed class PaymentFlowTests : IClassFixture<TestingWebAppFactory>
         public string Outcome { get; init; } = "";
         public Guid? PaymentId { get; init; }
         public string? Status { get; init; }
+    }
+
+    public sealed class TransactionDtoMirror
+    {
+        public Guid Id { get; init; }
+        public Guid OrderId { get; init; }
+        public string Reference { get; init; } = "";
+        public TransactionType Type { get; init; }
+        public decimal Amount { get; init; }
+        public string Currency { get; init; } = "";
+        public Guid? PaymentId { get; init; }
+        public string? PaymentReference { get; init; }
+        public string? ExternalReference { get; init; }
+        public DateTime OccurredAtUtc { get; init; }
+        public string? Narrative { get; init; }
     }
 
     public sealed class OrderPaymentMirror

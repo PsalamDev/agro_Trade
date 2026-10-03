@@ -41,6 +41,12 @@ public sealed class PaymentWebhookEvent : IAuditableEntity
         /// <summary>A well-formed event we do not act on, e.g. an unmodelled type.</summary>
         public const string Ignored = "Ignored";
 
+        /// <summary>
+        /// Would undo a settlement — see the remarks on
+        /// <see cref="Payment.Status"/> in <see cref="Payment"/>. Recorded for audit, not applied.
+        /// </summary>
+        public const string SupersedesSettlement = "SupersedesSettlement";
+
         /// <summary>Signature did not verify. Never reaches the ledger in normal operation.</summary>
         public const string BadSignature = "BadSignature";
     }

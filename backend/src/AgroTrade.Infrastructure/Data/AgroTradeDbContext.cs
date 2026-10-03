@@ -391,6 +391,13 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.HasIndex(p => p.IdempotencyKey)
                 .IsUnique()
                 .HasFilter("[IdempotencyKey] IS NOT NULL");
+            // The bank's trace id is the one externally-checkable detail on a manual transfer, so
+            // the same one appearing twice on an order is a double-count rather than a second
+            // payment. Scoped per order rather than globally: trace ids are only unique within a
+            // bank, so two different banks can legitimately issue the same string.
+            e.HasIndex(p => new { p.OrderId, p.RemittanceReference })
+                .IsUnique()
+                .HasFilter("[RemittanceReference] IS NOT NULL");
             e.HasOne(p => p.Order)
                 .WithMany(o => o.Payments)
                 .HasForeignKey(p => p.OrderId)

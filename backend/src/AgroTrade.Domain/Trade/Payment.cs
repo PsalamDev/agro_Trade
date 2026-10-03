@@ -50,7 +50,18 @@ public sealed class Payment : IAuditableEntity
     /// </summary>
     public DateTime? LastEventAtUtc { get; set; }
 
+    /// <summary>
+    /// Where the payment has got to.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="PaymentStatus.Paid"/> is terminal. Settled money on a card rail does not
+    /// un-settle, so a later failure is either a mis-stamped duplicate or — if the gateway really
+    /// did claw the money back — a refund, which needs a compensating ledger entry rather than a
+    /// status flip. Allowing the flip would leave the ledger claiming a settlement the order no
+    /// longer counts, with nothing recording that they disagree.
+    /// </remarks>
     public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
+
     public string? FailureReason { get; set; }
 
     public DateTime InitiatedAtUtc { get; set; }

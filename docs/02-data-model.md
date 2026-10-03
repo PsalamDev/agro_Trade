@@ -207,14 +207,39 @@ LineTotal, Currency`.
 
 ### Payments
 `Id, OrderId FK, Reference (unique), Amount, Currency, Provider int (PaymentProvider),
-ProviderRef, Status (PaymentStatus), InitiatedAtUtc, PaidAtUtc?, FailureReason?,
-IdempotencyKey (unique Index)`. **Off-platform payments** (bank transfer/T&T, L/C) are
-recorded with `Provider=ManualTransfer` + remittance reference — no webhook.
+ProviderRef, Status (PaymentStatus), Method int (PaymentMethod), RemittanceReference?,
+BankName?, ValueDateUtc?, InitiatedAtUtc, PaidAtUtc?, FailureReason?, Notes?,
+IdempotencyKey (unique, filtered index)`. **Off-platform payments** (bank transfer/T&T, L/C) are
+recorded by the **seller** with `Provider=ManualTransfer` and a bank remittance reference -- no
+webhook. They are stored as already `Paid`: there is no provider to poll, so a pending state would
+only mean "waiting for a human to come back and finish typing this". Partial payments are the
+norm rather than an edge case (a T/T deposit against the balance), so an order may hold several.
+
+`RemittanceReference` is required for off-platform payments and **unique per order**, via a
+filtered index on `(OrderId, RemittanceReference)`. It is the only externally checkable detail on
+a record nobody witnessed, and it is what makes a double-entry detectable: re-recording one bank
+transfer is the likeliest mistake here, and without the guard it silently doubles the order's paid
+figure. Scoped per order rather than globally, because trace ids are only unique within a bank.
+
+`Status` is terminal at `Paid`. Settled money on a card rail does not un-settle, so a failing
+gateway event arriving after a settlement is recorded with outcome `SupersedesSettlement` and not
+applied -- see `PaymentWebhookEvent`. A gateway that really did claw money back is describing a
+**refund**, which needs a compensating ledger entry rather than a status flip.
 
 ### Transactions
-Ledger: `Id, OrderId? FK, PaymentId? FK, Type (Payment/Refund/Commission/Payout),
-Direction (Credit/Debit), Amount, Currency, Status, Reference, Description,
-CreatedAtUtc`. One immutable row per money movement.
+Ledger: `Id, OrderId FK, PaymentId? (correlation only, no FK), Type (Payment/Refund/Fee),
+Amount, Currency, OccurredAtUtc, Reference, Narrative, ExternalReference, CreatedAtUtc, UpdatedAtUtc`.
+One immutable row per movement of money: written when the money moves, never edited.
+
+A row is a statement of fact, not a status. A payment is a mutable attempt; a ledger entry is
+something that already happened. There is deliberately no `Direction` or `Status` column -- money in is a
+positive `Amount`, and whether it arrived is the payment's business, not the ledger's.
+`ExternalReference` carries whichever identity the counterparty gave the money -- a gateway charge id or
+a bank's remittance trace id -- as that is the column an auditor reconciles against.
+
+`PaymentId` is a plain correlation column rather than a foreign key, so an entry outlives the payment it
+came from. A filtered unique index on `PaymentId` where it is not null and `Type = Payment` stops a payment
+being counted twice.
 
 ---
 

@@ -7,10 +7,10 @@ own origins and destinations. A domestic retail marketplace is a follow-on phase
 
 **Core trade journey:** Discover → Source → Verify → Negotiate → Trade → Ship → Deliver
 
-> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.4.**
+> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.5.**
 > The full journey is *Discover → Source → Verify → Negotiate → Trade → Ship → Deliver*; the
 > first four steps are built, and the fifth (order placement, payment, and trade
-> paperwork) is landed through task 2.4. See
+> paperwork) is landed through task 2.5. See
 > [Current status](#current-status) below and [`docs/01-roadmap.md`](docs/01-roadmap.md)
 > for the full phase plan.
 
@@ -108,7 +108,7 @@ another SQL Server to run tests somewhere else (CI does this).
 
 ## Current status
 
-Phases 0 and 1 are complete. Phase 2 is underway (tasks 2.1–2.4 of 2.7 landed).
+Phases 0 and 1 are complete. Phase 2 is underway (tasks 2.1-2.5 of 2.7 landed).
 
 ### Phase 0 — Foundations (complete)
 
@@ -153,7 +153,7 @@ Tasks 2.1–2.7 per the roadmap:
 | 2.2 | Order lifecycle + inventory reservation + buyer/seller inboxes | **Done** |
 | 2.3 | Trade document upload + statuses + admin verification queue | **Done** |
 | 2.4 | Payment gateway adapter #1 (sandbox) + idempotent webhook | **Done** |
-| 2.5 | Off-platform payment recording + transaction ledger | Not started |
+| 2.5 | Off-platform payment recording + transaction ledger | **Done** |
 | 2.6 | Shipment record + tracking events + guest tracking | Not started |
 | 2.7 | Admin dashboard (all queues + KPIs) | Not started |
 
@@ -236,6 +236,60 @@ Webhook bodies are parsed case-insensitively and the sandbox emits camelCase, ma
 gateways send. Under the strict default the sandbox round-tripped its own PascalCase perfectly and
 every test passed — but a real provider's camelCase payload would have deserialised to nulls and
 been rejected as malformed.
+
+Task 2.5 adds the other rail: the **seller records** a bank transfer or letter of credit that has
+already landed, at `POST /orders/{id}/payments/manual`. Recording is the seller's job, not the
+buyer's, and that inversion is the design. The buyer is the party that sends the money, but only
+the beneficiary of the account can see it arrive — a buyer attesting to their own transfer would
+let anyone mark an order paid and demand dispatch against funds the platform cannot verify exist.
+It is the deliberate mirror of task 2.4, where the buyer is the only party who may initiate.
+
+A recorded manual payment is `Paid` immediately, with a `valueDateUtc`. There is no provider to
+poll, so a `pending` state here would only mean "waiting for a human to come back and finish
+typing this"; the record would exist solely to be updated. Partial payments are the norm rather
+than an edge case — a T/T deposit against the balance is the common trade term — so several may
+be recorded per order, each with its own trace id.
+
+The bank's **remittance reference is required and unique per order**, enforced by a filtered unique
+index on `Payments (OrderId, RemittanceReference)`. It is the one externally-checkable detail on a
+record nobody witnessed, and it is what makes a duplicate detectable: re-recording the same
+transfer is the likeliest mistake here, and without the guard it silently doubles the order's
+paid figure. Scoped per order rather than globally, because trace ids are only unique within a
+bank and two different banks can legitimately issue the same string. The ledger's
+`ExternalReference` carries that trace id — the column an auditor reconciles against — rather than
+being left null for manual transfers.
+
+Validation refuses an amount above the outstanding balance, a future value date (which would
+describe money that has not arrived), a blank remittance reference, and `PaymentMethod.Gateway` —
+hand-typing a gateway charge id would invent an identity no charge will ever match. Currency is
+always the order's own; there is no FX anywhere in the system, and a multi-currency settlement
+would need two entries in two currencies, not a converted one.
+
+`GET /orders/{id}/transactions` reads the ledger: one immutable row per movement of money, oldest
+first, both parties. It is deliberately a separate read from the payments list, because a payment
+is a *mutable attempt* and a ledger entry is a *fact* — a gateway settlement and a bank transfer
+appear in the same list, which is what makes it reconcilable against a bank statement.
+
+Writing that read endpoint exposed a defect in the settlement logic from task 2.4. A settled
+payment could be flipped to `Failed` by a *newer* `payment.failed` event: the ordering defence
+compares timestamps, so an event stamped half an hour after the success sails through, because by
+timestamp it is the newest word. The visible result was an order whose ledger claimed 86,000
+against a 43,000 order — the payment said failed, the ledger kept saying settled, and nothing
+recorded that they disagreed. **Settlement is now terminal.** A failing event for an already-paid
+payment is recorded with outcome `SupersedesSettlement` and not applied, because money that
+settled on a card rail does not un-settle; a gateway that really did claw the money back is
+describing a refund, which needs a compensating ledger entry rather than a status flip. Two tests
+cover it, both verified to fail without the guard. Refunds remain out of scope until they can be
+booked properly.
+
+One caveat worth stating plainly. Recording a manual payment spans **three** commits — the payment
+row, then the ledger row, then the order rollup and notifications — because `PAY-` and `TXN-`
+references come from two different max-plus-one sequences and each allocator owns its own
+transaction. A request that fails between them could leave a settled payment with no ledger entry.
+That is repaired rather than prevented: the idempotent replay path rewrites a missing ledger row,
+which is free when nothing is broken and is exactly what a retry is for. Making it truly atomic
+needs an allocator that can number two sequences inside one transaction, which is a change to
+infrastructure shared with RFQ and order numbering and was not this task's to make.
 
 ## Documentation Index
 

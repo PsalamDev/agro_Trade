@@ -25,6 +25,7 @@ import type {
   ProductSearchParams,
   PaymentDto,
   QuotationDto,
+  RecordManualPaymentRequest,
   RegisterBusinessRequest,
   ReviewDocumentRequest,
   ReviewVerificationRequest,
@@ -34,6 +35,7 @@ import type {
   TradeDocumentDto,
   TradeRequestCardDto,
   TradeRequestDetailDto,
+  TransactionDto,
   UpdateBusinessRequest,
   UploadTradeDocumentRequest,
   UpdateProductRequest,
@@ -266,6 +268,25 @@ export function getOrderPayments(orderId: string): Promise<PaymentDto[]> {
 
 export function getPayment(id: string): Promise<PaymentDto> {
   return unwrap(api.get<PaymentDto>(`/payments/${id}`))
+}
+
+/**
+ * The order's ledger: one immutable row per money movement, oldest first. Gateway and
+ * off-platform payments both land here, so it is the one financial record for the order.
+ */
+export function getOrderTransactions(orderId: string): Promise<TransactionDto[]> {
+  return unwrap(api.get<TransactionDto[]>(`/orders/${orderId}/transactions`))
+}
+
+/**
+ * Records a bank transfer or letter of credit the seller confirms has landed. Seller only — the
+ * buyer sends the money, but only the beneficiary of the account can see it arrive.
+ *
+ * The remittance reference is unique per order, so a duplicate is refused server-side regardless
+ * of idempotency keys. Pass a stable `idempotencyKey` to make a retried request safe as well.
+ */
+export function recordManualPayment(orderId: string, request: RecordManualPaymentRequest): Promise<PaymentDto> {
+  return unwrap(api.post<PaymentDto>(`/orders/${orderId}/payments/manual`, request))
 }
 
 /**

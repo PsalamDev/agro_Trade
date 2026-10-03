@@ -695,6 +695,51 @@ export interface InitiatePaymentRequest {
   notes?: string
 }
 
+export const TRANSACTION_TYPES = ['Payment', 'Refund', 'Fee'] as const
+export const TRANSACTION_TYPE = {
+  Payment: 0,
+  Refund: 1,
+  Fee: 2,
+} as const
+
+/**
+ * One immutable ledger entry. Where `PaymentDto` is a mutable attempt, this is the financial
+ * history: written once when money moves, never edited.
+ */
+export interface TransactionDto {
+  id: string
+  orderId: string
+  reference: string
+  type: number
+  /** Positive for money in, negative for money out. */
+  amount: number
+  currency: string
+  paymentId: string | null
+  paymentReference: string | null
+  /** The counterparty's own reference — a gateway charge id, or a bank's trace id. */
+  externalReference: string | null
+  occurredAtUtc: string
+  narrative: string | null
+}
+
+/**
+ * An off-platform payment the seller confirms has landed.
+ *
+ * Recorded as already settled: there is no provider to ask, so a pending state here would mean
+ * only "waiting for someone to come back and type something".
+ */
+export interface RecordManualPaymentRequest {
+  amount: number
+  method: number
+  /** The bank's trace id. Required, and unique per order. */
+  remittanceReference: string
+  bankName?: string
+  /** When the funds landed. Defaults to now. Must not be in the future. Send UTC. */
+  valueDateUtc?: string
+  notes?: string
+  idempotencyKey?: string
+}
+
 /** Fields the upload form collects. File metadata comes from the validated upload. */
 export interface UploadTradeDocumentRequest {
   docType: number

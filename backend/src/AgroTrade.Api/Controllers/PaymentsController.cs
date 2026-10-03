@@ -17,6 +17,7 @@ public class PaymentsController(
     IPaymentService payments,
     ISandboxPaymentSimulator sandbox,
     IValidator<InitiatePaymentRequest> initiateValidator,
+    IValidator<RecordManualPaymentRequest> recordManualValidator,
     IValidator<SimulatePaymentRequest> simulateValidator) : ControllerBase
 {
     /// <summary>
@@ -39,6 +40,43 @@ public class PaymentsController(
         // Created even on an idempotent replay: the payment exists at this address either way,
         // and the address is what a client needs in order to poll it for settlement.
         return Created($"/api/v1/payments/{payment.Id}", payment);
+    }
+
+    /// <summary>
+    /// Records an off-platform payment — a bank transfer or letter of credit — as settled, with
+    /// the bank's remittance reference. Seller only.
+    /// </summary>
+    /// <remarks>
+    /// The inverse of <see cref="Initiate"/> on purpose. The buyer sends the money, but only the
+    /// beneficiary of the account can see it land, so the seller is the party that can honestly
+    /// record it. A separate route rather than a discriminator on the gateway one, because the
+    /// two differ in who may call them and there is no gateway behind this at all.
+    /// </remarks>
+    [HttpPost("orders/{orderId:guid}/payments/manual")]
+    [ProducesResponseType(typeof(PaymentDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PaymentDto>> RecordManual(
+        Guid orderId, [FromBody] RecordManualPaymentRequest request, CancellationToken ct)
+    {
+        EnsureBody(request);
+        await recordManualValidator.ValidateAndThrowAsync(request, ct);
+
+        var payment = await payments.RecordManualAsync(orderId, User.GetUserId(), request, ct);
+
+        return Created($"/api/v1/payments/{payment.Id}", payment);
+    }
+
+    /// <summary>
+    /// The order's ledger: one immutable row per money movement, oldest first. Visible to both
+    /// parties.
+    /// </summary>
+    [HttpGet("orders/{orderId:guid}/transactions")]
+    [ProducesResponseType(typeof(IReadOnlyList<TransactionDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<TransactionDto>>> ListTransactions(
+        Guid orderId, CancellationToken ct)
+    {
+        return Ok(await payments.ListTransactionsAsync(orderId, User.GetUserId(), ct));
     }
 
     /// <summary>Payments on an order. Visible to both parties.</summary>

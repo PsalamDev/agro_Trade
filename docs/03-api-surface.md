@@ -15,7 +15,7 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 | Sorting | `?sortBy=<field>&sortDir=asc\|desc` (allowlist per resource) |
 | Filtering | Query params per resource; search = `q` |
 | Errors | ProblemDetails `{ type, title, status, code, message, fieldErrors? }`; `code` machine-readable (`VALIDATION_ERROR`, `NOT_FOUND`, `QUOTATION_CLOSED`, `INVENTORY_INSUFFICIENT`) |
-| Idempotency | `Idempotency-Key` header **required** on POST `/orders` and POST `/payments`; replay returns first result |
+| Idempotency | Caller-supplied `idempotencyKey` in the request **body** on POST `/orders/{id}/payments` and POST `/orders/{id}/payments/manual`; replay returns the original resource. Off-platform payments are additionally guarded by the bank's remittance reference, which is unique per order — so a genuine double-entry is caught whether or not a key was sent. |
 | Countries | ISO-3166 alpha-2 codes everywhere (`ng`, `KE`, `cn`) |
 | Currencies | ISO-4217 codes; price/quote/order amounts always carry a currency |
 | File uploads | `multipart/form-data`, ≤ 10 MB, allowlisted MIME types |
@@ -104,15 +104,39 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 
 ## Payments & Transactions
 
+Implemented through task 2.5. Routes are nested under the order they belong to, so a payment or a
+ledger entry cannot be addressed without naming the order it settles.
+
 | Method | Route | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/payments` | Buyer | Initiate **gateway** payment (order); idempotent; returns reference + checkout |
-| POST | `/payments/off-platform` | Buyer | **Record** bank-transfer/L/C payment: provider reference, amount, currency, proof upload (optional) |
+| POST | `/orders/{id}/payments` | Buyer | Initiate **gateway** payment; idempotent via body `idempotencyKey`; returns reference + checkout URL |
+| POST | `/orders/{id}/payments/manual` | **Seller** | **Record** a settled bank transfer or L/C; requires the bank's remittance reference |
+| GET | `/orders/{id}/payments` | Participant | Payments on an order |
+| GET | `/orders/{id}/transactions` | Participant | The order's ledger, oldest first — one immutable row per movement of money |
 | GET | `/payments/{id}` | Participant/Admin | Status |
-| POST | `/payments/webhook/{provider}` | Public(secret) | Provider callback; signature verified; replay-safe; updates payment + order |
-| GET | `/me/transactions` | User | Ledger view (payments, refunds, commissions) |
+| POST | `/payments/webhooks/{provider}` | Public(secret) | Provider callback; signature verified; replay-safe; updates payment + order |
 | GET | `/admin/payments` | Admin | All payments; filters |
-| POST | `/admin/payments/{id}/refund` | Admin/Finance | Refund workflow |
+| POST | `/admin/payments/{id}/refund` | Admin/Finance | Refund workflow (not started) |
+
+Two deliberate departures from the original plan above:
+
+- **`/payments/off-platform` became `/orders/{id}/payments/manual`, and the actor changed from
+  buyer to seller.** The buyer sends the money, but only the beneficiary of the account can observe
+  it arriving, so the seller is the only party that can honestly record a settlement. Buyer
+  self-attestation would let anyone mark an order paid and demand dispatch against funds the
+  platform cannot verify.
+- **`/me/transactions` is served per order for now.** A cross-order ledger is an admin and
+  reporting concern; the order-scoped read is what both parties actually need, to reconcile a
+  statement against a specific trade. A consolidated view will follow it.
+
+A manual payment is recorded as already `Paid` rather than pending — there is no provider to poll —
+and the bank's remittance reference is required and unique per order. It is the only externally
+checkable detail on a record nobody witnessed, and it is what makes a double-entry detectable.
+Proof-document upload is not part of this task; see `/orders/{id}/documents` in Trade Documents,
+which is order-scoped and already carries the trade paperwork.
+
+Idempotency is a request-body field rather than an `Idempotency-Key` header, so that the key is
+visible in the same payload as the amount it protects.
 
 ## Trade Documents
 
