@@ -1,5 +1,7 @@
+import axios from 'axios'
 import { api, problemFrom } from './api'
 import type {
+  AppendTrackingEventRequest,
   BusinessDetailDto,
   BusinessDocumentDto,
   BusinessSearchParams,
@@ -8,6 +10,7 @@ import type {
   ConversationDto,
   CreateProductRequest,
   CreateQuotationRequest,
+  CreateShipmentRequest,
   CreateTradeRequestRequest,
   DocumentSearchParams,
   HsCodeEntryDto,
@@ -31,6 +34,10 @@ import type {
   ReviewVerificationRequest,
   RfqListParams,
   SendMessageRequest,
+  ShipmentDto,
+  ShipmentPublicTrackingDto,
+  ShipmentTrackingEventDto,
+  TrackingTokenDto,
   TradeCountriesRequest,
   TradeDocumentDto,
   TradeRequestCardDto,
@@ -341,6 +348,80 @@ export function uploadOrderDocument(
  */
 export function deleteOrderDocument(documentId: string): Promise<void> {
   return unwrap(api.delete(`/documents/${documentId}`))
+}
+
+// ---- Shipments ----
+
+/**
+ * The order's consignments. Visible to both parties. At most one today; a list so that splitting
+ * a consignment later is not a breaking change for anything holding a parsed object.
+ */
+export function getOrderShipments(orderId: string): Promise<ShipmentDto[]> {
+  return unwrap(api.get<ShipmentDto[]>(`/orders/${orderId}/shipments`))
+}
+
+/**
+ * Records the consignment for an order. Seller only, and refused on a draft or cancelled order.
+ *
+ * Ports and incoterm default to the order's own snapshotted trade terms, so the common case needs
+ * no route input at all. The first milestone is written here too — a shipment never exists with
+ * nothing said about it — which is why the booking can be dated.
+ */
+export function createShipment(orderId: string, request: CreateShipmentRequest): Promise<ShipmentDto> {
+  return unwrap(api.post<ShipmentDto>(`/orders/${orderId}/shipments`, request))
+}
+
+export function getShipment(id: string): Promise<ShipmentDto> {
+  return unwrap(api.get<ShipmentDto>(`/shipments/${id}`))
+}
+
+/** Every consignment the caller is party to, most recently moved first. */
+export function getShipments(params: { as?: 'buyer' | 'seller'; status?: number } = {}): Promise<ShipmentDto[]> {
+  const filters: Record<string, string | number | undefined> = {}
+  if (params.as) filters.as = params.as
+  if (params.status !== undefined) filters.status = params.status
+  return unwrap(api.get<ShipmentDto[]>(`/shipments${query(filters)}`))
+}
+
+/**
+ * Appends a tracking milestone. Seller only, and permanent: milestones are append-only, so a
+ * mistake is corrected by adding the right one rather than editing the wrong one.
+ *
+ * The milestone becomes the shipment's status, because that is the only definition of it. It
+ * cannot be dated in the future.
+ */
+export function appendTrackingEvent(
+  shipmentId: string,
+  request: AppendTrackingEventRequest,
+): Promise<ShipmentTrackingEventDto> {
+  return unwrap(api.post<ShipmentTrackingEventDto>(`/shipments/${shipmentId}/tracking-events`, request))
+}
+
+/**
+ * Issues a fresh guest tracking token, killing the previous link, and returns the raw value.
+ * Seller only.
+ *
+ * This is the only place the raw token is ever visible. The server stores just its hash and has no
+ * endpoint that can recover it, so if it is lost here it must be rotated. Handle the response
+ * immediately - show it, let the seller copy it - and do not expect to read it back.
+ */
+export function rotateTrackingToken(shipmentId: string): Promise<TrackingTokenDto> {
+  return unwrap(api.post<TrackingTokenDto>(`/shipments/${shipmentId}/tracking-token`, {}))
+}
+
+/**
+ * Public consignment tracking. Needs no account - that is the point, since the link goes to freight
+ * forwarders and customs agents who have none - so it is fetched with a bare axios call rather
+ * than the authenticated client. Attaching a token that may be stale or absent would be noise, and
+ * the response interceptor's 401 refresh path has no business anywhere near an anonymous endpoint.
+ *
+ * Goes through `unwrap` so a caller gets the same `problemFrom` shape as every other call; a bad
+ * or rotated token arrives as `TRACKING_NOT_FOUND`.
+ */
+export function trackShipment(token: string): Promise<ShipmentPublicTrackingDto> {
+  return unwrap(
+    axios.get<ShipmentPublicTrackingDto>(`/api/v1/shipments/track/${encodeURIComponent(token)}`),
+  )
 }
 
 // ---- Admin ----

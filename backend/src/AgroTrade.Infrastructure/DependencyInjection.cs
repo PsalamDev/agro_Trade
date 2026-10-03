@@ -7,6 +7,7 @@ using AgroTrade.Infrastructure.Communication;
 using AgroTrade.Infrastructure.Data;
 using AgroTrade.Infrastructure.Email;
 using AgroTrade.Infrastructure.Identity;
+using AgroTrade.Infrastructure.Logistics;
 using AgroTrade.Infrastructure.Payments;
 using AgroTrade.Infrastructure.Storage;
 using AgroTrade.Infrastructure.Trade;
@@ -101,6 +102,10 @@ public static class DependencyInjection
         services.AddSingleton<IPaymentGatewayResolver, PaymentGatewayResolver>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<ISandboxPaymentSimulator, SandboxPaymentSimulator>();
+
+        // Shipments (task 2.6). The guest tracking read is anonymous, so this service is also the
+        // one place that has to be careful about what it puts in the public payload.
+        services.AddScoped<IShipmentService, ShipmentService>();
 
         return services;
     }

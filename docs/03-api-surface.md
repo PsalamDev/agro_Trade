@@ -95,7 +95,7 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 | --- | --- | --- | --- |
 | POST | `/orders` | Buyer | Create from `acceptedQuotationId` (preferred) or direct item entry; **Idempotency-Key required**; sets incoterms, ports, payment terms, currency, transport mode |
 | GET | `/orders` | User | `?as=buyer\|seller&status=&currency=&page=` |
-| GET | `/orders/{id}` | Participant | Detail incl. items, trade terms, payments, shipment summary |
+| GET | `/orders/{id}` | Participant | Detail incl. items, trade terms, payments |
 | POST | `/orders/{id}/cancel` | Buyer/Seller | While Pending/Confirmed; releases inventory |
 | PATCH | `/orders/{id}/status` | Seller | Confirmed → Processing → InTransit → Delivered |
 | POST | `/orders/{id}/complete` | Buyer | Confirm arrival → Completed (enables reviews) |
@@ -153,12 +153,21 @@ visible in the same payload as the amount it protects.
 
 | Method | Route | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/shipments` | Seller or LSP | Create shipment for an order (mode, ports, carrier, ETA) |
-| GET | `/shipments` | User | `?as=seller\|buyer\|carrier&status=` |
-| GET | `/shipments/{id}` | Participant | Detail + tracking timeline |
-| POST | `/shipments/{id}/tracking-events` | Carrier/Seller | Append event (status, location, description) |
-| GET | `/shipments/track/{publicTrackingToken}` | Public | Guest tracking page data |
-| GET | `/admin/shipments` | Admin | All shipments |
+| POST | `/orders/{id}/shipments` | Seller | Book a consignment. Refused on a draft or cancelled order (`ORDER_CLOSED`), and on an order that already has one. Ports and incoterm default to the order's own. Writes milestone #0, and issues a guest token unless `enableGuestTracking: false` |
+| GET | `/orders/{id}/shipments` | Participant | The order's consignments. A stranger gets 404, not an empty list, so the endpoint cannot be used to probe for orders |
+| GET | `/shipments` | User | `?as=seller\|buyer&status=` — the caller's own consignments across orders. The derived status filter runs after load, because status is read off the timeline rather than stored |
+| GET | `/shipments/{id}` | Participant | Detail + full milestone timeline, newest first |
+| POST | `/shipments/{id}/tracking-events` | Seller | Append a milestone. Permanent — there is no update or delete. Rejects a future date (`MILESTONE_IN_FUTURE`) and normalises offset timestamps to UTC |
+| POST | `/shipments/{id}/tracking-token` | Seller | Issue a fresh guest token, killing the previous link. Returns the raw token — the only time it is ever visible, at creation or rotation |
+| GET | `/shipments/track/{token}` | **Anonymous** | Guest tracking. A separate reduced payload (`ShipmentPublicTrackingDto`): route, carrier, tracking reference, mode, ETA, incoterm, status, timeline. No order, parties, goods, documents or money. 404 for anything unrecognised, so a valid token cannot be distinguished from an invalid one |
+
+Nothing under `/shipments/{id}` discloses the consignment to a stranger: they get 404, and a
+buyer attempting a seller action gets 403 — they already know the order is theirs.
+
+The guest endpoint lives on its own `[AllowAnonymous]` controller, and the public payload is a
+distinct DTO rather than `ShipmentDto` with fields hidden. That is the point of it: the frontend
+cannot leak what it was never sent, and the narrow shape is enforced by the compiler rather than
+by remembering to redact.
 
 ## Messaging & Notifications
 

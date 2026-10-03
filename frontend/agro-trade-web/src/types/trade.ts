@@ -772,3 +772,140 @@ export interface OrderListParams {
   page?: number
   pageSize?: number
 }
+
+// ---- Shipments (task 2.6) ----
+
+/**
+ * Where the consignment is. The server derives this from the latest milestone rather than
+ * storing it, so every status shown here is backed by a dated, located event in the timeline.
+ */
+export const SHIPMENT_STATUSES = [
+  'Pending',
+  'Booked',
+  'Departed',
+  'In transit',
+  'Arrived',
+  'Delivered',
+  'Exception',
+] as const
+export const SHIPMENT_STATUS = {
+  Pending: 0,
+  Booked: 1,
+  Departed: 2,
+  InTransit: 3,
+  Arrived: 4,
+  Delivered: 5,
+  Exception: 6,
+} as const
+
+export type ShipmentStatusName = (typeof SHIPMENT_STATUSES)[number]
+
+export interface ShipmentTrackingEventDto {
+  id: string
+  shipmentId: string
+  status: number
+  location: string | null
+  description: string | null
+  /** When the milestone happened, per the carrier. */
+  occurredAtUtc: string
+  /** When someone typed it in. Different from `occurredAtUtc` on a late entry. */
+  recordedAtUtc: string
+  recordedByDisplayName: string | null
+}
+
+/** A consignment, for the two parties and admins. */
+export interface ShipmentDto {
+  id: string
+  orderId: string
+  orderNumber: string
+  /** e.g. "SHP-2026-000001". Carries no order or party information, so it is safe to share. */
+  reference: string
+  status: number
+  statusSinceUtc: string | null
+  mode: number
+  carrierName: string
+  /** Container number, air waybill or bill of lading. */
+  trackingReference: string | null
+  originCountry: string | null
+  originPort: string | null
+  destinationCountry: string | null
+  destinationPort: string | null
+  incoterms: number | null
+  /** Derived from the earliest Departed milestone. */
+  departedAtUtc: string | null
+  estimatedArrivalUtc: string | null
+  /**
+   * Whether a guest link exists. The link itself is never readable again - the server stores only
+   * its hash - so a seller who loses the URL rotates it.
+   */
+  hasGuestTracking: boolean
+  isSeller: boolean
+  isBuyer: boolean
+  /** Newest first. */
+  events: ShipmentTrackingEventDto[]
+}
+
+/** Fields the book-a-consignment form collects. Ports default to the order's own. */
+export interface CreateShipmentRequest {
+  mode: number
+  carrierName: string
+  trackingReference?: string
+  originCountry?: string
+  originPort?: string
+  destinationCountry?: string
+  destinationPort?: string
+  incoterms?: number
+  estimatedArrivalUtc?: string
+  /** Omitted means "Booked" at the origin. */
+  initialStatus?: string
+  initialNote?: string
+  /**
+   * When the consignment was booked, if not today. Needed when logging up a shipment after the
+   * fact: every milestone is sorted against this date.
+   */
+  initialOccurredAtUtc?: string
+  /** On by default. Off means no public tracking link is issued. */
+  enableGuestTracking?: boolean
+}
+
+export interface AppendTrackingEventRequest {
+  status: number
+  location?: string
+  description?: string
+  /** Defaults to now. Must not be in the future. */
+  occurredAtUtc?: string
+}
+
+/** The one and only place a guest tracking token is ever returned. */
+export interface TrackingTokenDto {
+  shipmentId: string
+  token: string
+  trackingPath: string
+}
+
+/**
+ * The anonymous guest view. Deliberately narrow: route, carrier, reference, ETA and milestones,
+ * with no order, parties, goods or money. Someone holding a forwarded link needs to know where the
+ * container is, and has no business learning who traded what for how much.
+ */
+export interface ShipmentPublicTrackingDto {
+  reference: string
+  status: number
+  mode: number
+  carrierName: string
+  trackingReference: string | null
+  originCountry: string | null
+  originPort: string | null
+  destinationCountry: string | null
+  destinationPort: string | null
+  incoterms: number | null
+  departedAtUtc: string | null
+  estimatedArrivalUtc: string | null
+  /** Oldest first, so the page reads forwards as a journey. */
+  events: {
+    status: number
+    location: string | null
+    description: string | null
+    occurredAtUtc: string
+  }[]
+}

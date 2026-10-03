@@ -114,7 +114,7 @@ public sealed class AuthService(
 
     public async Task<AuthResponse> RefreshAsync(RefreshRequest request, CancellationToken ct = default)
     {
-        var presentedHash = RefreshTokenFactory.Hash(request.RefreshToken);
+        var presentedHash = OpaqueTokenFactory.Hash(request.RefreshToken);
         var stored = await db.RefreshTokens
             .FirstOrDefaultAsync(t => t.TokenHash == presentedHash, ct)
             ?? throw ApiException.Unauthorized("INVALID_REFRESH_TOKEN", "Refresh token is invalid.");
@@ -146,7 +146,7 @@ public sealed class AuthService(
 
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
-        var hash = RefreshTokenFactory.Hash(refreshToken);
+        var hash = OpaqueTokenFactory.Hash(refreshToken);
         var stored = await db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
         if (stored is not null && stored.RevokedAtUtc is null)
         {
@@ -237,7 +237,7 @@ public sealed class AuthService(
         var roles = (await userManager.GetRolesAsync(user)).ToList();
         var access = accessTokens.CreateAccessToken(user.Id, user.Email!, user.DisplayName, roles);
 
-        var (raw, hash) = RefreshTokenFactory.Create();
+        var (raw, hash) = OpaqueTokenFactory.Create();
         var refresh = new RefreshToken
         {
             Id = Guid.NewGuid(),

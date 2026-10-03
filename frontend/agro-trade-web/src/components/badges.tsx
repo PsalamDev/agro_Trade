@@ -6,6 +6,7 @@ import {
   PAYMENT_STATUSES,
   QUOTATION_STATUSES,
   RFQ_STATUSES,
+  SHIPMENT_STATUSES,
   VERIFICATION_STATUSES,
   labelOf,
 } from '../types/trade'
@@ -136,6 +137,25 @@ export function DocumentStatusPill({ status }: { status: number }) {
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tones[status] ?? 'bg-stone-100 text-stone-700'}`}>
       {labelOf(DOCUMENT_STATUSES, status)}
+    </span>
+  )
+}
+
+export function ShipmentStatusPill({ status }: { status: number }) {
+  // Mirrors how a shipment actually reads: booked and pending are neutral, the movement
+  // milestones get warmer, arrival is good news, and an exception is the one that needs attention.
+  const tones: Record<number, string> = {
+    0: 'bg-stone-100 text-stone-600',
+    1: 'bg-blue-100 text-blue-800',
+    2: 'bg-cyan-100 text-cyan-800',
+    3: 'bg-amber-100 text-amber-800',
+    4: 'bg-teal-100 text-teal-800',
+    5: 'bg-emerald-100 text-emerald-800',
+    6: 'bg-red-100 text-red-800',
+  }
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tones[status] ?? 'bg-stone-100 text-stone-600'}`}>
+      {labelOf(SHIPMENT_STATUSES, status)}
     </span>
   )
 }

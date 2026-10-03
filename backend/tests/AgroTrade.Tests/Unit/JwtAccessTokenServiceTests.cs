@@ -40,15 +40,15 @@ public sealed class JwtAccessTokenServiceTests
     }
 
     [Fact]
-    public void RefreshTokenFactory_ProducesUniqueUrlSafeTokens()
+    public void OpaqueTokenFactory_ProducesUniqueUrlSafeTokens()
     {
-        var (raw1, hash1) = RefreshTokenFactory.Create();
-        var (raw2, hash2) = RefreshTokenFactory.Create();
+        var (raw1, hash1) = OpaqueTokenFactory.Create();
+        var (raw2, hash2) = OpaqueTokenFactory.Create();
 
         Assert.NotEqual(raw1, raw2);
         Assert.NotEqual(hash1, hash2);
         Assert.DoesNotContain(Path.GetInvalidFileNameChars(), raw1);
-        Assert.Equal(RefreshTokenFactory.Hash(raw1), hash1);
+        Assert.Equal(OpaqueTokenFactory.Hash(raw1), hash1);
         Assert.NotEqual(raw1, hash1);
     }
 

@@ -295,6 +295,67 @@ public sealed class RecordManualPaymentRequestValidator : AbstractValidator<Reco
     }
 }
 
+public sealed class CreateShipmentRequestValidator : AbstractValidator<CreateShipmentRequest>
+{
+    public CreateShipmentRequestValidator()
+    {
+        RuleFor(x => x.Mode).Must(m => EnumChecks.In<ShipmentMode>((int)m));
+        RuleFor(x => x.Incoterms).Must(i => EnumChecks.IsNullOrIn<Incoterms>((int?)i));
+
+        // Required, not optional. "A shipment" with no carrier named is not something anyone can
+        // track, ask about, or be held to — and the seller is the only one who knows it yet.
+        RuleFor(x => x.CarrierName)
+            .NotEmpty().WithMessage("A carrier or freight forwarder is required.")
+            .MaximumLength(120);
+
+        RuleFor(x => x.TrackingReference).MaximumLength(100);
+        RuleFor(x => x.OriginCountry).Length(2)
+            .WithMessage("OriginCountry must be an ISO-3166 alpha-2 code.")
+            .When(x => !string.IsNullOrEmpty(x.OriginCountry));
+        RuleFor(x => x.DestinationCountry).Length(2)
+            .WithMessage("DestinationCountry must be an ISO-3166 alpha-2 code.")
+            .When(x => !string.IsNullOrEmpty(x.DestinationCountry));
+        RuleFor(x => x.OriginPort).MaximumLength(120);
+        RuleFor(x => x.DestinationPort).MaximumLength(120);
+        RuleFor(x => x.InitialNote).MaximumLength(500);
+
+        // Free text because it names a ShipmentStatus the caller may or may not spell right, and
+        // the service resolves it with a clear message rather than an opaque parse error here.
+        RuleFor(x => x.InitialStatus).MaximumLength(40);
+
+        // An ETA in the past is not a forecast, it is a broken record. The service also refuses one
+        // that predates the order entirely.
+        RuleFor(x => x.EstimatedArrivalUtc)
+            .GreaterThan(DateTime.UtcNow)
+            .WithMessage("The estimated arrival must be in the future.")
+            .When(x => x.EstimatedArrivalUtc.HasValue);
+
+        // Same reason as the milestone rule, and for the same reason it matters more here: this is
+        // the date every later milestone is sorted against.
+        RuleFor(x => x.InitialOccurredAtUtc)
+            .LessThanOrEqualTo(DateTime.UtcNow)
+            .WithMessage("The booking date cannot be in the future.")
+            .When(x => x.InitialOccurredAtUtc.HasValue);
+    }
+}
+
+public sealed class AppendTrackingEventRequestValidator : AbstractValidator<AppendTrackingEventRequest>
+{
+    public AppendTrackingEventRequestValidator()
+    {
+        RuleFor(x => x.Status).Must(s => EnumChecks.In<ShipmentStatus>((int)s));
+        RuleFor(x => x.Location).MaximumLength(120);
+        RuleFor(x => x.Description).MaximumLength(500);
+
+        // Load-bearing, not a nicety: a shipment's status is its latest milestone, so a
+        // future-dated one would immediately become the status the buyer and the guest link see.
+        RuleFor(x => x.OccurredAtUtc)
+            .LessThanOrEqualTo(DateTime.UtcNow)
+            .WithMessage("A milestone cannot have happened in the future.")
+            .When(x => x.OccurredAtUtc.HasValue);
+    }
+}
+
 public sealed class SendMessageRequestValidator : AbstractValidator<SendMessageRequest>
 {
     public SendMessageRequestValidator()

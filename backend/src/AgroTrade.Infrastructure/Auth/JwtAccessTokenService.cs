@@ -47,10 +47,17 @@ public sealed class JwtAccessTokenService(IOptions<JwtOptions> options) : IAcces
 }
 
 /// <summary>
-/// Raw refresh-token material + its SHA-256 hash. Only the hash is persisted.
+/// A high-entropy bearer token and its SHA-256 hash. Only the hash is persisted.
 /// </summary>
-public static class RefreshTokenFactory
+/// <remarks>
+/// Two capabilities need exactly this: refresh tokens, and the guest shipment-tracking link
+/// (task 2.6) that a buyer forwards to a freight forwarder who has no account. Both are bearer
+/// secrets handed to someone outside the system, and both are stored hashed so that a database
+/// dump yields no working tokens. The raw value is shown once, at creation, and never again.
+/// </remarks>
+public static class OpaqueTokenFactory
 {
+    /// <summary>64 random bytes, base64url-encoded. 512 bits of entropy, so not guessable.</summary>
     public static (string RawToken, string Hash) Create()
     {
         var bytes = new byte[64];

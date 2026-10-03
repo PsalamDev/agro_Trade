@@ -7,10 +7,10 @@ own origins and destinations. A domestic retail marketplace is a follow-on phase
 
 **Core trade journey:** Discover → Source → Verify → Negotiate → Trade → Ship → Deliver
 
-> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.5.**
+> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.6.**
 > The full journey is *Discover → Source → Verify → Negotiate → Trade → Ship → Deliver*; the
-> first four steps are built, and the fifth (order placement, payment, and trade
-> paperwork) is landed through task 2.5. See
+> first four steps are built, and the fifth (order placement, payment, trade
+> paperwork, and consignment tracking) is landed through task 2.6. See
 > [Current status](#current-status) below and [`docs/01-roadmap.md`](docs/01-roadmap.md)
 > for the full phase plan.
 
@@ -108,7 +108,7 @@ another SQL Server to run tests somewhere else (CI does this).
 
 ## Current status
 
-Phases 0 and 1 are complete. Phase 2 is underway (tasks 2.1-2.5 of 2.7 landed).
+Phases 0 and 1 are complete. Phase 2 is underway (tasks 2.1-2.6 of 2.7 landed).
 
 ### Phase 0 — Foundations (complete)
 
@@ -154,7 +154,7 @@ Tasks 2.1–2.7 per the roadmap:
 | 2.3 | Trade document upload + statuses + admin verification queue | **Done** |
 | 2.4 | Payment gateway adapter #1 (sandbox) + idempotent webhook | **Done** |
 | 2.5 | Off-platform payment recording + transaction ledger | **Done** |
-| 2.6 | Shipment record + tracking events + guest tracking | Not started |
+| 2.6 | Shipment record + tracking events + guest tracking | **Done** |
 | 2.7 | Admin dashboard (all queues + KPIs) | Not started |
 
 Task 2.1 delivered `Orders` / `OrderItems` / `Payments` / `Transactions` / `TradeDocuments`
@@ -290,6 +290,80 @@ That is repaired rather than prevented: the idempotent replay path rewrites a mi
 which is free when nothing is broken and is exactly what a retry is for. Making it truly atomic
 needs an allocator that can number two sequences inside one transaction, which is a change to
 infrastructure shared with RFQ and order numbering and was not this task's to make.
+
+### Task 2.6 - Shipment record + tracking events + guest tracking
+
+The seller books a consignment against an order, then appends milestones as the goods move. Both
+parties read the same timeline, and anyone holding the guest tracking link reads a narrowed view
+of it.
+
+**A shipment has no `Status` column.** Its status *is* its latest milestone. That is the central
+decision in this task, and it was taken because the alternative is a second source of truth that
+can drift: a stored status that says `Delivered` while the timeline ends at `Departed` is a
+statement the buyer can verify is wrong, and every status reported anywhere in the system would
+then rest on which of the two you happened to read. Deriving it makes the status correct by
+construction, and it guarantees that anything shown as a status is backed by an actual dated,
+located, described event. `DepartedAtUtc` is derived the same way — from the *earliest* `Departed`
+milestone, since a re-routed consignment leaves twice and the second sailing must not rewrite when
+it first left.
+
+The milestones are **append-only**. There is no update or delete path anywhere in the API or the
+model — not a permission flag, just no code. The timeline is buyer-facing evidence of what a
+carrier reported and when, and a trade where "we corrected the record" is available is one where the
+record proves nothing. Statuses are correspondingly *not* forced to advance: goods that have been
+delivered genuinely do generate a customs exception afterwards, and refusing that entry would only
+teach the seller to stop recording what happened. Two rules the append path does enforce, both
+because status is the latest event — a milestone cannot be dated in the future
+(`MILESTONE_IN_FUTURE`), and ingested timestamps are normalised to UTC first. The second is the
+same `DateTime.Kind` trap task 2.4 hit on webhook events: a raw `DateTime` comparison ignores
+`Kind`, so `14:00+02:00` would read as two hours *later* than a genuine `13:00Z` and take over as
+the current status.
+
+Booking writes milestone #0, and its date is caller-suppliable (`initialOccurredAtUtc`, defaulting
+to now). This is not a convenience. Because every later milestone is sorted against the booking,
+a seller logging up a consignment that departed last week has no way to write a coherent history
+without it: the booking would be stamped today, every correctly-dated real milestone would sort
+beneath it, and the shipment would report `Booked` while sitting at sea. Correct data producing a
+wrong answer is worse than a missing field, so the field is there.
+
+**One consignment per order**, enforced by a unique index on `Shipments.OrderId`. Splitting a
+consignment needs per-order-item quantity allocation, which the order model does not express;
+`GET /orders/{id}/shipments` returns a list anyway, so lifting this is not a breaking change for
+anything holding a parsed response.
+
+**The guest token is stored hashed** (SHA-256 hex, from the `RefreshTokenFactory` generalised to
+`OpaqueTokenFactory`, since refresh tokens and tracking tokens have identical crypto requirements).
+The raw value is returned exactly once — at creation and at rotation — and no endpoint can recover
+it, so a database dump yields no working tracking links. `POST /shipments/{id}/tracking-token`
+issues a fresh one and kills the previous link, which is a real kill switch: these links get
+forwarded, and a forwarded link cannot be recalled.
+
+The anonymous page is deliberately narrow. `ShipmentPublicTrackingDto` is a separate type, not
+`ShipmentDto` with fields hidden, so the frontend cannot leak what it was never sent: route,
+carrier, tracking reference, mode, ETA, incoterm, status, milestone timeline. No order number, no
+amounts, no currency, no party names, no product, no documents. Someone holding a forwarded link
+needs to know where the container is and has no business learning who traded what for how much. It
+lives at `/track/:token` on its own `[AllowAnonymous]` controller, because the link goes to freight
+forwarders and customs agents who have no account here and will not make one. Unknown or rotated
+tokens get 404 rather than 401 or 403, so the page cannot be used to tell a live link from a dead
+one.
+
+Two things this task deliberately does not do. It does **not** auto-transition the order from
+shipment events — the order state machine stays the single authority, consistent with task 2.2. And
+it does not guess `OriginCountry`: `Orders` records `PortOfLoading` and `DestinationCountry` but no
+origin country, so there is nothing to inherit, and inferring one from the seller's registered
+country would put a plausible-looking wrong country on a page the buyer trusts. That is a gap in the
+2.1 order model, now recorded in `docs/02-data-model.md` rather than papered over.
+
+One pre-existing caveat, surfaced while testing and not fixed here because the fix is
+cross-cutting. The API's timestamps serialise without a zone, because SQL Server's `datetime2`
+carries none and `System.Text.Json` only appends `Z` for a `Kind=Utc` value. Every DTO in the
+system — orders, payments, shipments — has always had this shape, and the frontend has been
+formatting it in the browser's local zone. Since the wire value is in fact a UTC wall-clock
+reading, that shifts displayed times by the reader's UTC offset. The new shipment UI opts out by
+formatting with `timeZone: 'UTC'` explicitly, because a page whose entire job is saying *when* a
+container moved is where this matters most. Fixing it properly means either a global converter or
+auditing every date parse on the client; that is its own task.
 
 ## Documentation Index
 

@@ -24,6 +24,7 @@ import BusinessHubPage from './pages/BusinessHubPage'
 import BusinessOnboardingPage from './pages/BusinessOnboardingPage'
 import BusinessDetailPage from './pages/BusinessDetailPage'
 import PublicBusinessPage from './pages/PublicBusinessPage'
+import TrackShipmentPage from './pages/TrackShipmentPage'
 import AdminVerificationPage from './pages/AdminVerificationPage'
 import AdminDocumentsPage from './pages/AdminDocumentsPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -49,6 +50,14 @@ export default function App() {
         <Route path="/products/:idOrSlug" element={<ProductDetailPage />} />
         <Route path="/businesses/:id" element={<PublicBusinessPage />} />
         <Route path="/rfqs" element={<RfqDirectoryPage />} />
+
+        {/*
+          Guest consignment tracking. Deliberately outside ProtectedRoute: the link goes to freight
+          forwarders and customs agents who have no account here and will not make one. The server
+          returns a narrowed payload with no order, party, goods or money in it, and answers 404
+          for any token it does not recognise.
+        */}
+        <Route path="/track/:token" element={<TrackShipmentPage />} />
 
         {/* Authenticated */}
         <Route

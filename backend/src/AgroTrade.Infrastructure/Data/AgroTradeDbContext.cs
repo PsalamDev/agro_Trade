@@ -47,6 +47,10 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<PaymentWebhookEvent> PaymentWebhookEvents => Set<PaymentWebhookEvent>();
 
+    // Logistics
+    public DbSet<Shipment> Shipments => Set<Shipment>();
+    public DbSet<ShipmentTrackingEvent> ShipmentTrackingEvents => Set<ShipmentTrackingEvent>();
+
     // Communication
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<Notification> Notifications => Set<Notification>();
@@ -422,6 +426,54 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.HasIndex(w => w.ReceivedAtUtc);
             // No relationship to Payment, on purpose — see the entity's remarks. This is a
             // RESTRICT-free, navigation-free registration so the row outlives its payment.
+        });
+
+        builder.Entity<Shipment>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Reference).HasMaxLength(20).IsRequired();
+            e.Property(s => s.CarrierName).HasMaxLength(120).IsRequired();
+            e.Property(s => s.TrackingReference).HasMaxLength(100);
+            e.Property(s => s.OriginCountry).HasMaxLength(2);
+            e.Property(s => s.OriginPort).HasMaxLength(120);
+            e.Property(s => s.DestinationCountry).HasMaxLength(2);
+            e.Property(s => s.DestinationPort).HasMaxLength(120);
+            e.Property(s => s.PublicTrackingTokenHash).HasMaxLength(64);
+            e.Property(s => s.RowVersion).IsRowVersion();
+            e.HasIndex(s => s.Reference).IsUnique();
+            // One consignment per order. Splitting a shipment would mean allocating quantities
+            // across order items, which the model does not express; see the entity's remarks.
+            e.HasIndex(s => s.OrderId).IsUnique();
+            // The guest tracking link is looked up by the hash of the presented token, so this
+            // index is the whole lookup path for the anonymous endpoint. Filtered because
+            // guest tracking is optional and unset shipments must not collide on a NULL.
+            e.HasIndex(s => s.PublicTrackingTokenHash)
+                .IsUnique()
+                .HasFilter("[PublicTrackingTokenHash] IS NOT NULL");
+            e.HasIndex(s => new { s.Mode, s.EstimatedArrivalUtc });
+            e.HasOne(s => s.Order)
+                .WithMany(o => o.Shipments)
+                .HasForeignKey(s => s.OrderId)
+                // Cascade, like trade documents: a shipment is meaningless without its order and
+                // has no independent existence to preserve. Its tracking events cascade with it.
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ShipmentTrackingEvent>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Location).HasMaxLength(120);
+            e.Property(t => t.Description).HasMaxLength(500);
+            e.HasIndex(t => new { t.ShipmentId, t.OccurredAtUtc });
+            e.HasIndex(t => t.Status);
+            e.HasOne(t => t.Shipment)
+                .WithMany(s => s.Events)
+                .HasForeignKey(t => t.ShipmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(t => t.RecordedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<Transaction>(e =>

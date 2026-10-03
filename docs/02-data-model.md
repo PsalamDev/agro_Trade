@@ -299,22 +299,58 @@ Index `(UserId, IsRead, CreatedAtUtc DESC)`.
 ## Logistics
 
 ### Shipments
+
+One consignment against an order. A seller books it, then appends milestones as the goods move.
+
 | Column | Type | Notes |
 | --- | --- | --- |
 | Id | guid | PK |
-| OrderId | guid | FK Orders |
-| CarrierBusinessId | guid? | FK Businesses (LSP) |
-| Status | int | ShipmentStatus |
-| Mode | int | Road/Rail/Sea/Air/Multimodal |
-| OriginCountry / OriginPort | | |
-| DestinationCountry / DestinationPort | | |
-| Incoterms | int? | |
-| DepartureDate / Eta | datetime2? | |
-| TrackingReference | nvarchar(100) | carrier reference |
-| PublicTrackingToken | nvarchar(64) | guest tracking link |
+| OrderId | guid | FK Orders, **unique** — one consignment per order in the MVP |
+| Reference | nvarchar(30) | e.g. `SHP-2026-000001`, unique. Carries no order or party information, so it is safe to quote on a guest page |
+| CarrierName | nvarchar(120) | free text, not a FK: carriers are not platform businesses |
+| TrackingReference | nvarchar(100)? | container number, air waybill or bill of lading |
+| Mode | int | **ShipmentMode** — Road/Rail/Sea/Air/Multimodal |
+| OriginCountry / OriginPort | nvarchar? | see the gap noted below |
+| DestinationCountry / DestinationPort | nvarchar? | defaults to the order's snapshotted terms |
+| Incoterms | int? | defaults to the order's |
+| EstimatedArrivalUtc | datetime2? | rejected if in the past |
+| PublicTrackingTokenHash | nvarchar(64)? | filtered-unique; **only the hash is stored** |
+| CreatedAtUtc / UpdatedAtUtc | datetime2? | |
+| RowVersion | rowversion? | |
+
+**No `Status` column and no `DepartedAtUtc` column.** Both are derived from the milestone
+timeline — `Status` from the latest event (`OccurredAtUtc`, then `CreatedAtUtc`), `DepartedAtUtc`
+from the *earliest* `Departed` event, so a re-routed consignment leaving twice keeps its real
+first departure. Storing either would create a second source of truth that could drift from the
+timeline the buyer is shown, and the timeline is what the status is supposed to mean.
+
+**`OriginCountry` has no default.** `Orders` records `PortOfLoading` and `DestinationCountry` but
+no origin country, so there is nothing to inherit. It is deliberately not guessed from the seller's
+registered country either: a plausible-looking wrong country on a page the buyer trusts is worse
+than an honest blank. This is a gap in the 2.1 order model, not an oversight here.
 
 ### ShipmentTrackingEvents
-`Id, ShipmentId FK, Status int, Location?, Description?, EventTimeUtc`. Append-only.
+
+`Id, ShipmentId FK, Status int, Location nvarchar?, Description nvarchar?,
+OccurredAtUtc datetime2, RecordedByUserId FK, CreatedAtUtc, UpdatedAtUtc`.
+
+**Append-only.** There is no update or delete path in the API or the model — not a policy flag,
+just no code. The timeline is buyer-facing evidence of what a carrier reported and when, so a
+correction is a further entry rather than a rewrite. Index `(ShipmentId, OccurredAtUtc)` because
+that is the sort the current status is read from.
+
+Two rules the append path enforces, both because status *is* the latest event:
+
+- `OccurredAtUtc` cannot be in the future (`MILESTONE_IN_FUTURE`).
+- Ingested timestamps are normalised to UTC. A raw `DateTime` comparison ignores `Kind`, so an
+  offset-supplied milestone could otherwise read as later than one that genuinely was later.
+- Statuses are **not** forced to advance. Delivered goods do generate customs exceptions, and
+  refusing that entry would only teach the seller to stop recording what happened.
+
+Booking writes milestone #0, and its date is caller-suppliable (`initialOccurredAtUtc`, defaulting
+to now). Since every later milestone is sorted against it, this is what makes a late entry
+coherent: a consignment booked ten days ago and departed eight days ago has to be able to say so,
+or the booking silently outranks its own history.
 
 ---
 
@@ -369,7 +405,7 @@ Phase 3+ powers commodity prices and trade-trend charts.
 | RfqStatus | Open, Quoting, Negotiating, Accepted, ConvertedToOrder, Expired, Closed, Cancelled |
 | QuotationStatus | Submitted, UnderReview, Negotiating, Accepted, Declined, Withdrawn, Expired |
 | Incoterms | EXW, FCA, FAS, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP |
-| ShipmentStatus | Created, Booked, InTransit, CustomsHold, OutForDelivery, Delivered, Delayed, Cancelled |
+| ShipmentStatus | Pending, Booked, Departed, InTransit, Arrived, Delivered, Exception |
 | ShipmentMode | Road, Rail, Sea, Air, Multimodal |
 | DisputeStatus | Open, UnderReview, Resolved, Rejected, Escalated |
 | NotificationType | Order, Rfq, Quotation, Message, Payment, Shipment, Verification, Document, Dispute, System |

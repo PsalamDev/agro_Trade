@@ -1029,6 +1029,129 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.ToTable("Quotations");
                 });
 
+            modelBuilder.Entity("AgroTrade.Domain.Trade.Shipment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CarrierName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DestinationCountry")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("DestinationPort")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime?>("EstimatedArrivalUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Incoterms")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("OriginCountry")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("OriginPort")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("PublicTrackingTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("TrackingReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
+
+                    b.HasIndex("PublicTrackingTokenHash")
+                        .IsUnique()
+                        .HasFilter("[PublicTrackingTokenHash] IS NOT NULL");
+
+                    b.HasIndex("Reference")
+                        .IsUnique();
+
+                    b.HasIndex("Mode", "EstimatedArrivalUtc");
+
+                    b.ToTable("Shipments");
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.ShipmentTrackingEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("RecordedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ShipmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordedByUserId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("ShipmentId", "OccurredAtUtc");
+
+                    b.ToTable("ShipmentTrackingEvents");
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Trade.TradeDocument", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1668,6 +1791,34 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.Navigation("TradeRequest");
                 });
 
+            modelBuilder.Entity("AgroTrade.Domain.Trade.Shipment", b =>
+                {
+                    b.HasOne("AgroTrade.Domain.Trade.Order", "Order")
+                        .WithMany("Shipments")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.ShipmentTrackingEvent", b =>
+                {
+                    b.HasOne("AgroTrade.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("RecordedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AgroTrade.Domain.Trade.Shipment", "Shipment")
+                        .WithMany("Events")
+                        .HasForeignKey("ShipmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Shipment");
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Trade.TradeDocument", b =>
                 {
                     b.HasOne("AgroTrade.Domain.Trade.Order", "Order")
@@ -1780,6 +1931,8 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("Payments");
+
+                    b.Navigation("Shipments");
                 });
 
             modelBuilder.Entity("AgroTrade.Domain.Trade.Product", b =>
@@ -1787,6 +1940,11 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.Navigation("Images");
 
                     b.Navigation("Inventory");
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.Shipment", b =>
+                {
+                    b.Navigation("Events");
                 });
 
             modelBuilder.Entity("AgroTrade.Domain.Trade.TradeRequest", b =>

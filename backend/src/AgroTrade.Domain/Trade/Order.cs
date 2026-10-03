@@ -27,10 +27,12 @@ public sealed class Order : IAuditableEntity
     public OrderStatus Status { get; set; } = OrderStatus.Draft;
 
     /// <summary>
-    /// Rollup of the order's Payments. Stays <see cref="PaymentStatus.None"/> until task
-    /// 2.5 gives payments an endpoint; the rollup rule is written alongside that endpoint
-    /// so it lands with tests rather than as untested guesswork.
+    /// Rollup of the order's Payments.
     /// </summary>
+    /// <remarks>
+    /// Recomputed from the payment rows rather than tracked independently, so it cannot drift
+    /// from the payments it summarises. Settling a payment re-derives it in the same unit of work.
+    /// </remarks>
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.None;
 
     // ---- Trade terms, snapshotted from the quotation at handoff ----
@@ -60,6 +62,7 @@ public sealed class Order : IAuditableEntity
     public List<OrderItem> Items { get; set; } = [];
     public List<Payment> Payments { get; set; } = [];
     public List<TradeDocument> Documents { get; set; } = [];
+    public List<Shipment> Shipments { get; set; } = [];
 
     public Quotation? Quotation { get; set; }
     public TradeRequest? TradeRequest { get; set; }
