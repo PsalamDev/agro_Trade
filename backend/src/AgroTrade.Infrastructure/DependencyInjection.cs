@@ -1,7 +1,9 @@
+using AgroTrade.Application.Admin;
 using AgroTrade.Application.Auth;
 using AgroTrade.Application.Common;
 using AgroTrade.Application.Communication;
 using AgroTrade.Application.Trade;
+using AgroTrade.Infrastructure.Admin;
 using AgroTrade.Infrastructure.Auth;
 using AgroTrade.Infrastructure.Communication;
 using AgroTrade.Infrastructure.Data;
@@ -106,6 +108,9 @@ public static class DependencyInjection
         // Shipments (task 2.6). The guest tracking read is anonymous, so this service is also the
         // one place that has to be careful about what it puts in the public payload.
         services.AddScoped<IShipmentService, ShipmentService>();
+    services.AddScoped<IAdminService, AdminService>();
+    // Save-less by design: the entry is flushed by the same SaveChanges as the action it records.
+    services.AddScoped<IAuditLogWriter, AuditLogWriter>();
 
         return services;
     }

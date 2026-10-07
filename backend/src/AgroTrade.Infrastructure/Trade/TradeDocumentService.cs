@@ -1,3 +1,4 @@
+using AgroTrade.Application.Admin;
 using AgroTrade.Application.Common;
 using AgroTrade.Application.Trade;
 using AgroTrade.Domain.Communication;
@@ -19,7 +20,8 @@ namespace AgroTrade.Infrastructure.Trade;
 /// </remarks>
 public sealed class TradeDocumentService(
     AgroTradeDbContext db,
-    IFileStorage fileStorage) : ITradeDocumentService
+    IFileStorage fileStorage,
+    IAuditLogWriter auditLog) : ITradeDocumentService
 {
     public async Task<TradeDocumentDto> UploadAsync(
         Guid orderId, Guid userId, UploadTradeDocumentRequest request, Stream content, CancellationToken ct = default)
@@ -297,6 +299,19 @@ public sealed class TradeDocumentService(
                 Link = $"/dashboard/orders/{document.OrderId}",
             });
         }
+
+        // Same unit of work as the decision above, so the review and the record of who made it
+        // commit together. The rejection note is carried in full: "rejected" with no stated reason
+        // is the entry an auditor would find least useful and the uploader most frustrated by.
+        auditLog.Record(
+            adminUserId,
+            request.Status == DocumentStatus.Verified
+                ? "document.review.verified"
+                : "document.review.rejected",
+            "TradeDocument",
+            document.Id,
+            $"{DocLabel(document.DocType)} on order {document.Order?.OrderNumber} marked {request.Status}",
+            request.Notes);
 
         await db.SaveChangesAsync(ct);
 

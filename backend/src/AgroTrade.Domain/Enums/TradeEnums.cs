@@ -66,6 +66,26 @@ public enum ListingStatus
     Inactive = 2,
 }
 
+/// <summary>
+/// The platform's judgement of a listing, kept separate from the seller's own
+/// <see cref="ListingStatus"/> (task 2.7).
+/// </summary>
+/// <remarks>
+/// Two fields rather than one, because they answer different questions and only one of them is
+/// the seller's to answer. A listing is visible when it is <c>Active</c> <i>and</i> not suspended;
+/// moderation never overwrites the seller's intent, it only withholds visibility. Collapsing them
+/// into one status would mean either an admin action recorded as a seller decision, or a
+/// suspension a seller could clear by editing their way back to Active.
+/// </remarks>
+public enum ModerationStatus
+{
+    /// <summary>No platform action against this listing.</summary>
+    Cleared = 0,
+
+    /// <summary>Hidden from the marketplace by an administrator, pending action.</summary>
+    Suspended = 1,
+}
+
 public enum RfqStatus
 {
     Open = 0,

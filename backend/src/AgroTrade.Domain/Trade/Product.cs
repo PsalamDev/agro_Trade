@@ -45,6 +45,25 @@ public sealed class Product : IAuditableEntity
     /// <summary>JSON string array, e.g. ["GlobalG.A.P.", "Phytosanitary"].</summary>
     public string? Certifications { get; set; }
     public ListingStatus ListingStatus { get; set; } = ListingStatus.Draft;
+
+    /// <summary>
+    /// Whether an administrator has acted against this listing. Separate from
+    /// <see cref="ListingStatus"/> on purpose: a suspension must survive the seller editing their
+    /// own listing back to <c>Active</c>, which one field could not do.
+    /// </summary>
+    public ModerationStatus ModerationStatus { get; set; } = ModerationStatus.Cleared;
+
+    /// <summary>When the current suspension was applied. Cleared when <see cref="ModerationStatus"/> is.</summary>
+    public DateTime? SuspendedAtUtc { get; set; }
+
+    /// <summary>The administrator who applied the current suspension.</summary>
+    public Guid? SuspendedByUserId { get; set; }
+
+    /// <summary>
+    /// Why the listing was suspended, as stated by the administrator. Required to suspend: a
+    /// moderation action nobody can explain is indistinguishable from an arbitrary one.
+    /// </summary>
+    public string? ModerationReason { get; set; }
     /// <summary>Snapshot of the seller's verification state at publish time.</summary>
     public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.Unverified;
     public bool IsDeleted { get; set; }

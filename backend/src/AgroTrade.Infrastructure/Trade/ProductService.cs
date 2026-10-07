@@ -24,7 +24,11 @@ public sealed partial class ProductService(
 
         IQueryable<Product> baseQuery = db.Products
             .AsNoTracking()
-            .Where(p => !p.IsDeleted && p.ListingStatus == ListingStatus.Active)
+            // Visible means Active AND not suspended. Both conditions, here and in every other
+            // read path, so there is exactly one definition of what a buyer can see.
+            .Where(p => !p.IsDeleted
+                && p.ListingStatus == ListingStatus.Active
+                && p.ModerationStatus == ModerationStatus.Cleared)
             .Include(p => p.SellerBusiness!).ThenInclude(b => b.TradeCountries)
             .Include(p => p.Images);
 
@@ -119,6 +123,15 @@ public sealed partial class ProductService(
             throw ApiException.NotFound("PRODUCT_NOT_FOUND", "Product not found.");
         }
 
+        // A suspended listing is invisible to everyone except the seller it belongs to. The seller
+        // keeps access on purpose: they need to see that it is suspended, and why, or they are left
+        // guessing why their listing vanished from the marketplace. 404 rather than 403 for
+        // everyone else, matching the search path, so a suspended listing cannot be probed for.
+        if (product.ModerationStatus == ModerationStatus.Suspended && !isOwner)
+        {
+            throw ApiException.NotFound("PRODUCT_NOT_FOUND", "Product not found.");
+        }
+
         return await ToDetailAsync(product, ct);
     }
 
@@ -205,20 +218,35 @@ public sealed partial class ProductService(
         if (request.PackagingOptions is not null) product.PackagingOptions = JsonLists.ToJsonList(request.PackagingOptions);
         if (request.Certifications is not null) product.Certifications = JsonLists.ToJsonList(request.Certifications);
 
-        if (request.ListingStatus is not null && request.ListingStatus.Value != (int)product.ListingStatus)
+        if (request.ListingStatus is not null && request.ListingStatus.Value == (int)ListingStatus.Active)
         {
-            var target = (ListingStatus)request.ListingStatus.Value;
-            if (target == ListingStatus.Active)
+            // Refused while suspended, and this is the whole reason moderation is a separate
+            // field rather than a ListingStatus value: without the check a seller undoes an
+            // administrator's suspension with a single PATCH, and a control that the subject
+            // can switch off is not a control. The reason is echoed back because the seller is
+            // entitled to know what they are being held for.
+            if (product.ModerationStatus == ModerationStatus.Suspended)
             {
-                var business = await db.Businesses.AsNoTracking().FirstOrDefaultAsync(b => b.Id == product.SellerBusinessId, ct)
-                    ?? throw ApiException.NotFound("BUSINESS_NOT_FOUND", "Seller business not found.");
-                if (business.VerificationStatus != VerificationStatus.Verified)
-                {
-                    throw ApiException.Forbidden("BUSINESS_NOT_VERIFIED", "Your business must be verified before listings can go live.");
-                }
-                product.VerificationStatus = VerificationStatus.Verified;
+                throw ApiException.Forbidden(
+                    "LISTING_SUSPENDED",
+                    $"This listing is suspended by a platform administrator and cannot be published. Reason: {product.ModerationReason}");
             }
-            product.ListingStatus = target;
+
+            var business = await db.Businesses.AsNoTracking().FirstOrDefaultAsync(b => b.Id == product.SellerBusinessId, ct)
+                ?? throw ApiException.NotFound("BUSINESS_NOT_FOUND", "Seller business not found.");
+            if (business.VerificationStatus != VerificationStatus.Verified)
+            {
+                throw ApiException.Forbidden("BUSINESS_NOT_VERIFIED", "Your business must be verified before listings can go live.");
+            }
+            product.VerificationStatus = VerificationStatus.Verified;
+            if (request.ListingStatus.Value != (int)product.ListingStatus)
+            {
+                product.ListingStatus = ListingStatus.Active;
+            }
+        }
+        else if (request.ListingStatus is not null && request.ListingStatus.Value != (int)product.ListingStatus)
+        {
+            product.ListingStatus = (ListingStatus)request.ListingStatus.Value;
         }
 
         if (request.AvailableQuantity is not null)

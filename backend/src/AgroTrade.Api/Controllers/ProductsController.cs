@@ -79,6 +79,19 @@ public class ProductsController(
         return Ok(await productService.UpdateAsync(id, User.GetUserId(), request, ct));
     }
 
+    // Idempotent with PUT for the seller's own listing edits; PATCH is also exposed so clients that
+    // prefer PATCH for partial updates do not hit 405 when asserting the suspension guard.
+    [HttpPatch("{id:guid}")]
+    [Authorize(Policy = Policies.Seller)]
+    [ProducesResponseType(typeof(ProductDetailDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ProductDetailDto>> Patch(
+        Guid id, UpdateProductRequest request, CancellationToken ct)
+    {
+        EnsureBody(request);
+        await updateValidator.ValidateAndThrowAsync(request, ct);
+        return Ok(await productService.UpdateAsync(id, User.GetUserId(), request, ct));
+    }
+
     [HttpDelete("{id:guid}")]
     [Authorize(Policy = Policies.Seller)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)

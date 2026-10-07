@@ -1,3 +1,4 @@
+using AgroTrade.Application.Admin;
 using AgroTrade.Application.Common;
 using AgroTrade.Application.Trade;
 using AgroTrade.Domain.Communication;
@@ -15,7 +16,8 @@ namespace AgroTrade.Infrastructure.Trade;
 /// </summary>
 public sealed class BusinessService(
     AgroTradeDbContext db,
-    IFileStorage fileStorage) : IBusinessService
+    IFileStorage fileStorage,
+    IAuditLogWriter auditLog) : IBusinessService
 {
     public async Task<BusinessDetailDto> CreateAsync(Guid ownerUserId, RegisterBusinessRequest request, CancellationToken ct = default)
     {
@@ -103,7 +105,7 @@ public sealed class BusinessService(
         var isOwner = viewerUserId == business.OwnerUserId;
         var products = await db.Products
             .AsNoTracking()
-            .Where(p => p.SellerBusinessId == id && !p.IsDeleted && (isOwner || p.ListingStatus == ListingStatus.Active))
+            .Where(p => p.SellerBusinessId == id && !p.IsDeleted && (isOwner || (p.ListingStatus == ListingStatus.Active && p.ModerationStatus == ModerationStatus.Cleared)))
             .OrderByDescending(p => p.CreatedAtUtc)
             .ToListAsync(ct);
 
@@ -302,6 +304,19 @@ public sealed class BusinessService(
                 : $"{business.TradingName} verification was rejected{(string.IsNullOrWhiteSpace(request.Notes) ? "." : $": {request.Notes.Trim()}")}",
             Link = $"/businesses/{business.Id}",
         });
+
+        // Recorded in the same unit of work as the decision above, so an approval and the record of
+        // who approved it cannot come apart. The BusinessVerification row remains the authoritative
+        // state; this is the timeline that spans every kind of admin action.
+        auditLog.Record(
+            adminUserId,
+            request.Approve ? "business.verification.approved" : "business.verification.rejected",
+            "Business",
+            business.Id,
+            request.Approve
+                ? $"Approved verification for {business.TradingName}"
+                : $"Rejected verification for {business.TradingName}",
+            request.Notes);
 
         await db.SaveChangesAsync(ct);
         return await GetAsync(id, business.OwnerUserId, false, ct);

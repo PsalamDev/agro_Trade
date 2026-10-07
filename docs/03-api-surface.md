@@ -99,8 +99,8 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 | POST | `/orders/{id}/cancel` | Buyer/Seller | While Pending/Confirmed; releases inventory |
 | PATCH | `/orders/{id}/status` | Seller | Confirmed → Processing → InTransit → Delivered |
 | POST | `/orders/{id}/complete` | Buyer | Confirm arrival → Completed (enables reviews) |
-| GET | `/admin/orders` | Admin | Global list; filters corridor/currency/status |
-| PATCH | `/admin/orders/{id}/status` | Admin | Corrective moves |
+| GET | `/admin/orders` | Admin | Global list; `?status=&paymentStatus=&q=` — implemented task 2.7, see [Admin](#admin) |
+| PATCH | `/admin/orders/{id}/status` | Admin | Corrective moves — **not implemented**. The `OrderLifecycle` state machine from task 2.2 is currently the only authority on order status, and an admin override would be a second one. |
 
 ## Payments & Transactions
 
@@ -201,15 +201,77 @@ by remembering to redact.
 
 ## Admin
 
-| Method | Route | Auth | Description |
-| --- | --- | --- | --- |
-| GET | `/admin/users` · PATCH `/admin/users/{id}/status` | Admin | Directory + suspend/activate |
-| GET | `/admin/businesses` | Admin | `?status=verified\|pending…` |
-| GET | `/admin/rfqs` | Admin | All RFQs + volume filters |
-| GET | `/admin/transactions` | Admin | Ledger + reconciliation |
-| GET | `/admin/reports/{kind}` | Admin | `corridors\|rfq\|verification-funnel\|commodities`, `?from=&to=` |
-| GET/PUT | `/admin/settings` | Admin | Default currency list per corridor, verification levels, feature flags |
-| GET | `/admin/audit-log` | Admin | Audit trail (spec §18) |
+Implemented in tasks 2.3 and 2.7. Every route below is live; the remaining planned
+administrative surface is listed separately so the two are never confused.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/admin/overview` | **One request, the whole dashboard.** Platform counts, four funnels (business verification, document verification, order status, order payment status), corridor value, per-category supply vs demand, RFQ demand. |
+| GET | `/admin/audit-log` | Administrator decisions, newest first. `?action=&userId=&q=` |
+| GET | `/admin/users` | User directory. `?q=&role=&emailConfirmed=&lockedOut=`. `role` is a role **name**, not an id — ids are database-generated and undiscoverable through the API, so an id filter would be a parameter no client could fill. |
+| GET | `/admin/orders` | Global order queue. `?status=&paymentStatus=&q=` |
+| GET | `/admin/shipments` | Global consignment queue. `?status=&q=&hasGuestTracking=` |
+| GET | `/admin/businesses` | Business queue. `?status=&q=` |
+| POST | `/admin/businesses/{id}/verification/review` | Approve/reject with notes; sets the verified badge. Writes an audit entry. |
+| GET | `/admin/documents` | Document review queue. `?status=&docType=&q=` |
+| POST | `/admin/documents/{id}/review` | Approve/reject with notes. Writes an audit entry. |
+
+### Notes on the dashboard contract
+
+`GET /admin/overview` is deliberately **one endpoint rather than eight**. A dashboard is one
+screen; splitting it would mean eight round trips and eight loading states, and the tiles would
+render against each other only by accident. It is not cached or precomputed — it is eight
+sequential aggregate queries, because EF forbids concurrent operations on a single scoped
+`DbContext`, so `Task.WhenAll` here returns 500 under load.
+
+Three things the response deliberately refuses to do:
+
+- **Corridors are keyed by `(PortOfLoading, DestinationCountry, Currency)`.** There is no FX rate
+  anywhere in the system, so a corridor total that added NGN to USD would be a sum of
+  incomparable numbers. Rows are uncapped for the same reason the commodity panel is capped:
+  the corridor an administrator opened the page to inspect is often the low-volume one, and
+  silently omitting it reads as "no shipments".
+- **Corridor rows report gross order value *and* net settled payments side by side.** They
+  answer different questions, and collapsing them hides unpaid orders — a corridor can look
+  healthy on gross volume while nothing has been paid. Net settled comes from the transaction
+  ledger rather than the order's payment rollup; a ledger entry denominated differently from its
+  order forms its own row and is reported as `mismatchedLedgerEntries` rather than distorting a
+  total.
+- **Status labels are not in the payloads.** `AdminService` supplies them, so a status enum never
+  leaks into a client contract. The one exception is `AdminFunnelStageDto.label`, which is
+  deliberate: a funnel stage with no name is not renderable.
+
+Funnels count **orders** by payment status (not payments by payment status) and return every
+enum stage, including empty ones — an omitted stage is indistinguishable from a bug, a rendered
+zero is information. The commodity panel is driven by the **union** of listed and RFQ'd
+categories, so a category buyers ask for and nobody lists appears; each row carries `rfqCount`
+(lifetime interest) and `openRfqCount` (live demand) separately, and the gap flag keys off the
+latter. `demand.preferredCurrency` has three states — the agreed currency, `"Mixed"` when open
+RFQs genuinely disagree, and empty when none are open.
+
+`AdminShipmentDto.status` is derived from the latest tracking event, as in task 2.6, and the
+`status` filter is therefore evaluated in memory against the loaded event rather than in SQL.
+`hasGuestTracking` answers "which consignments have a link in circulation" — a guest token is a
+bearer secret exposed to non-accounts, which makes that a real question for an operator to be
+able to ask.
+
+## Admin — planned, not yet built
+
+The Phase 2 scope in `01-roadmap.md` names seven admin queues: users, businesses,
+**products**, **RFQs**, orders, documents, shipments. Five exist. The two missing ones are
+below, and are the reason Phase 2 is not yet fully closed despite every numbered task landing.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/admin/products` | Product moderation queue — listings across every seller, filterable by status/category |
+| PATCH | `/admin/products/{id}/moderation` | Unpublish/suspend a listing |
+| GET | `/admin/rfqs` | All RFQs + volume filters |
+| GET | `/admin/transactions` | Ledger + reconciliation |
+| GET | `/admin/reports/{kind}` | `corridors\|rfq\|verification-funnel\|commodities`, `?from=&to=` |
+| GET/PUT | `/admin/settings` | Default currency list per corridor, verification levels, feature flags |
+| PATCH | `/admin/users/{id}/status` | Directory + suspend/activate. Users are **not** hard-deleted — `AuditLog.UserId` is `ON DELETE RESTRICT` precisely so that removing an account cannot remove the evidence that it approved a transaction. |
+
+`GET /admin/audit-log` was previously listed here as planned. It is now implemented, above.
 
 ## Not in scope until noted
 

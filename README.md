@@ -7,10 +7,11 @@ own origins and destinations. A domestic retail marketplace is a follow-on phase
 
 **Core trade journey:** Discover → Source → Verify → Negotiate → Trade → Ship → Deliver
 
-> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.6.**
+> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.7.**
 > The full journey is *Discover → Source → Verify → Negotiate → Trade → Ship → Deliver*; the
 > first four steps are built, and the fifth (order placement, payment, trade
-> paperwork, and consignment tracking) is landed through task 2.6. See
+> paperwork, consignment tracking, and the administrative oversight of all of it) is landed
+> through task 2.7. See
 > [Current status](#current-status) below and [`docs/01-roadmap.md`](docs/01-roadmap.md)
 > for the full phase plan.
 
@@ -97,9 +98,14 @@ started from this repo's own output, and `dotnet run` will happily rebuild and
 restart it. Opt out with `dotnet build -p:StopRunningApi=false`. The frontend has
 no such restriction; `npm run build` works while Vite is running.
 
-Integration tests (16 tests) spin up the API against a local `AgroTrade_Tests` database
+Integration tests (129 tests) spin up the API against a local `AgroTrade_Tests` database
 (`TestingWebAppFactory` migrates it automatically). Point `AGROTRADE_TEST_CONNECTION` at
 another SQL Server to run tests somewhere else (CI does this).
+
+> **Note:** that database is **not** reset between runs, and test classes run in parallel
+> against it. Assertions are therefore written relative to a baseline measured in the same
+> test, or scoped by a per-run-unique marker — a fixed token accumulates across runs and
+> breaks any exact-count assertion.
 
 > **Note (Windows):** if `dotnet test` fails with `0x800711C7 — An Application Control
 > policy has blocked this file`, Windows Smart App Control is flagging the freshly built
@@ -108,7 +114,11 @@ another SQL Server to run tests somewhere else (CI does this).
 
 ## Current status
 
-Phases 0 and 1 are complete. Phase 2 is underway (tasks 2.1-2.6 of 2.7 landed).
+Phases 0 and 1 are complete. Every numbered task in Phase 2 (2.1–2.7) has landed.
+
+Two admin queues named in the [Phase 2 scope](docs/01-roadmap.md) are **not** built: product
+moderation (`PATCH /admin/products/{id}/moderation`) and the admin RFQ list (`GET /admin/rfqs`).
+Both remain planned; see [`docs/03-api-surface.md`](docs/03-api-surface.md).
 
 ### Phase 0 — Foundations (complete)
 
@@ -155,7 +165,7 @@ Tasks 2.1–2.7 per the roadmap:
 | 2.4 | Payment gateway adapter #1 (sandbox) + idempotent webhook | **Done** |
 | 2.5 | Off-platform payment recording + transaction ledger | **Done** |
 | 2.6 | Shipment record + tracking events + guest tracking | **Done** |
-| 2.7 | Admin dashboard (all queues + KPIs) | Not started |
+| 2.7 | Admin dashboard (all queues + KPIs) + audit log | **Done** — 5 of the 7 queues the roadmap names; products moderation and the admin RFQ list are not built |
 
 Task 2.1 delivered `Orders` / `OrderItems` / `Payments` / `Transactions` / `TradeDocuments`
 plus `POST /orders/from-quotation`, `POST /orders`, and the buyer/seller order reads.
@@ -364,6 +374,88 @@ reading, that shifts displayed times by the reader's UTC offset. The new shipmen
 formatting with `timeZone: 'UTC'` explicitly, because a page whose entire job is saying *when* a
 container moved is where this matters most. Fixing it properly means either a global converter or
 auditing every date parse on the client; that is its own task.
+
+### Task 2.7 - Admin dashboard + audit log
+
+Everything an administrator needs to see, on one screen and behind one endpoint:
+`GET /admin/overview` returns platform counts, four verification and trade funnels, corridor
+value, per-category supply against demand, and RFQ demand, in a single request. It is one
+endpoint rather than eight because a dashboard is one screen — splitting it would mean eight
+round trips and a loading state per tile, and the tiles would render against each other only
+by accident. The queues it links to (`/admin/audit-log`, `/admin/orders`, `/admin/shipments`,
+`/admin/users`) are separate endpoints, because each is a paginated list with its own filters.
+
+**The audit log records admin decisions, not entity edits.** `AuditLogWriter.Record` is called
+explicitly at the two places an administrator actually decides something — business
+verification and document review — and nowhere else. The tempting alternative is a
+`SaveChanges` interceptor that logs every changed entity, and it is the wrong shape here: it
+would bury the entries that matter (who approved what, and when) among thousands of
+`UpdatedAtUtc` stamps, and those stamps are already derivable from the row itself. An audit
+trail that cannot be read is not one. `Action` and `EntityType` are **text, not enums**,
+precisely so that adding a new admin action does not require a migration to log it.
+
+`Record` is synchronous and deliberately **save-less**: it adds the entry to the change
+tracker and lets the caller's own `SaveChangesAsync` flush it. The approval and the record of
+the approval therefore commit in one transaction and cannot come apart — which is the only
+property that makes the log worth keeping. `AuditLog.UserId` is `ON DELETE RESTRICT`, never
+cascade: deleting a user must never delete the evidence that they approved a transaction, and
+`SearchAuditLogAsync` substitutes the deleted account's id in place of the display name rather
+than blanking the row.
+
+**Corridor figures are grouped by `(PortOfLoading, DestinationCountry, Currency)`.** Currency is
+part of the row's identity, not a label on it. There is no FX rate anywhere in this system, so
+a single "total trade value" across an NGN corridor and a USD corridor is a sum of incomparable
+numbers wearing a decimal point. The panel shows **gross order value and net settled payments
+side by side** rather than picking one, because they answer different questions and collapsing
+them hides unpaid orders — a corridor can look healthy on gross volume while nothing has been
+paid. Net settled is computed from the **transaction ledger**, not the order's payment rollup,
+so a ledger entry denominated differently from its order forms its own row and is surfaced as
+`mismatchedLedgerEntries` instead of quietly distorting a total.
+
+The funnels count **orders** by payment status, not payments by payment status, and render
+every enum stage including the empty ones. An omitted stage is indistinguishable from a bug; a
+rendered zero is information.
+
+Supply and demand are **merged per category, driven by the union of both sides**. A category
+with RFQs and no listings is exactly the catalogue gap this panel exists to reveal, and
+iterating the product list would omit it silently. Each row carries `rfqCount` and
+`openRfqCount` separately: the flag for a live gap is based on *open* RFQs, because a category
+whose only RFQ closed years ago is a history, not a demand signal. For the same reason
+`demand.preferredCurrency` has **three** states — the agreed currency, `"Mixed"` when open RFQs
+genuinely disagree, and empty when none are open. Reporting `"Mixed"` for an empty set asserts
+that buyers want several currencies at once when there are no buyers at all. `averageBudgetCeiling`
+is withheld rather than approximated whenever open RFQs disagree on currency.
+
+Corridor rows are uncapped; the commodity panel stays capped at 12 as an explicit "top N". The
+corridor an administrator opens the page to inspect is frequently the low-volume one, and
+silently omitting it reads as "no shipments".
+
+Two smaller API decisions. Admin list **status labels live in `AdminService`, not in the DTOs** —
+a status enum must not leak into a client contract, and the one exception
+(`AdminFunnelStageDto.Label`) is deliberate, because a funnel stage with no name is not
+renderable. And the user queue's role filter takes a role **name**, not a role id: ids are
+database-generated and undiscoverable through the API, so an id filter is a parameter no client
+could fill.
+
+Four defects were found while building this, all invisible to the suite as first written:
+
+- `Task.WhenAll` over one scoped `DbContext` to assemble the overview. EF forbids concurrent
+  operations on a single context, so every request 500'd under load. The aggregates are now
+  awaited sequentially.
+- `ApplicationUser` never stamped `CreatedAtUtc` — 3,194 null rows were found in the test
+  database. The entity now implements `IAuditableEntity`, so it picks up stamping it was
+  already eligible for but never receiving.
+- The commodity panel omitted demand-only categories (fixed above), and the corridor list was
+  silently capped at 50.
+- The shipment queue's status filter matched nothing, because status is a *method call* on the
+  loaded entity rather than a column: `SearchShipmentsAsync` filters in memory, and
+  `.Include(s => s.Events)` is mandatory or the filter has nothing to evaluate against.
+
+Admin timestamps are formatted with `timeZone: 'UTC'` and labelled "UTC", extending the
+caveat recorded in task 2.6. Every admin page opts into the one reading of a zone-less
+timestamp that can be trusted. Admin queue ordering puts null timestamps last —
+SQL Server sorts NULLs first on a descending sort, so without `OrderByDescending(u => u.CreatedAtUtc != null)`
+unknown-age users would dominate a "newest first" queue.
 
 ## Documentation Index
 

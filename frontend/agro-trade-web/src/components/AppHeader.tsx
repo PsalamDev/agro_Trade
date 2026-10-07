@@ -14,7 +14,6 @@ import {
   MessageIcon,
   PackageIcon,
   SearchIcon,
-  ShieldCheckIcon,
 } from './icons'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -48,8 +47,9 @@ export function AppHeader() {
     { to: '/messages', label: 'Messages', icon: <MessageIcon className="h-4 w-4" />, show: true },
     { to: '/my/products', label: 'My listings', icon: <GridIcon className="h-4 w-4" />, show: isCompany },
     { to: '/business', label: 'Business', icon: <BuildingIcon className="h-4 w-4" />, show: true },
-    { to: '/admin/verification', label: 'Business verification', icon: <ShieldCheckIcon className="h-4 w-4" />, show: isAdmin },
-    { to: '/admin/documents', label: 'Document review', icon: <FileTextIcon className="h-4 w-4" />, show: isAdmin },
+    // One admin entry, not six. The header had a link to each of two queues with no overview above
+    // them; the dashboard now carries onward navigation to every queue, including these two.
+    { to: '/admin', label: 'Admin', icon: <GridIcon className="h-4 w-4" />, show: isAdmin },
   ].filter((link) => link.show)
 
   const primaryLinks = [

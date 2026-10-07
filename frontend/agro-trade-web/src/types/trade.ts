@@ -909,3 +909,159 @@ export interface ShipmentPublicTrackingDto {
     occurredAtUtc: string
   }[]
 }
+// ---- Admin dashboard and audit trail (task 2.7) ----
+
+/**
+ * One stage of a count-by-status breakdown.
+ *
+ * `label` arrives from the server rather than being looked up here: the funnel is the one place an
+ * admin reads a stage name without also having the status value to hand. Ordinary lists keep their
+ * client-side labels, since those rows carry the enum value alongside.
+ */
+export interface AdminFunnelStageDto {
+  status: number
+  label: string
+  count: number
+}
+
+/**
+ * Trade value for one corridor in one currency.
+ *
+ * `currency` is part of this row's identity, not a label. There is no FX rate anywhere in the
+ * platform, so these rows are never summed across currencies — `netSettled` and `grossOrderValue`
+ * describe money in one unit each, and `outstanding` is the gap for that unit alone.
+ */
+export interface AdminCorridorStatDto {
+  originPort: string | null
+  destinationCountry: string | null
+  currency: string
+  orderCount: number
+  /** Value ordered on this corridor, paid or not. */
+  grossOrderValue: number
+  /** Money that actually arrived, from the ledger rather than from an order rollup. */
+  netSettled: number
+  /** Gross still outstanding. Negative where the corridor has been over-refunded. */
+  outstanding: number
+  /** Always 0 in practice. Non-zero means a ledger entry was booked in the wrong currency. */
+  mismatchedLedgerEntries: number
+}
+
+/** Supply and demand for one category. A row can exist with demand and no listings — that is the gap. */
+export interface AdminCommodityStatDto {
+  categoryName: string
+  productCount: number
+  /** Published only, so a draft never reads as supply a buyer can act on. */
+  publishedCount: number
+  /** Every RFQ ever filed — lasting interest in the category. */
+  rfqCount: number
+  /** RFQs still open or being quoted. What the gap flag is based on: interest nobody acted on years ago is not demand. */
+  openRfqCount: number
+}
+
+export interface AdminDemandStatDto {
+  openRfqs: number
+  totalRfqs: number
+  /** Open RFQs with no quotation at all — demand the seller is not meeting. */
+  unansweredOpenRfqs: number
+  /** Null when no open RFQ states a budget, or when they disagree on currency: an average across currencies would be meaningless. */
+  averageBudgetCeiling: number | null
+  /**
+   * The single currency open RFQs agree on, `'Mixed'` when they disagree, or `''` when none are
+   * open. Empty is not a flavour of mixed — nothing open is a different fact from disagreement.
+   */
+  preferredCurrency: string
+}
+
+export interface PlatformCountsDto {
+  users: number
+  businesses: number
+  verifiedBusinesses: number
+  products: number
+  publishedProducts: number
+  tradeRequests: number
+  quotations: number
+  orders: number
+  shipments: number
+  transactions: number
+  /** Consignments that have hit an exception milestone at any point. */
+  shipmentsInException: number
+}
+
+export interface AdminOverviewDto {
+  counts: PlatformCountsDto
+  businessVerificationFunnel: AdminFunnelStageDto[]
+  documentVerificationFunnel: AdminFunnelStageDto[]
+  orderFunnel: AdminFunnelStageDto[]
+  paymentFunnel: AdminFunnelStageDto[]
+  corridors: AdminCorridorStatDto[]
+  commodities: AdminCommodityStatDto[]
+  demand: AdminDemandStatDto
+}
+
+/** One administrative action. Append-only — there is no endpoint that edits or deletes these. */
+export interface AdminAuditLogDto {
+  id: string
+  userId: string
+  /** Null if the account has since been deleted; the id above still identifies who acted. */
+  actorDisplayName: string | null
+  action: string
+  entityType: string
+  entityId: string | null
+  summary: string
+  /** The reason given, where the action took one. Rejection notes live here. */
+  details: string | null
+  occurredAtUtc: string
+}
+
+/** Audit actions the server can currently write. A filter, not an exhaustive contract. */
+export const AUDIT_ACTIONS = [
+  { value: 'business.verification.approved', label: 'Business approved' },
+  { value: 'business.verification.rejected', label: 'Business rejected' },
+  { value: 'document.review.verified', label: 'Document verified' },
+  { value: 'document.review.rejected', label: 'Document rejected' },
+] as const
+
+export interface AdminUserDto {
+  id: string
+  email: string
+  displayName: string | null
+  emailConfirmed: boolean
+  lockedOut: boolean
+  roles: string[]
+  businessName: string | null
+  createdAtUtc: string | null
+}
+
+export interface AdminOrderRowDto {
+  id: string
+  orderNumber: string
+  status: number
+  paymentStatus: number
+  currency: string
+  total: number
+  amountPaid: number
+  buyerDisplayName: string | null
+  sellerTradingName: string | null
+  destinationCountry: string | null
+  placedAtUtc: string | null
+  createdAtUtc: string | null
+  shipmentCount: number
+}
+
+export interface AdminShipmentDto {
+  id: string
+  reference: string
+  orderId: string
+  orderNumber: string
+  /** Derived from the latest milestone, exactly as the parties see it. Never a stored column. */
+  status: number
+  statusSinceUtc: string | null
+  mode: number
+  carrierName: string
+  destinationCountry: string | null
+  /** A live guest token is a bearer secret being handed to people with no account. */
+  hasGuestTracking: boolean
+  milestoneCount: number
+  estimatedArrivalUtc: string | null
+  createdAtUtc: string | null
+}

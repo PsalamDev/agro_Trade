@@ -25,8 +25,13 @@ import BusinessOnboardingPage from './pages/BusinessOnboardingPage'
 import BusinessDetailPage from './pages/BusinessDetailPage'
 import PublicBusinessPage from './pages/PublicBusinessPage'
 import TrackShipmentPage from './pages/TrackShipmentPage'
+import AdminDashboardPage from './pages/AdminDashboardPage'
 import AdminVerificationPage from './pages/AdminVerificationPage'
 import AdminDocumentsPage from './pages/AdminDocumentsPage'
+import AdminOrdersPage from './pages/AdminOrdersPage'
+import AdminShipmentsPage from './pages/AdminShipmentsPage'
+import AdminUsersPage from './pages/AdminUsersPage'
+import AdminAuditLogPage from './pages/AdminAuditLogPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RequireRole } from './components/RequireRole'
 
@@ -175,6 +180,14 @@ export default function App() {
 
         {/* Admin */}
         <Route
+          path="/admin"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminDashboardPage />
+            </RequireRole>
+          }
+        />
+        <Route
           path="/admin/verification"
           element={
             <RequireRole roles={ADMIN_ROLES}>
@@ -187,6 +200,38 @@ export default function App() {
           element={
             <RequireRole roles={ADMIN_ROLES}>
               <AdminDocumentsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/orders"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminOrdersPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/shipments"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminShipmentsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminUsersPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/audit-log"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminAuditLogPage />
             </RequireRole>
           }
         />

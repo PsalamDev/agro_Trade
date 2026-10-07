@@ -22,6 +22,54 @@ namespace AgroTrade.Infrastructure.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("AgroTrade.Domain.Admin.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid?>("EntityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Action");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("CreatedAtUtc", "Id");
+
+                    b.ToTable("AuditLogs");
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Communication.Message", b =>
                 {
                     b.Property<Guid>("Id")
@@ -863,6 +911,13 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("ModerationReason")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<int>("ModerationStatus")
+                        .HasColumnType("int");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -901,6 +956,12 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                         .HasMaxLength(220)
                         .HasColumnType("nvarchar(220)");
 
+                    b.Property<DateTime?>("SuspendedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("SuspendedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -921,6 +982,10 @@ namespace AgroTrade.Infrastructure.Data.Migrations
 
                     b.HasIndex("Slug")
                         .IsUnique();
+
+                    b.HasIndex("SuspendedByUserId");
+
+                    b.HasIndex("ModerationStatus", "CreatedAtUtc");
 
                     b.HasIndex("IsDeleted", "ListingStatus", "VerificationStatus");
 
@@ -1608,6 +1673,15 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("AgroTrade.Domain.Admin.AuditLog", b =>
+                {
+                    b.HasOne("AgroTrade.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Communication.Message", b =>
                 {
                     b.HasOne("AgroTrade.Infrastructure.Identity.ApplicationUser", null)
@@ -1759,6 +1833,11 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                         .HasForeignKey("SellerBusinessId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("AgroTrade.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("SuspendedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("SellerBusiness");
                 });

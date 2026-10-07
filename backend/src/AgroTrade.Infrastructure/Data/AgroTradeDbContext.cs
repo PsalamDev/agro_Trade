@@ -1,3 +1,4 @@
+using AgroTrade.Domain.Admin;
 using AgroTrade.Domain.Common;
 using AgroTrade.Domain.Communication;
 using AgroTrade.Domain.Identity;
@@ -22,6 +23,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     }
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     // Business & trust
     public DbSet<Business> Businesses => Set<Business>();
@@ -189,9 +191,23 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.Property(p => p.QualitySpecs).HasColumnType("nvarchar(max)");
             e.Property(p => p.PackagingOptions).HasColumnType("nvarchar(max)");
             e.Property(p => p.Certifications).HasColumnType("nvarchar(max)");
+            e.Property(p => p.ModerationReason).HasMaxLength(400);
             e.HasIndex(p => p.Slug).IsUnique();
             e.HasIndex(p => new { p.IsDeleted, p.ListingStatus, p.VerificationStatus });
+
+            // Moderation is filtered on far more often than it is written, and the queue's default
+            // view is "suspended only", so it leads the index rather than trailing it.
+            e.HasIndex(p => new { p.ModerationStatus, p.CreatedAtUtc });
             e.HasIndex(p => p.CategoryId);
+
+            // Restrict, for the same reason AuditLog.UserId restricts: a suspension is a decision
+            // about a seller's revenue, and the record of who made it has to outlive that account.
+            // The alternative - letting the row null out on delete - produces a listing that is
+            // suspended with nobody accountable for it and no way to find out why.
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(p => p.SuspendedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(p => p.SellerBusinessId);
             e.HasIndex(p => p.OriginCountry);
             e.HasIndex(p => p.HsCode);
@@ -537,6 +553,31 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.Property(n => n.Body).HasMaxLength(1000);
             e.Property(n => n.Link).HasMaxLength(500);
             e.HasIndex(n => new { n.UserId, n.IsRead, n.CreatedAtUtc });
+        });
+
+        builder.Entity<AuditLog>(e =>
+        {
+            e.HasKey(a => a.Id);
+
+            // Text, not an enum, deliberately: a new kind of admin action must be loggable without a
+            // migration, and the values are read as strings in the log filter anyway.
+            e.Property(a => a.Action).HasMaxLength(80).IsRequired();
+            e.Property(a => a.EntityType).HasMaxLength(80).IsRequired();
+            e.Property(a => a.Summary).HasMaxLength(400).IsRequired();
+            e.Property(a => a.Details).HasMaxLength(1000);
+
+            // Restrict, never Cascade. An audit row has to outlive the account that created it -
+            // deleting the user must not erase the record of what that user did, which is the one
+            // situation where the log is most needed.
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // The log is read newest-first, filtered by action and by actor.
+            e.HasIndex(a => new { a.CreatedAtUtc, a.Id });
+            e.HasIndex(a => a.Action);
+            e.HasIndex(a => a.UserId);
         });
     }
 

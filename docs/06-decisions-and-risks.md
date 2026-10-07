@@ -26,6 +26,25 @@
 **Decision-record discipline:** append decisions to these tables (decided, date, choice,
 impact) as they are made.
 
+## Task decisions (recorded)
+
+Positioning is P1/P2 above; these are implementation decisions that a later reader could
+reasonably have made the other way, and why.
+
+| # | Decision | Choice | Impact |
+| - | --- | --- | --- |
+| T1 | **What the audit log records** | Administrator **decisions**, logged explicitly at each call site — not a generic entity-change interceptor | Only two call sites today (business verification, document review). A change-data-capture feed would bury those among audit-field stamps derivable from the row itself. `Action`/`EntityType` are **text**, so a new admin action needs no migration |
+| T2 | **How the log is written** | `AuditLogWriter.Record` is synchronous and **save-less** — it adds to the change tracker and returns | The decision and the record of it commit in one transaction. A separate write could leave an approval with no evidence, which is the one failure an audit log must not have |
+| T3 | **What happens to audit rows on user deletion** | `AuditLog.UserId` is `ON DELETE RESTRICT`; reads substitute the raw id for a missing account | Deleting a user cannot delete the evidence they approved a transaction. Users are suspended via `IsActive`, not hard-deleted |
+| T4 | **How corridor value is grouped** | By `(PortOfLoading, DestinationCountry, Currency)` — currency is part of the row's identity | No FX rate exists anywhere in the system, so a total that mixed currencies would be a sum of incomparable numbers. Corridors are uncapped; the commodity panel is capped at 12 as an explicit "top N" |
+| T5 | **One KPI for corridor money, or two?** | **Both** — gross order value and net settled payments, side by side | They answer different questions. Collapsing them hides unpaid orders: a corridor can look healthy on gross volume while nothing has been paid |
+| T6 | **Source of "settled"** | The **transaction ledger**, not the order's payment rollup | A ledger entry denominated differently from its order forms its own row and is reported as `mismatchedLedgerEntries`, rather than silently distorting a corridor total |
+| T7 | **What the funnels count** | **Orders** by payment status (not payments by payment status), rendering every enum stage including empty ones | An omitted stage is indistinguishable from a bug; a rendered zero is information |
+| T8 | **Supply vs demand** | Merged per category, driven by the **union** of listed and RFQ'd categories; `rfqCount` (lifetime) and `openRfqCount` (live) reported separately | A category buyers ask for and nobody lists is the catalogue gap the panel exists to reveal, and iterating the product list omitted it silently. The gap flag keys off *open* RFQs — a closed RFQ from years ago is history, not demand |
+| T9 | **Dashboard shape** | `GET /admin/overview` is **one endpoint**, not eight | A dashboard is one screen. Eight calls means eight loading states, and the tiles would render against each other only by accident |
+| T10 | **Status labels** | Supplied by `AdminService`, not embedded in the DTOs | A status enum must not leak into a client contract. The single exception (`AdminFunnelStageDto.label`) is deliberate — a funnel stage with no name is not renderable |
+| T11 | **Admin timestamps** | Formatted with `timeZone: 'UTC'` and labelled "UTC" | The API serialises without a zone (see R15). Formatting in the reader's local zone shifts every displayed time by their offset — on a UTC+1 machine a review recorded at 09:00 reads as 10:00 |
+
 ---
 
 ## Risk register
@@ -46,6 +65,7 @@ impact) as they are made.
 | R12 | **Single-developer velocity** | High | Medium | Tight MVP scope; honest story sizes; CI from day one; vertical-slice reviews |
 | R13 | **Logistics data trust (tracking events)** | Medium (Phase 3) | Low-Med | Carrier records events (append-only); participants see same timeline; disputes cover tracking discrepancies |
 | R14 | **Gateway/provider lock-in** | Low | Medium | `IPaymentGateway` / `IFileStorage` / `IEmailSender` adapters; provider refs stored per payment/event |
+| R15 | **API timestamps carry no time zone** | **High** (certain — it is the current behaviour) | Medium | SQL Server `datetime2` has no offset and `System.Text.Json` only appends `Z` for a `Kind=Utc` value, so the wire value is a UTC wall-clock reading that `new Date()` interprets as **local**, shifting every displayed time by the reader's offset. Shipment UI (2.6) and all admin pages (2.7) opt out by formatting with `timeZone: 'UTC'` and labelling "UTC"; every other surface still formats in local time. **Fix properly before Phase 3**, whose market-intelligence price series is entirely dates: either a global `JsonConverter<DateTime>` or an audit of every client-side date parse |
 
 ## Security & compliance controls mapped (spec §18)
 
@@ -55,7 +75,7 @@ impact) as they are made.
 | Fraud / suspicious-transaction monitoring | Transaction ledger, audit log, rate limits, dispute queue; Phase 5 anomaly alerts |
 | Secure payment processing | Signature-verified webhooks, idempotency, regulated providers only (D1) |
 | Data protection & privacy | RBAC, document access controls, PII-minimized logs, retention policy, NDPR/GDPR posture |
-| Audit logs | `SaveChanges` interceptor + explicit admin action logging ⇄ `GET /admin/audit-log` |
+| Audit logs | `AuditLog` table written **explicitly** at each admin decision (business verification, document review) via `AuditLogWriter.Record`, in the same transaction as the action itself ⇄ `GET /admin/audit-log`. **Correction (task 2.7):** this line previously claimed a `SaveChanges` interceptor. There is no such interceptor, and there should not be — it only ever stamped `CreatedAtUtc`/`UpdatedAtUtc` on entities and was never a change-logger. An interceptor that logged every changed entity would bury the entries that matter among audit-field stamps already derivable from the row. |
 | Role-based access control | Identity roles + policies + ownership rules in services |
 | Document access controls | Per-document authorization by context participant (order/RFQ/business) |
 | Country/commodity import-export requirements | HS codes + required certs on RFQs/listings; destination-requirements helper (Phase 3); doc-type library aligned to real corridors |

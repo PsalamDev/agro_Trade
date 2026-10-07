@@ -20,7 +20,7 @@ ports, and trade documents are first-class entities.
 | JSON | Small flexible payloads (certifications, specs, settings) as `nvarchar(max)` JSON |
 | Concurrency | `RowVersion` on Order, Product, Inventory, Quotation |
 
-## Entity groups (29 tables)
+## Entity groups (31 tables)
 
 ```
 ┌─ IDENTITY & ACCESS ──────────────────────────────┐
@@ -32,7 +32,8 @@ ports, and trade documents are first-class entities.
 ├─ CATALOG ────────────────────────────────────────┤
 │  Categories · Products · ProductImages · ProductLocations · Inventory │
 ├─ COMMERCE ───────────────────────────────────────┤
-│  Orders · OrderItems · Payments · Transactions   │
+│  Orders · OrderItems · Payments · Transactions · │
+│  PaymentWebhookEvents                            │
 ├─ TRADE REQUESTS ─────────────────────────────────┤
 │  TradeRequests (RFQs) · Quotations · QuotationItems │
 ├─ COMMUNICATION ──────────────────────────────────┤
@@ -40,7 +41,9 @@ ports, and trade documents are first-class entities.
 ├─ LOGISTICS ──────────────────────────────────────┤
 │  Shipments · ShipmentTrackingEvents              │
 ├─ DOCUMENTS ──────────────────────────────────────┤
-│  Documents                                       │
+│  TradeDocuments                                  │
+├─ ADMIN & GOVERNANCE ─────────────────────────────┤
+│  AuditLogs                                       │
 └─ INTELLIGENCE ───────────────────────────────────┘
    MarketData
 ```
@@ -60,7 +63,7 @@ ports, and trade documents are first-class entities.
 | IsEmailVerified | bit | email confirm flow |
 | DefaultCurrency | varchar(3) | ISO code |
 | HomeCountry | char(2) | ISO-3166 |
-| CreatedAtUtc / UpdatedAtUtc | | |
+| CreatedAtUtc / UpdatedAtUtc | | stamped — `ApplicationUser` implements `IAuditableEntity` (added task 2.7; the columns already existed and were never being written, which left 3,194 nulls in the test database) |
 
 ### Roles · UserRoles
 Standard Identity tables. Seed roles (spec §6): `Buyer`, `Farmer`, `Supplier`,
@@ -356,7 +359,7 @@ or the booking silently outranks its own history.
 
 ## Documents (trade documents — core)
 
-### Documents
+### TradeDocuments
 | Column | Type | Notes |
 | --- | --- | --- |
 | Id | guid | PK |
@@ -378,6 +381,49 @@ CertificateOfOrigin, BillOfLading, PhytosanitaryCertificate, InspectionCertifica
 ExportPermit, ImportPermit — plus business/KYC types: BusinessRegistration, TaxId,
 IdDocument, ProofOfAddress, ProductCertification, Other. A `DestinationRequirements`
 helper (Phase 4) will suggest required docs by origin/destination pair.
+
+---
+
+## Admin & governance
+
+### AuditLogs
+
+The record of **administrator decisions** — added task 2.7. Not a change-data-capture feed: see
+the note below before reading anything else into it.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| Id | guid | PK |
+| UserId | guid | FK → `Users.Id`, **ON DELETE RESTRICT** |
+| Action | nvarchar(80) | free text, e.g. `business.verification.approved` |
+| EntityType | nvarchar(80) | free text, e.g. `Business`, `TradeDocument` |
+| EntityId? | guid | the thing acted on |
+| Summary | nvarchar(400) | one line, human-readable without cross-referencing |
+| Details? | nvarchar(1000) | free text: the decision, its rationale, prior state |
+| CreatedAtUtc / UpdatedAtUtc | | stamped |
+
+Indexes: `UserId`, `Action`, and `(CreatedAtUtc, Id)` — the last is what the log's
+newest-first paging reads, and including `Id` keeps the ordering total when several entries
+share a timestamp.
+
+**`Action` and `EntityType` are text, not enums.** Deliberate: a new admin action should be
+loggable by writing one call site, not by adding an enum value and a migration. Enum-backed
+columns push that work to the next person who adds a review, and the natural response to a
+migration they have no other reason to want is to skip the log.
+
+**Rows are written explicitly at the decision, never by an interceptor.** Today the two call
+sites are business verification and trade-document review — the only places an administrator
+actually decides something. A generic `SaveChanges` interceptor would look more thorough and be
+strictly worse: the entries that matter (who approved what, and when) drown among audit-field
+stamps that are already derivable from the row, and an audit trail nobody can read is not
+evidence of anything. `AuditLogWriter.Record` is also deliberately **save-less** — it adds the
+entity to the change tracker and returns, so the caller's own `SaveChangesAsync` flushes the
+decision and its record together. One transaction, or the log is worthless.
+
+`UserId` restricts rather than cascades. Deleting an account must not delete the evidence that
+it approved a transaction, so the admin user queue soft-blocks via `IsActive` instead. Reads
+substitute the raw id for a missing account, so an orphaned row keeps a stable, non-blank
+actor rather than going anonymous.
 
 ---
 
