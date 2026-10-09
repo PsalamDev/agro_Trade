@@ -53,6 +53,8 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<ShipmentTrackingEvent> ShipmentTrackingEvents => Set<ShipmentTrackingEvent>();
     public DbSet<Domain.Intelligence.MarketData> MarketData => Set<Domain.Intelligence.MarketData>();
+    public DbSet<Domain.Trust.Review> Reviews => Set<Domain.Trust.Review>();
+    public DbSet<Domain.Trade.Dispute> Disputes => Set<Domain.Trade.Dispute>();
 
     // Communication
     public DbSet<Message> Messages => Set<Message>();
@@ -579,6 +581,23 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.HasIndex(a => new { a.CreatedAtUtc, a.Id });
             e.HasIndex(a => a.Action);
             e.HasIndex(a => a.UserId);
+        });
+
+        builder.Entity<Domain.Trust.Review>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Comment).HasMaxLength(1000);
+            e.HasIndex(r => new { r.TargetBusinessId, r.IsPublished });
+            e.HasIndex(r => new { r.OrderId, r.ReviewerUserId }).IsUnique();
+        });
+
+        builder.Entity<Domain.Trade.Dispute>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.Details).HasMaxLength(2000);
+            e.Property(d => d.Resolution).HasMaxLength(1000);
+            e.HasIndex(d => d.OrderId);
+            e.HasIndex(d => d.Status);
         });
     }
 

@@ -201,6 +201,16 @@ public enum NotificationType
     Document = 7,
     Dispute = 8,
     System = 9,
+    Review = 10,
+}
+
+public enum DisputeStatus
+{
+    Open = 0,
+    UnderReview = 1,
+    Resolved = 2,
+    Rejected = 3,
+    Escalated = 4,
 }
 
 public enum MessageContextType
