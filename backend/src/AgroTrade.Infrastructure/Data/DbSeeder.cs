@@ -16,7 +16,7 @@ namespace AgroTrade.Infrastructure.Data;
 /// live listings plus an importer (NG) with an open RFQ and a quotation (plan §01
 /// Phase 1 exit criteria). All idempotent; safe to run on every dev startup.
 /// </summary>
-public sealed class DbSeeder(
+public sealed partial class DbSeeder(
     AgroTradeDbContext db,
     RoleManager<IdentityRole<Guid>> roleManager,
     UserManager<ApplicationUser> userManager,
@@ -47,6 +47,7 @@ public sealed class DbSeeder(
         await SeedCategoriesAsync(ct);
         await SeedDemoCorridorsAsync(ct);
         await SeedCompanyCatalogAsync(ct);
+        await SeedMarketDataAsync(ct);
     }
 
     // ---- Administrator ----

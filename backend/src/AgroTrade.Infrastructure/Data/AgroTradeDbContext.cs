@@ -52,6 +52,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     // Logistics
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<ShipmentTrackingEvent> ShipmentTrackingEvents => Set<ShipmentTrackingEvent>();
+    public DbSet<Domain.Intelligence.MarketData> MarketData => Set<Domain.Intelligence.MarketData>();
 
     // Communication
     public DbSet<Message> Messages => Set<Message>();

@@ -111,6 +111,7 @@ public static class DependencyInjection
     services.AddScoped<IAdminService, AdminService>();
     // Save-less by design: the entry is flushed by the same SaveChanges as the action it records.
     services.AddScoped<IAuditLogWriter, AuditLogWriter>();
+    services.AddScoped<AgroTrade.Application.Intelligence.IMarketDataService, AgroTrade.Infrastructure.Services.MarketDataService>();
 
         return services;
     }
