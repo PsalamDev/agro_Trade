@@ -658,6 +658,53 @@ export const PAYMENT_METHOD = {
 export const SIMULATE_OUTCOMES = ['succeeded', 'failed'] as const
 export type SimulateOutcome = (typeof SIMULATE_OUTCOMES)[number]
 
+export const INVOICE_STATUSES = ['Draft', 'Issued', 'Overdue', 'Paid', 'Cancelled'] as const
+export const INVOICE_STATUS = {
+  Draft: 0,
+  Issued: 1,
+  Overdue: 2,
+  Paid: 3,
+  Cancelled: 4,
+} as const
+
+/**
+ * The document a seller issues against a placed order so the buyer knows what to pay. One per
+ * order, for the order's total. `Paid` when the order's payments cover it in full.
+ */
+export interface InvoiceDto {
+  id: string
+  orderId: string
+  invoiceNumber: string
+  amount: number
+  currency: string
+  status: number
+  issuedAtUtc: string
+  dueDateUtc: string | null
+  paidAtUtc: string | null
+}
+
+/** Bodies for issuing an invoice. `orderId` comes from the route. */
+export interface GenerateInvoiceRequest {
+  dueDateUtc?: string
+  notes?: string
+}
+
+/**
+ * The evidence that a specific settled payment arrived. Written automatically by settlement —
+ * this screen only reads it.
+ */
+export interface ReceiptDto {
+  id: string
+  orderId: string
+  paymentId: string | null
+  invoiceId: string | null
+  receiptNumber: string
+  amount: number
+  currency: string
+  issuedAtUtc: string
+  notes: string | null
+}
+
 export interface PaymentDto {
   id: string
   orderId: string

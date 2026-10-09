@@ -7,7 +7,8 @@ own origins and destinations. A domestic retail marketplace is a follow-on phase
 
 **Core trade journey:** Discover → Source → Verify → Negotiate → Trade → Ship → Deliver
 
-> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.7.**
+> **Status: Phase 1 (cross-border sourcing core) complete; Phase 2 (trade execution) through task 2.7;
+> Phase 3 (behavioural trust + market intelligence + invoices/receipts) landed.**
 > The full journey is *Discover → Source → Verify → Negotiate → Trade → Ship → Deliver*; the
 > first four steps are built, and the fifth (order placement, payment, trade
 > paperwork, consignment tracking, and the administrative oversight of all of it) is landed
@@ -456,6 +457,27 @@ caveat recorded in task 2.6. Every admin page opts into the one reading of a zon
 timestamp that can be trusted. Admin queue ordering puts null timestamps last —
 SQL Server sorts NULLs first on a descending sort, so without `OrderByDescending(u => u.CreatedAtUtc != null)`
 unknown-age users would dominate a "newest first" queue.
+
+### Phase 3 — Trust, multi-currency & intelligence (in progress)
+
+Three pieces of the Phase 3 scope have landed as their own commits:
+
+- **Market intelligence** (`929f886`): a `MarketData` entity seeded with commodity price
+  series and destination requirements, exposed publicly at `GET /marketdata/prices` and to
+  admins at `GET/POST /admin/marketdata`.
+- **Reviews & disputes** (`da9afe3`): post-completion reviews (unique per buyer per order)
+  and a dispute workflow from `Open` through `UnderReview` to `Resolved`/`Rejected`/
+  `Escalated`, with admin resolution at `POST /admin/disputes/{id}/resolve`.
+- **Invoices & receipts** (current): the document pair around a payment. The seller issues
+  the order's invoice (`POST /orders/{id}/invoice`, one per order, for its total); a settled
+  payment — gateway webhook or recorded transfer — **automatically writes a receipt**, and a
+  fully-paid order closes its invoice. Both are scoped to the order like other trade records,
+  so a non-party is a 404 and the "one invoice per order" / "one receipt per payment"
+  invariants are enforced by unique indexes, not just service pre-checks.
+
+Still planned in Phase 3: the refund workflow (`POST /admin/payments/{id}/refund`), gateway
+adapters for corridors beyond the sandbox, and the KYC/KYB provider decision (D5). Admin
+analytics was already delivered in task 2.7.
 
 ## Documentation Index
 

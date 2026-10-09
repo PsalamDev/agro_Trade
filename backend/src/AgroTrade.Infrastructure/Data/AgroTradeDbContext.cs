@@ -55,6 +55,8 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     public DbSet<Domain.Intelligence.MarketData> MarketData => Set<Domain.Intelligence.MarketData>();
     public DbSet<Domain.Trust.Review> Reviews => Set<Domain.Trust.Review>();
     public DbSet<Domain.Trade.Dispute> Disputes => Set<Domain.Trade.Dispute>();
+    public DbSet<Domain.Trade.Invoice> Invoices => Set<Domain.Trade.Invoice>();
+    public DbSet<Domain.Trade.Receipt> Receipts => Set<Domain.Trade.Receipt>();
 
     // Communication
     public DbSet<Message> Messages => Set<Message>();
@@ -598,6 +600,34 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.Property(d => d.Resolution).HasMaxLength(1000);
             e.HasIndex(d => d.OrderId);
             e.HasIndex(d => d.Status);
+        });
+
+        builder.Entity<Domain.Trade.Invoice>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.InvoiceNumber).HasMaxLength(40).IsRequired();
+            e.Property(i => i.Amount).HasPrecision(18, 2);
+            e.Property(i => i.Currency).HasMaxLength(3).IsRequired();
+            // One invoice per order, enforced by the database rather than only by the service's
+            // pre-check, which two simultaneous requests can both pass. A second invoice would be
+            // a second claim on the same money.
+            e.HasIndex(i => i.OrderId).IsUnique();
+            e.HasIndex(i => i.InvoiceNumber).IsUnique();
+        });
+
+        builder.Entity<Domain.Trade.Receipt>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.ReceiptNumber).HasMaxLength(40).IsRequired();
+            e.Property(r => r.Amount).HasPrecision(18, 2);
+            e.Property(r => r.Currency).HasMaxLength(3).IsRequired();
+            // One receipt per settlement. A partial-payment order legitimately has several, so the
+            // guard is per payment, not per order; filtered because the column is nullable.
+            e.HasIndex(r => r.PaymentId)
+                .IsUnique()
+                .HasFilter("[PaymentId] IS NOT NULL");
+            e.HasIndex(r => r.OrderId);
+            e.HasIndex(r => r.ReceiptNumber).IsUnique();
         });
     }
 

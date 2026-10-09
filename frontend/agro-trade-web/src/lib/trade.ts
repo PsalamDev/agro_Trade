@@ -18,8 +18,10 @@ import type {
   CreateShipmentRequest,
   CreateTradeRequestRequest,
   DocumentSearchParams,
+  GenerateInvoiceRequest,
   HsCodeEntryDto,
   InitiatePaymentRequest,
+  InvoiceDto,
   MessageDto,
   NotificationDto,
   OrderCardDto,
@@ -33,6 +35,7 @@ import type {
   ProductSearchParams,
   PaymentDto,
   QuotationDto,
+  ReceiptDto,
   RecordManualPaymentRequest,
   RegisterBusinessRequest,
   ReviewDocumentRequest,
@@ -317,6 +320,32 @@ export function initiatePayment(orderId: string, request: InitiatePaymentRequest
  */
 export function settleSandboxPayment(id: string, outcome: 'succeeded' | 'failed'): Promise<PaymentDto> {
   return unwrap(api.post<PaymentDto>(`/sandbox/payments/${id}/settle`, { outcome }))
+}
+
+// ---- Invoices & receipts ----
+
+/**
+ * Issues the order's invoice for its total. The seller's act, and one per order — a second
+ * claim on the same money is refused server-side.
+ */
+export function generateInvoice(
+  orderId: string,
+  request: GenerateInvoiceRequest,
+): Promise<InvoiceDto> {
+  return unwrap(api.post<InvoiceDto>(`/orders/${orderId}/invoice`, request))
+}
+
+/** The order's invoice, once issued. 404 if none has been, or you are not a party. */
+export function getOrderInvoice(orderId: string): Promise<InvoiceDto> {
+  return unwrap(api.get<InvoiceDto>(`/orders/${orderId}/invoice`))
+}
+
+/**
+ * Receipts on the order, newest first. Written automatically when a payment settles — this is a
+ * read, not a trigger.
+ */
+export function getOrderReceipts(orderId: string): Promise<ReceiptDto[]> {
+  return unwrap(api.get<ReceiptDto[]>(`/orders/${orderId}/receipts`))
 }
 
 // ---- Trade documents ----

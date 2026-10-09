@@ -159,6 +159,15 @@ public enum TransactionType
     Fee = 2,
 }
 
+public enum InvoiceStatus
+{
+    Draft = 0,
+    Issued = 1,
+    Overdue = 2,
+    Paid = 3,
+    Cancelled = 4,
+}
+
 public enum ShipmentStatus
 {
     Pending = 0,

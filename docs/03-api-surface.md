@@ -118,6 +118,24 @@ ledger entry cannot be addressed without naming the order it settles.
 | GET | `/admin/payments` | Admin | All payments; filters |
 | POST | `/admin/payments/{id}/refund` | Admin/Finance | Refund workflow (not started) |
 
+## Invoices & Receipts
+
+Implemented in Phase 3 as the document pair around a payment: the invoice is what the buyer is
+asked to pay, and the receipt is the evidence the money arrived. Both are scoped to the order.
+
+| Method | Route | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/orders/{id}/invoice` | **Seller**/Admin | Issue the order's invoice for its total; one per order |
+| GET | `/orders/{id}/invoice` | Participant | The order's invoice, once issued |
+| POST | `/orders/{id}/payments/{paymentId}/receipt` | Participant | Issue (or re-read) the receipt for a settled payment |
+| GET | `/orders/{id}/receipts` | Participant | Receipts for the order, newest first |
+
+A receipt is written **automatically** by the settlement path �?" whether the money arrived through a
+gateway webhook or a seller-recorded manual transfer �?" so it is produced once per settled payment
+and cannot be missed. The `POST` above is idempotent and exists only so a client can retrieve the
+document on demand. A receipt is refused while the payment is unsettled, because a receipt attests
+that money arrived; a fully-paid order also closes its invoice.
+
 Two deliberate departures from the original plan above:
 
 - **`/payments/off-platform` became `/orders/{id}/payments/manual`, and the actor changed from

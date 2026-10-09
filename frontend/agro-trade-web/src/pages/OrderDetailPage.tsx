@@ -4,6 +4,7 @@ import { AppHeader } from '../components/AppHeader'
 import { OrderPaymentPill, OrderStatusPill } from '../components/badges'
 import { OrderDocumentsPanel } from '../components/OrderDocumentsPanel'
 import { OrderPaymentsPanel } from '../components/OrderPaymentsPanel'
+import { OrderBillingPanel } from '../components/OrderBillingPanel'
 import { OrderShipmentsPanel } from '../components/OrderShipmentsPanel'
 import { ConfirmDialog } from '../components/overlays'
 import { Button, Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
@@ -261,6 +262,8 @@ export default function OrderDetailPage() {
                 </div>
 
                 <OrderPaymentsPanel order={order} payments={order.payments} onChanged={refresh} />
+
+                <OrderBillingPanel order={order} onChanged={refresh} />
 
                 <OrderShipmentsPanel order={order} onChanged={refresh} />
 

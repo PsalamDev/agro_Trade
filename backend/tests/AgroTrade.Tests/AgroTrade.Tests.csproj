@@ -20,6 +20,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Test collections run sequentially: the integration suite shares one SQL Server
+         database, and parallel classes racing on shared rows (e.g. closing every open RFQ
+         while another class opens one) make tests flaky, not faster. -->
+    <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\AgroTrade.Api\AgroTrade.Api.csproj" />
   </ItemGroup>
 

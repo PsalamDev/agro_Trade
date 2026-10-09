@@ -32,7 +32,7 @@ ports, and trade documents are first-class entities.
 ├─ CATALOG ────────────────────────────────────────┤
 │  Categories · Products · ProductImages · ProductLocations · Inventory │
 ├─ COMMERCE ───────────────────────────────────────┤
-│  Orders · OrderItems · Payments · Transactions · │
+│  Orders · OrderItems · Payments · Transactions · Invoices · Receipts · │
 │  PaymentWebhookEvents                            │
 ├─ TRADE REQUESTS ─────────────────────────────────┤
 │  TradeRequests (RFQs) · Quotations · QuotationItems │
@@ -244,6 +244,20 @@ a bank's remittance trace id -- as that is the column an auditor reconciles agai
 came from. A filtered unique index on `PaymentId` where it is not null and `Type = Payment` stops a payment
 being counted twice.
 
+### Invoices
+`Id, OrderId FK, InvoiceNumber (unique), Amount, Currency, Status int (InvoiceStatus), IssuedAtUtc,
+DueDateUtc?, PaidAtUtc?, Notes?`. The document a seller issues against a placed order so the buyer
+knows what to pay. **One per order** -- a second would be a second claim on the same money, and the
+order total is the only figure it carries. `Status` moves `Issued` -> `Paid` when the order's payments
+cover it in full; a partial settlement leaves it `Issued` so the outstanding balance stays visible.
+
+### Receipts
+`Id, OrderId FK, PaymentId? FK, InvoiceId? FK, ReceiptNumber (unique), Amount, Currency,
+IssuedAtUtc, Notes?`. The evidence that a specific payment arrived. Written **automatically** by the
+settlement path (gateway webhook or seller-recorded manual transfer), guarded on `PaymentId`, so a
+partial-payment order gets one receipt per settled payment and a webhook retry cannot mint a second.
+Carries the settled payment's amount and currency, and the invoice it settles when one exists.
+
 ---
 
 ## Trade requests
@@ -454,7 +468,9 @@ Phase 3+ powers commodity prices and trade-trend charts.
 | ShipmentStatus | Pending, Booked, Departed, InTransit, Arrived, Delivered, Exception |
 | ShipmentMode | Road, Rail, Sea, Air, Multimodal |
 | DisputeStatus | Open, UnderReview, Resolved, Rejected, Escalated |
-| NotificationType | Order, Rfq, Quotation, Message, Payment, Shipment, Verification, Document, Dispute, System |
+| InvoiceStatus | Draft, Issued, Overdue, Paid, Cancelled |
+| TransactionType | Payment, Refund, Fee |
+| NotificationType | Order, Rfq, Quotation, Message, Payment, Shipment, Verification, Document, Dispute, System, Review |
 
 **Enums:** stored as `int`, appended only, never renumbered.
 

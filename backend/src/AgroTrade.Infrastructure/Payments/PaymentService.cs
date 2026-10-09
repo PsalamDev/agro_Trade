@@ -747,6 +747,50 @@ public sealed class PaymentService(
             assign: reference => entry.Reference = reference,
             save: ct => db.SaveChangesAsync(ct),
             ct);
+
+        // A settled payment is receiptable the moment it is booked. Generating it here rather
+        // than at a separate call site means both settlement routes - a gateway webhook and a
+        // seller-recorded manual transfer - produce a receipt, and produce exactly one.
+        await EnsureReceiptAsync(payment, ct);
+    }
+
+    /// <summary>
+    /// Writes the receipt for a settled payment if one does not already exist.
+    /// </summary>
+    /// <remarks>
+    /// Guarded on <see cref="PaymentId"/> rather than only on order, because a partial-payment
+    /// order legitimately has several receipts. Idempotent so the webhook retry path, which may
+    /// re-enter <see cref="RecordLedgerAsync"/>, cannot mint a second receipt for one settlement.
+    /// </remarks>
+    private async Task EnsureReceiptAsync(Payment payment, CancellationToken ct)
+    {
+        if (payment.Status != PaymentStatus.Paid)
+        {
+            return;
+        }
+
+        var exists = await db.Receipts.AnyAsync(r => r.PaymentId == payment.Id, ct);
+        if (exists)
+        {
+            return;
+        }
+
+        db.Receipts.Add(new Domain.Trade.Receipt
+        {
+            OrderId = payment.OrderId,
+            PaymentId = payment.Id,
+            InvoiceId = await db.Invoices
+                .Where(i => i.OrderId == payment.OrderId)
+                .Select(i => (Guid?)i.Id)
+                .FirstOrDefaultAsync(ct),
+            ReceiptNumber = $"RCPT-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}",
+            Amount = payment.Amount,
+            Currency = payment.Currency,
+            IssuedAtUtc = payment.PaidAtUtc ?? DateTime.UtcNow,
+            Notes = payment.RemittanceReference is { Length: > 0 } reference
+                ? $"Received against {reference}."
+                : null,
+        });
     }
 
     /// <summary>
@@ -776,6 +820,18 @@ public sealed class PaymentService(
             : paid > 0 ? PaymentStatus.PartiallyPaid
             : pending ? PaymentStatus.Pending
             : PaymentStatus.None;
+
+        // Keep the order's invoice in step with the money. Only a fully-paid order closes its
+        // invoice; a partial settlement leaves it Issued so the outstanding balance is visible.
+        if (order.PaymentStatus == PaymentStatus.Paid)
+        {
+            var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.OrderId == orderId, ct);
+            if (invoice is not null && invoice.Status != InvoiceStatus.Paid)
+            {
+                invoice.Status = InvoiceStatus.Paid;
+                invoice.PaidAtUtc = DateTime.UtcNow;
+            }
+        }
 
         return order;
     }

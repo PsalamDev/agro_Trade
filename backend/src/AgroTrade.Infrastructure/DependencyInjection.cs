@@ -114,6 +114,8 @@ public static class DependencyInjection
     services.AddScoped<AgroTrade.Application.Intelligence.IMarketDataService, AgroTrade.Infrastructure.Services.MarketDataService>();
     services.AddScoped<AgroTrade.Application.Trust.IReviewService, AgroTrade.Infrastructure.Services.ReviewService>();
     services.AddScoped<AgroTrade.Application.Trade.IDisputeService, AgroTrade.Infrastructure.Services.DisputeService>();
+    services.AddScoped<AgroTrade.Application.Trade.IInvoiceService, AgroTrade.Infrastructure.Services.InvoiceService>();
+    services.AddScoped<AgroTrade.Application.Trade.IReceiptService, AgroTrade.Infrastructure.Services.ReceiptService>();
 
         return services;
     }
