@@ -2,11 +2,11 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
+import CountrySelect from '../components/CountrySelect'
 import { ErrorAlert, Field, SelectField, SubmitButton } from '../components/ui'
 import { AppHeader } from '../components/AppHeader'
 import { LockIcon, MailIcon, UserIcon } from '../components/icons'
 
-const COUNTRIES = ['NG', 'KE', 'GH', 'ZA', 'EG', 'ET', 'SN', 'TZ', 'UG', 'RW', 'CI', 'CM', 'MA', 'OTHER']
 const CURRENCIES = ['NGN', 'KES', 'GHS', 'ZAR', 'EGP', 'USD', 'EUR', 'GBP', 'CNY', 'AED']
 
 export default function RegisterPage() {
@@ -97,13 +97,12 @@ export default function RegisterPage() {
               />
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <SelectField
+                <CountrySelect
                   label="Home country"
                   id="homeCountry"
-                  options={COUNTRIES}
-                  values={COUNTRIES}
                   value={homeCountry}
-                  onChange={(e) => setHomeCountry(e.target.value)}
+                  onChange={setHomeCountry}
+                  hint="Optional — search by country name, the ISO-2 code is stored automatically."
                 />
                 <SelectField
                   label="Default currency"

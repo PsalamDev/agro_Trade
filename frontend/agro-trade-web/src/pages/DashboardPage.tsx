@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
+import CountrySelect from '../components/CountrySelect'
 import { Button, Card, ErrorAlert, Field, PageHeader, SelectField, SubmitButton } from '../components/ui'
 import { AppHeader } from '../components/AppHeader'
 import { COMPANY_ROLE } from '../types/auth'
@@ -20,7 +21,6 @@ import {
 } from '../components/icons'
 
 const BUYER_ROLES = ['Buyer', 'Importer', 'Distributor']
-const COUNTRIES = ['NG', 'KE', 'GH', 'ZA', 'EG', 'ET', 'SN', 'TZ', 'UG', 'RW', 'CI', 'CM', 'MA', 'OTHER']
 const CURRENCIES = ['NGN', 'KES', 'GHS', 'ZAR', 'EGP', 'USD', 'EUR', 'GBP', 'CNY', 'AED']
 
 const quickActions = [
@@ -134,13 +134,12 @@ export default function DashboardPage() {
                     onChange={(e) => setDisplayName(e.target.value)}
                   />
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <SelectField
+                    <CountrySelect
                       label="Home country"
                       id="me-country"
-                      options={COUNTRIES}
-                      values={COUNTRIES}
                       value={homeCountry}
-                      onChange={(e) => setHomeCountry(e.target.value)}
+                      onChange={setHomeCountry}
+                      hint="Search by country name — the ISO-2 code is stored automatically."
                     />
                     <SelectField
                       label="Default currency"

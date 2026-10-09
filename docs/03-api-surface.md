@@ -58,6 +58,7 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 | --- | --- | --- | --- |
 | GET | `/categories` | Public | Nested tree |
 | GET | `/commodities/hs-codes` | Public | HS-code starter map by commodity |
+| GET | `/countries` | Public | Full ISO 3166-1 list: name + alpha-2/alpha-3/numeric (powers the searchable country pickers; the UI stores/submits the alpha-2 code) |
 | POST / PUT / DELETE | `/admin/categories` | Admin | CRUD; slug unique |
 
 ## Products (export listings)

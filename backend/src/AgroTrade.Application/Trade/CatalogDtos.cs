@@ -31,3 +31,6 @@ public sealed class UpdateCategoryRequest
 
 /// <summary>Starter map of common commodities → HS codes (plan §02 seeding).</summary>
 public sealed record HsCodeEntryDto(string Commodity, string HsCode);
+
+/// <summary>ISO 3166-1 country, as surfaced in the destination/home country pickers.</summary>
+public sealed record CountryDto(string Name, string Alpha2, string Alpha3, string Numeric);

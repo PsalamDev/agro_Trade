@@ -13,6 +13,7 @@ import type {
   BusinessSummaryDto,
   CategoryDto,
   ConversationDto,
+  CountryDto,
   CreateProductRequest,
   CreateQuotationRequest,
   CreateShipmentRequest,
@@ -84,6 +85,35 @@ export function getCategoryTree(): Promise<CategoryDto[]> {
 
 export function getHsCodes(): Promise<HsCodeEntryDto[]> {
   return unwrap(api.get<HsCodeEntryDto[]>('/commodities/hs-codes'))
+}
+
+// ---- Countries (ISO 3166-1 reference data) ----
+
+let countriesCache: CountryDto[] | null = null
+let countriesRequest: Promise<CountryDto[]> | null = null
+
+/** Loads the full ISO 3166-1 country list once and caches it for the session. */
+export function getCountries(): Promise<CountryDto[]> {
+  if (countriesCache) return Promise.resolve(countriesCache)
+  if (!countriesRequest) {
+    countriesRequest = unwrap(api.get<CountryDto[]>('/countries'))
+      .then((list) => {
+        countriesCache = list
+        countriesRequest = null
+        return list
+      })
+      .catch((error) => {
+        countriesRequest = null
+        throw error
+      })
+  }
+  return countriesRequest
+}
+
+/** Friendly ISO 3166-1 country name for an alpha-2 code, or the code itself if unknown/no list yet. */
+export function countryName(code: string): string {
+  const match = countriesCache?.find((c) => c.alpha2 === code)
+  return match?.name ?? code
 }
 
 // ---- Businesses ----

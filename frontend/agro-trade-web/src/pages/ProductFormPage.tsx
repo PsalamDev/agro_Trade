@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
+import CountrySelect from '../components/CountrySelect'
 import { Card, EmptyState, ErrorAlert, Field, KeyValueEditor, SelectField, SubmitButton, TagInput, TextArea } from '../components/ui'
 import { createProduct, deleteProductImage, getBusiness, getCategoryTree, getMyBusinesses, getProduct, updateProduct, uploadProductImage } from '../lib/trade'
 import { problemFrom } from '../lib/api'
@@ -278,7 +279,14 @@ export default function ProductFormPage() {
           <Card>
             <h2 className="text-lg font-semibold">Trade terms</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Field label="Origin country (ISO-2) *" id="prod-origin" required maxLength={2} value={originCountry} onChange={(e) => setOriginCountry(e.target.value.toUpperCase())} placeholder="KE" />
+              <CountrySelect
+                id="prod-origin"
+                label="Origin country"
+                value={originCountry}
+                onChange={setOriginCountry}
+                required
+                hint="Search by country name — the ISO-2 code (e.g. KE) is generated automatically."
+              />
               <Field label="Port of loading" id="prod-pol" maxLength={120} value={portOfLoading} onChange={(e) => setPortOfLoading(e.target.value)} placeholder="Mombasa" />
               <Field label="Price *" id="prod-price" type="number" min="0" step="any" required value={price} onChange={(e) => setPrice(e.target.value)} />
               <SelectField label="Price unit *" id="prod-price-unit" options={PRICE_UNITS} value={priceUnit} onChange={(e) => setPriceUnit(e.target.value)} />

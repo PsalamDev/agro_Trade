@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
+import CountrySelect from '../components/CountrySelect'
 import { Card, ErrorAlert, Field, KeyValueEditor, SelectField, SubmitButton, TagInput, TextArea } from '../components/ui'
 import { getCategoryTree, createRfq } from '../lib/trade'
 import { problemFrom } from '../lib/api'
@@ -118,7 +119,14 @@ export default function RfqPublishPage() {
           <Card>
             <h2 className="text-lg font-semibold">Delivery</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Field label="Destination country (ISO-2) *" id="rfq-dest-country" required maxLength={2} value={destinationCountry} onChange={(e) => setDestinationCountry(e.target.value.toUpperCase())} placeholder="NG" />
+              <CountrySelect
+                id="rfq-dest-country"
+                label="Destination country"
+                value={destinationCountry}
+                onChange={setDestinationCountry}
+                required
+                hint="Search by country name — the ISO-2 code (e.g. NG) is generated automatically."
+              />
               <Field label="Destination port or city" id="rfq-dest-port" value={destinationPortOrCity} onChange={(e) => setDestinationPortOrCity(e.target.value)} placeholder="Lagos / Apapa" />
               <SelectField label="Preferred incoterm" id="rfq-incoterm" options={INCOTERMS} value={preferredIncoterm} onChange={(e) => setPreferredIncoterm(e.target.value)} />
               <SelectField label="Transport mode" id="rfq-transport" options={SHIPMENT_MODES} value={transportMode} onChange={(e) => setTransportMode(e.target.value)} />

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
+import CountrySelect from '../components/CountrySelect'
 import { ProductCard } from '../components/ProductCard'
 import {
   Button,
@@ -16,7 +17,7 @@ import { getCategoryTree, searchProducts } from '../lib/trade'
 import { Accordion } from '../components/overlays'
 import { problemFrom } from '../lib/api'
 import type { CategoryDto, ProductCardDto } from '../types/trade'
-import { CoinsIcon, FilterIcon, GlobeIcon, SearchIcon, ShieldCheckIcon, XIcon } from '../components/icons'
+import { CoinsIcon, FilterIcon, SearchIcon, ShieldCheckIcon, XIcon } from '../components/icons'
 
 export default function MarketplacePage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -170,25 +171,23 @@ export default function MarketplacePage() {
                         value={categoryId}
                         onChange={(e) => void updateParam('categoryId', e.target.value)}
                       />
-                      <Field
-                        label="Origin country (ISO-2)"
+                      <CountrySelect
+                        label="Origin country"
                         id="marketplace-origin"
-                        maxLength={2}
-                        placeholder="KE"
-                        icon={<GlobeIcon className="h-4 w-4" />}
-                        hint="Two-letter country code"
                         value={originCountry}
-                        onChange={(e) => void updateParam('originCountry', e.target.value.toUpperCase())}
+                        onChange={(code) => void updateParam('originCountry', code)}
+                        allowClear
+                        placeholder="Any country"
+                        hint="Search by country name — the ISO-2 code is applied automatically."
                       />
-                      <Field
+                      <CountrySelect
                         label="Exports to (destination)"
                         id="marketplace-dest"
-                        maxLength={2}
-                        placeholder="NG"
-                        icon={<GlobeIcon className="h-4 w-4" />}
-                        hint="Two-letter country code"
                         value={exportsToCountry}
-                        onChange={(e) => void updateParam('exportsToCountry', e.target.value.toUpperCase())}
+                        onChange={(code) => void updateParam('exportsToCountry', code)}
+                        allowClear
+                        placeholder="Any country"
+                        hint="Search by country name — the ISO-2 code is applied automatically."
                       />
                       <Field
                         label="Min price"

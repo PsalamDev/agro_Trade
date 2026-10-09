@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
+import CountrySelect from '../components/CountrySelect'
 import { RfqCard } from '../components/RfqCard'
 import { EmptyState, ErrorAlert, Field, PageHeader, SelectField, SkeletonGrid } from '../components/ui'
 import { getCategoryTree, getOpenRfqs } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import type { CategoryDto, TradeRequestCardDto } from '../types/trade'
-import { MapPinIcon, SearchIcon } from '../components/icons'
+import { SearchIcon } from '../components/icons'
 
 export default function RfqDirectoryPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -86,14 +87,14 @@ export default function RfqDirectoryPage() {
             value={categoryId}
             onChange={(e) => void updateParam('categoryId', e.target.value)}
           />
-          <Field
-            label="Destination country (ISO-2)"
+          <CountrySelect
             id="rfq-destination"
-            maxLength={2}
-            placeholder="NG"
-            icon={<MapPinIcon className="h-4 w-4" />}
+            label="Destination country"
             value={destinationCountry}
-            onChange={(e) => void updateParam('destinationCountry', e.target.value.toUpperCase())}
+            onChange={(code) => void updateParam('destinationCountry', code)}
+            allowClear
+            placeholder="Any country"
+            hint="Search by country name — the ISO-2 code is applied automatically."
           />
         </div>
 

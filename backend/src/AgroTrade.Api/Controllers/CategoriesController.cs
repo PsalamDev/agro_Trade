@@ -33,6 +33,14 @@ public class CategoriesController(
         return Ok(catalogService.GetHsCodeMap());
     }
 
+    [HttpGet("countries")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(IReadOnlyList<CountryDto>), StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<CountryDto>> GetCountries()
+    {
+        return Ok(catalogService.GetCountryList());
+    }
+
     [HttpPost("admin/categories")]
     [Authorize(Policy = Policies.Administrator)]
     [ProducesResponseType(typeof(CategoryDto), StatusCodes.Status201Created)]
