@@ -9,6 +9,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 import ConfirmEmailPage from './pages/ConfirmEmailPage'
 import DashboardPage from './pages/DashboardPage'
 import MarketplacePage from './pages/MarketplacePage'
+import MarketIntelligencePage from './pages/MarketIntelligencePage'
 import ProductDetailPage from './pages/ProductDetailPage'
 import ProductFormPage from './pages/ProductFormPage'
 import MyProductsPage from './pages/MyProductsPage'
@@ -52,6 +53,7 @@ export default function App() {
 
         {/* Marketplace (public) */}
         <Route path="/marketplace" element={<MarketplacePage />} />
+        <Route path="/market-intelligence" element={<MarketIntelligencePage />} />
         <Route path="/products/:idOrSlug" element={<ProductDetailPage />} />
         <Route path="/businesses/:id" element={<PublicBusinessPage />} />
         <Route path="/rfqs" element={<RfqDirectoryPage />} />

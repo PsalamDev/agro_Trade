@@ -23,6 +23,8 @@ import type {
   HsCodeEntryDto,
   InitiatePaymentRequest,
   InvoiceDto,
+  MarketDataDto,
+  MarketDataFilters,
   MessageDto,
   NotificationDto,
   OrderCardDto,
@@ -595,4 +597,18 @@ export function adminSearchShipments(params: {
   pageSize?: number
 } = {}): Promise<PagedResult<AdminShipmentDto>> {
   return unwrap(api.get<PagedResult<AdminShipmentDto>>(`/admin/shipments${query({ ...params })}`))
+}
+// ---- Market intelligence (Phase 3) ----
+
+/**
+ * Public commodity price series.
+ *
+ * A deliberately large page size: the intelligence page groups the series itself (trend lines are
+ * per commodity × origin × currency), and the feed is admin-curated rather than user-generated, so
+ * it stays small. The API default is 20 rows, which would split one commodity's history across pages.
+ */
+export function getMarketPrices(filters: MarketDataFilters = {}): Promise<PagedResult<MarketDataDto>> {
+  return unwrap(
+    api.get<PagedResult<MarketDataDto>>(`/marketdata/prices${query({ page: 1, pageSize: 500, ...filters })}`),
+  )
 }

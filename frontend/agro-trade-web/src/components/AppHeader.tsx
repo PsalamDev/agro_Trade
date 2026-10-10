@@ -55,6 +55,7 @@ export function AppHeader() {
   const primaryLinks = [
     { to: '/', label: 'Home', end: true },
     { to: '/marketplace', label: 'Products', end: false },
+    { to: '/market-intelligence', label: 'Market data', end: false },
     { to: '/about', label: 'About', end: false },
     { to: '/contact', label: 'Contact', end: false },
   ]

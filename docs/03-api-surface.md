@@ -211,13 +211,19 @@ by remembering to redact.
 
 ## Market Intelligence (Phase 3)
 
+The planned `/market/*` surface became a seeded `/marketdata/*` API — the public page
+(`/market-intelligence`, and "Market data" in the header) reads the same rows it renders, so a
+trend line, a card's latest price and the observations table always describe the same selection.
+
 | Method | Route | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/market/prices` | Public | `?commodity=&country=&from=&to=&currency=` series |
-| GET | `/market/trends` | Public | Trend indicators |
-| GET | `/market/commodities` | Public | Commodity list + latest price |
-| GET | `/market/destination-requirements` | Public | Certs/permits by origin/destination (seeded content) |
-| GET | `/market/reports/{slug}` | Public | Content-managed report |
+| GET | `/marketdata/prices` | Public | Paginated price series: `?commodity=&country=&currency=&from=&to=&sort=` (`priceAsc\|priceDesc\|reportedAsc\|reportedAtDesc`) |
+| GET | `/admin/marketdata` | Admin | Same rows, for maintenance |
+| POST | `/admin/marketdata` | Admin | Publish a price observation |
+
+The page groups the feed into trend lines per commodity × origin × unit × currency, draws them as
+hand-rolled SVG charts (no chart dependency), and shows a Δ-over-previous trend indicator per
+line. Destination-requirement notes and report pages remain planned content work, not API surface.
 
 ## Admin
 
@@ -235,6 +241,9 @@ administrative surface is listed separately so the two are never confused.
 | POST | `/admin/businesses/{id}/verification/review` | Approve/reject with notes; sets the verified badge. Writes an audit entry. |
 | GET | `/admin/documents` | Document review queue. `?status=&docType=&q=` |
 | POST | `/admin/documents/{id}/review` | Approve/reject with notes. Writes an audit entry. |
+| GET | `/admin/products` | Product moderation queue — listings across every seller, filterable by status/category |
+| PATCH | `/admin/products/{id}/moderation` | Unpublish/suspend a listing |
+| GET | `/admin/rfqs` | All RFQs + volume filters |
 
 ### Notes on the dashboard contract
 
@@ -277,21 +286,20 @@ able to ask.
 
 ## Admin — planned, not yet built
 
-The Phase 2 scope in `01-roadmap.md` names seven admin queues: users, businesses,
-**products**, **RFQs**, orders, documents, shipments. Five exist. The two missing ones are
-below, and are the reason Phase 2 is not yet fully closed despite every numbered task landing.
+The Phase 2 scope in `01-roadmap.md` names seven admin queues: users, businesses, products,
+RFQs, orders, documents, shipments. All seven now exist — the product moderation queue and the
+RFQ queue landed after this section was first written, so Phase 2's queues are closed. The rows
+below are reporting and operations surface, not queues.
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/admin/products` | Product moderation queue — listings across every seller, filterable by status/category |
-| PATCH | `/admin/products/{id}/moderation` | Unpublish/suspend a listing |
-| GET | `/admin/rfqs` | All RFQs + volume filters |
 | GET | `/admin/transactions` | Ledger + reconciliation |
 | GET | `/admin/reports/{kind}` | `corridors\|rfq\|verification-funnel\|commodities`, `?from=&to=` |
 | GET/PUT | `/admin/settings` | Default currency list per corridor, verification levels, feature flags |
 | PATCH | `/admin/users/{id}/status` | Directory + suspend/activate. Users are **not** hard-deleted — `AuditLog.UserId` is `ON DELETE RESTRICT` precisely so that removing an account cannot remove the evidence that it approved a transaction. |
 
-`GET /admin/audit-log` was previously listed here as planned. It is now implemented, above.
+`GET /admin/audit-log` and the product/RFQ queues were previously listed here as planned. They are
+now implemented, above.
 
 ## Not in scope until noted
 

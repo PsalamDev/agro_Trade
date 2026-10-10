@@ -1135,3 +1135,34 @@ export interface AdminShipmentDto {
   estimatedArrivalUtc: string | null
   createdAtUtc: string | null
 }
+
+// ---- Market intelligence (Phase 3): commodity price series ----
+
+/**
+ * One reported price observation. `reportedAtUtc` arrives as SQL Server wall-clock (`datetime2`,
+ * with no offset `Z`), exactly like every other timestamp on the wire.
+ */
+export interface MarketDataDto {
+  id: string
+  commodity: string
+  /** ISO 3166-1 alpha-2, e.g. `NG`. */
+  country: string
+  region: string | null
+  unit: string
+  price: number
+  currency: string
+  /** Where the figure came from — FAO, ICCO, an in-house desk. */
+  source: string
+  reportedAtUtc: string
+  notes: string | null
+}
+
+/** Unset filters mean "any". `sort` defaults to newest first on the server. */
+export interface MarketDataFilters {
+  commodity?: string
+  country?: string
+  currency?: string
+  from?: string
+  to?: string
+  sort?: 'reportedAtDesc' | 'reportedAtAsc' | 'priceDesc' | 'priceAsc'
+}
