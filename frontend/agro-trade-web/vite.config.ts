@@ -7,6 +7,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
+    // Never silently drift to 5174/5175 when the port is taken — fail loudly instead,
+    // so the URL the browser opens is always the URL that's really running.
+    strictPort: true,
     proxy: {
       // All API traffic flows to the ASP.NET Core host (CORS is configured too,
       // but a proxy keeps dev simple and avoids absolute URLs).
