@@ -1,4 +1,5 @@
 using AgroTrade.Application.Common;
+using AgroTrade.Application.Trade;
 
 namespace AgroTrade.Application.Admin;
 
@@ -49,6 +50,13 @@ public interface IAdminService
     /// <summary>Every RFQ across every buyer, for the admin list.</summary>
     Task<PagedResult<AdminRfqRowDto>> SearchRfqsAsync(
         AdminRfqSearchQuery query, CancellationToken ct = default);
+
+    /// <summary>
+    /// The payments on one order, for the admin refund screen. Payments carry their own
+    /// refunded totals, so an administrator can see what is still refundable per payment.
+    /// </summary>
+    Task<IReadOnlyList<PaymentDto>> ListOrderPaymentsAsync(
+        Guid orderId, CancellationToken ct = default);
 }
 
 /// <summary>Records an administrative action. Called explicitly by the action, never automatically.</summary>

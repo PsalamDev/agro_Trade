@@ -38,8 +38,8 @@ export const PAYMENT_TERM = { TtAdvance: 1, TtPartialDeposit: 2, LetterOfCredit:
 export const SHIPMENT_MODES = ['Road', 'Rail', 'Sea', 'Air', 'Multimodal'] as const
 export const SHIPMENT_MODE = { Road: 0, Rail: 1, Sea: 2, Air: 3, Multimodal: 4 } as const
 
-export const NOTIFICATION_TYPES = ['Order', 'RFQ', 'Quotation', 'Message', 'Payment', 'Shipment', 'Verification', 'Document', 'Dispute', 'System'] as const
-export const NOTIFICATION_TYPE = { Order: 0, Rfq: 1, Quotation: 2, Message: 3, Payment: 4, Shipment: 5, Verification: 6, Document: 7, Dispute: 8, System: 9 } as const
+export const NOTIFICATION_TYPES = ['Order', 'RFQ', 'Quotation', 'Message', 'Payment', 'Shipment', 'Verification', 'Document', 'Dispute', 'System', 'Review', 'Refund'] as const
+export const NOTIFICATION_TYPE = { Order: 0, Rfq: 1, Quotation: 2, Message: 3, Payment: 4, Shipment: 5, Verification: 6, Document: 7, Dispute: 8, System: 9, Review: 10, Refund: 11 } as const
 
 export const MESSAGE_CONTEXT_TYPES = ['Order', 'RFQ', 'Business', 'General'] as const
 export const MESSAGE_CONTEXT_TYPE = { Order: 0, Rfq: 1, Business: 2, General: 3 } as const
@@ -729,6 +729,10 @@ export interface PaymentDto {
   valueDateUtc: string | null
   initiatedAtUtc: string
   paidAtUtc: string | null
+  /** When the payment was refunded in full. Null until nothing is left to refund. */
+  refundedAtUtc: string | null
+  /** How much of this payment has been refunded so far, as a positive number. */
+  refundedAmount: number | null
   failureReason: string | null
   notes: string | null
   /** Where the payer completes the charge. Sandbox only; null once settled. */
@@ -747,6 +751,18 @@ export interface InitiatePaymentRequest {
   amount?: number
   idempotencyKey?: string
   notes?: string
+}
+
+/**
+ * An administrator refunding money back on a settled payment.
+ *
+ * `amount` defaults to everything the payment still has refundable; it can never exceed that,
+ * so a retried or doubled request is refused rather than silently over-refunding. `reason` is
+ * optional and is recorded on the ledger entry and in the audit trail.
+ */
+export interface RefundPaymentRequest {
+  amount?: number
+  reason?: string
 }
 
 export const TRANSACTION_TYPES = ['Payment', 'Refund', 'Fee'] as const

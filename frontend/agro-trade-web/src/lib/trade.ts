@@ -38,6 +38,7 @@ import type {
   QuotationDto,
   ReceiptDto,
   RecordManualPaymentRequest,
+  RefundPaymentRequest,
   RegisterBusinessRequest,
   ReviewDocumentRequest,
   ReviewVerificationRequest,
@@ -559,6 +560,24 @@ export function adminSearchOrders(params: {
   pageSize?: number
 } = {}): Promise<PagedResult<AdminOrderRowDto>> {
   return unwrap(api.get<PagedResult<AdminOrderRowDto>>(`/admin/orders${query({ ...params })}`))
+}
+
+/**
+ * The payments on one order for the refund screen. Payments carry their refunded totals, so an
+ * administrator can see how much of each is still refundable. Admin only — the parties read
+ * their own list under `/orders/{id}/payments`.
+ */
+export function adminOrderPayments(orderId: string): Promise<PaymentDto[]> {
+  return unwrap(api.get<PaymentDto[]>(`/admin/orders/${orderId}/payments`))
+}
+
+/**
+ * Gives money back on a settled payment. Books a compensating ledger entry (negative, so the
+ * order's net settled figure falls with it); a full refund of what remains moves the payment to
+ * Refunded and a Paid invoice reopens. Admin only, and written to the audit trail.
+ */
+export function adminRefundPayment(paymentId: string, request: RefundPaymentRequest): Promise<PaymentDto> {
+  return unwrap(api.post<PaymentDto>(`/admin/payments/${paymentId}/refund`, request))
 }
 
 /**

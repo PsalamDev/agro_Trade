@@ -918,6 +918,9 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
+                    b.Property<DateTime?>("RefundedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("RemittanceReference")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");

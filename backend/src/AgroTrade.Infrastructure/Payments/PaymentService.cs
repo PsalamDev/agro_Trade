@@ -1,6 +1,7 @@
 using System.Data;
 using System.Security.Cryptography;
 using System.Text.Json;
+using AgroTrade.Application.Admin;
 using AgroTrade.Application.Common;
 using AgroTrade.Application.Trade;
 using AgroTrade.Domain.Enums;
@@ -45,7 +46,8 @@ namespace AgroTrade.Infrastructure.Payments;
 public sealed class PaymentService(
     AgroTradeDbContext db,
     IPaymentGatewayResolver gateways,
-    ILogger<PaymentService> logger) : IPaymentService
+    ILogger<PaymentService> logger,
+    IAuditLogWriter audit) : IPaymentService
 {
     private const string ReferencePrefixStem = "PAY-";
     private const string TransactionPrefixStem = "TXN-";
@@ -408,6 +410,145 @@ public sealed class PaymentService(
         return await ToDtoAsync(payment, ct: ct);
     }
 
+    // ---- Refunds (roadmap §5.5) ----
+
+    public async Task<PaymentDto> RefundAsync(
+        Guid paymentId, Guid adminUserId, RefundPaymentRequest request, CancellationToken ct = default)
+    {
+        var payment = await db.Payments
+            .FirstOrDefaultAsync(p => p.Id == paymentId, ct)
+            ?? throw ApiException.NotFound("PAYMENT_NOT_FOUND", "Payment not found.");
+
+        // Only money actually received can be given back. A pending charge is still in flight, a
+        // failed one never landed, and a refunded one has nothing left — its ledger is settled.
+        if (payment.Status != PaymentStatus.Paid)
+        {
+            throw ApiException.Conflict(
+                "PAYMENT_NOT_REFUNDABLE",
+                payment.Status switch
+                {
+                    PaymentStatus.Pending => "This payment has not settled yet, so there is nothing to refund.",
+                    PaymentStatus.Refunded => "This payment has already been refunded in full.",
+                    _ => "Only a settled payment can be refunded.",
+                });
+        }
+
+        var refundable = await RefundableAmountAsync(payment.Id, payment.Amount, ct);
+
+        if (refundable <= 0)
+        {
+            throw ApiException.Conflict(
+                "ALREADY_REFUNDED",
+                $"Payment {payment.Reference} has already been refunded in full.");
+        }
+
+        var amount = request.Amount ?? refundable;
+
+        if (amount <= 0)
+        {
+            throw ApiException.BadRequest(
+                "INVALID_REFUND_AMOUNT",
+                "The refund amount must be greater than zero.");
+        }
+
+        if (amount > refundable)
+        {
+            throw ApiException.BadRequest(
+                "REFUND_EXCEEDS_PAYMENT",
+                $"Only {refundable:N2} {payment.Currency} is refundable on payment {payment.Reference}.");
+        }
+
+        var full = amount == refundable;
+        var reason = request.Reason?.Trim();
+        var occurredAtUtc = DateTime.UtcNow;
+
+        // The compensating entry: negative, so the order's net settled figure — and the corridor
+        // stats that sum the ledger — fall by exactly this much, and immutable like every row.
+        var entry = new Transaction
+        {
+            OrderId = payment.OrderId,
+            Type = TransactionType.Refund,
+            Amount = -amount,
+            Currency = payment.Currency,
+            PaymentId = payment.Id,
+            OccurredAtUtc = occurredAtUtc,
+            Narrative = $"Refund of {payment.Reference}"
+                + (full ? string.Empty : " (partial)")
+                + (reason is null ? string.Empty : $" — {reason}"),
+            ExternalReference = null,
+        };
+
+        db.Transactions.Add(entry);
+
+        // Same allocator as settlements, for the same reason: MAX+1 is racy.
+        await SequenceAllocator.AllocateAsync(
+            db,
+            table: "Transactions",
+            column: "Reference",
+            prefix: TransactionPrefix(),
+            assign: reference => entry.Reference = reference,
+            save: ct => db.SaveChangesAsync(ct),
+            ct);
+
+        // A full refund is money the payment began and ended with; the row changes state so the
+        // payment list reads true. A partial refund leaves the payment Paid — most of it is
+        // still money the seller is holding — and only the ledger says what went back.
+        if (full)
+        {
+            payment.Status = PaymentStatus.Refunded;
+            payment.RefundedAtUtc = occurredAtUtc;
+        }
+
+        var order = await RollUpOrderAsync(payment.OrderId, ct);
+
+        await NotifyRefundAsync(payment, order, amount, reason, ct);
+
+        audit.Record(
+            adminUserId,
+            "PaymentRefund",
+            "Payment",
+            payment.Id,
+            $"Refunded {amount:N2} {payment.Currency} on payment {payment.Reference} "
+                + $"(order {(order is null ? payment.OrderId.ToString() : order.OrderNumber)})",
+            reason);
+
+        await db.SaveChangesAsync(ct);
+
+        logger.LogInformation(
+            "Refunded {Amount} {Currency} on payment {Reference} (order {OrderId})",
+            amount, payment.Currency, payment.Reference, payment.OrderId);
+
+        return await ToDtoAsync(payment, ct: ct);
+    }
+
+    /// <summary>
+    /// How much of a settled payment is still refundable: what arrived, less what has gone back.
+    /// Refund ledger entries are negative, so the sum is subtracted from the settled amount.
+    /// </summary>
+    private async Task<decimal> RefundableAmountAsync(Guid paymentId, decimal settledAmount, CancellationToken ct)
+    {
+        var refunded = await db.Transactions
+            .Where(t => t.PaymentId == paymentId && t.Type == TransactionType.Refund)
+            .SumAsync(t => (decimal?)t.Amount, ct) ?? 0m;
+        return settledAmount + refunded;
+    }
+
+    /// <summary>
+    /// Positive refund totals per payment on an order, in one query — a list view never pays for
+    /// a per-payment round trip.
+    /// </summary>
+    private async Task<Dictionary<Guid, decimal>> RefundedTotalsByPaymentAsync(Guid orderId, CancellationToken ct)
+    {
+        var rows = await db.Transactions
+            .AsNoTracking()
+            .Where(t => t.OrderId == orderId && t.Type == TransactionType.Refund && t.PaymentId != null)
+            .GroupBy(t => t.PaymentId!.Value)
+            .Select(g => new { PaymentId = g.Key, RefundedSum = g.Sum(t => t.Amount) })
+            .ToListAsync(ct);
+
+        return rows.ToDictionary(x => x.PaymentId, x => -x.RefundedSum);
+    }
+
     public async Task<IReadOnlyList<TransactionDto>> ListTransactionsAsync(
         Guid orderId, Guid userId, CancellationToken ct = default)
     {
@@ -481,12 +622,20 @@ public sealed class PaymentService(
             throw ApiException.NotFound("ORDER_NOT_FOUND", "Order not found.");
         }
 
-        return await db.Payments
+        var payments = await db.Payments
             .AsNoTracking()
             .Where(p => p.OrderId == orderId)
             .OrderByDescending(p => p.CreatedAtUtc ?? p.InitiatedAtUtc)
-            .Select(p => ToDto(p, order.OrderNumber))
             .ToListAsync(ct);
+
+        var refundedByPayment = await RefundedTotalsByPaymentAsync(orderId, ct);
+
+        return payments
+            .Select(p => ToDto(
+                p,
+                order.OrderNumber,
+                refundedAmount: refundedByPayment.TryGetValue(p.Id, out var refunded) ? refunded : null))
+            .ToList();
     }
 
     public async Task<PaymentDto> GetAsync(Guid paymentId, Guid userId, CancellationToken ct = default)
@@ -648,9 +797,10 @@ public sealed class PaymentService(
         // payment.failed stamped genuinely *after* the success sails through, because by
         // timestamp it is the newest word. Applying it would be the worst outcome available: the
         // payment flips to Failed while the ledger keeps its "settled" row, so the order's paid
-        // figure and the financial record disagree, permanently and invisibly. Refunds are out
-        // of scope until they can be booked as compensating entries, so the honest thing now is
-        // to record the event and decline to act on it.
+        // figure and the financial record disagree, permanently and invisibly. Money is returned
+        // only by an explicit refund booked as a compensating entry (see
+        // <see cref="RefundAsync"/>), so the honest thing here is to record the event and decline
+        // to act on it.
         if (payment.Status == PaymentStatus.Paid && target != PaymentStatus.Paid)
         {
             record.Outcome = PaymentWebhookEvent.Outcomes.SupersedesSettlement;
@@ -794,12 +944,14 @@ public sealed class PaymentService(
     }
 
     /// <summary>
-    /// Recomputes the order's payment status from its payments and returns the order.
+    /// Recomputes the order's payment status from its payments and refunds, and returns the order.
     /// </summary>
     /// <remarks>
     /// Paid wins over everything: an order whose balance is fully covered is Paid even if an
     /// unrelated payment failed, because the failure did not stop it being covered. PartiallyPaid
-    /// needs a positive settled amount, so a pending charge alone stays Pending.
+    /// needs a positive settled amount, so a pending charge alone stays Pending. Refunds are
+    /// signed ledger entries (negative), so netting them in means money that went back out stops
+    /// counting as held.
     /// </remarks>
     private async Task<Order?> RollUpOrderAsync(Guid orderId, CancellationToken ct)
     {
@@ -815,21 +967,36 @@ public sealed class PaymentService(
         var paid = order.Payments.Where(p => p.Status == PaymentStatus.Paid).Sum(p => p.Amount);
         var pending = order.Payments.Any(p => p.Status == PaymentStatus.Pending);
 
+        // Only this order's refunds count — a refund on a different order must not move this one.
+        var refunded = await db.Transactions
+            .Where(t => t.OrderId == orderId && t.Type == TransactionType.Refund)
+            .SumAsync(t => (decimal?)t.Amount, ct) ?? 0m;
+
+        var net = paid + refunded;
+
         order.PaymentStatus =
-            paid >= order.Total && paid > 0 ? PaymentStatus.Paid
-            : paid > 0 ? PaymentStatus.PartiallyPaid
+            net >= order.Total && net > 0 ? PaymentStatus.Paid
+            : net > 0 ? PaymentStatus.PartiallyPaid
             : pending ? PaymentStatus.Pending
             : PaymentStatus.None;
 
         // Keep the order's invoice in step with the money. Only a fully-paid order closes its
         // invoice; a partial settlement leaves it Issued so the outstanding balance is visible.
-        if (order.PaymentStatus == PaymentStatus.Paid)
+        var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.OrderId == orderId, ct);
+        if (invoice is not null)
         {
-            var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.OrderId == orderId, ct);
-            if (invoice is not null && invoice.Status != InvoiceStatus.Paid)
+            if (order.PaymentStatus == PaymentStatus.Paid && invoice.Status != InvoiceStatus.Paid)
             {
                 invoice.Status = InvoiceStatus.Paid;
                 invoice.PaidAtUtc = DateTime.UtcNow;
+            }
+            else if (order.PaymentStatus != PaymentStatus.Paid && invoice.Status == InvoiceStatus.Paid)
+            {
+                // Money went back out (a refund), dropping the order below fully paid. The
+                // invoice reopens Issued, or the outstanding balance is silently hidden by a
+                // status that claims the debt is closed.
+                invoice.Status = InvoiceStatus.Issued;
+                invoice.PaidAtUtc = null;
             }
         }
 
@@ -932,6 +1099,51 @@ public sealed class PaymentService(
         }
     }
 
+    /// <summary>
+    /// Tells both parties that money came back off their order. The administrator is the actor,
+    /// so unlike <see cref="NotifyAsync"/> nobody is skipped for having done the deed.
+    /// </summary>
+    private async Task NotifyRefundAsync(
+        Payment payment, Order? order, decimal amount, string? reason, CancellationToken ct)
+    {
+        if (order is null)
+        {
+            return;
+        }
+
+        var sellerOwnerId = await db.Businesses
+            .AsNoTracking()
+            .Where(b => b.Id == order.SellerBusinessId)
+            .Select(b => (Guid?)b.OwnerUserId)
+            .FirstOrDefaultAsync(ct);
+
+        var title = $"Refund issued on order {order.OrderNumber}";
+        var body = $"Payment {payment.Reference} refunded {amount:N2} {payment.Currency}."
+            + (reason is null ? string.Empty : $" Reason: {reason}");
+        var link = $"/dashboard/orders/{order.Id}";
+
+        if (sellerOwnerId is { } sellerId)
+        {
+            db.Notifications.Add(new Domain.Communication.Notification
+            {
+                UserId = sellerId,
+                Type = NotificationType.Refund,
+                Title = title,
+                Body = body,
+                Link = link,
+            });
+        }
+
+        db.Notifications.Add(new Domain.Communication.Notification
+        {
+            UserId = order.BuyerUserId,
+            Type = NotificationType.Refund,
+            Title = title,
+            Body = body,
+            Link = link,
+        });
+    }
+
     // ---- Helpers ----
 
     private async Task<OrderParty> PartyAsync(Order order, Guid userId, CancellationToken ct)
@@ -968,10 +1180,15 @@ public sealed class PaymentService(
             .Select(o => o.OrderNumber)
             .FirstOrDefaultAsync(ct) ?? string.Empty;
 
-        return ToDto(payment, orderNumber, nextActionUrl);
+        var refunded = await db.Transactions
+            .Where(t => t.PaymentId == payment.Id && t.Type == TransactionType.Refund)
+            .SumAsync(t => (decimal?)t.Amount, ct) ?? 0m;
+
+        return ToDto(payment, orderNumber, nextActionUrl, refundedAmount: refunded == 0 ? null : -refunded);
     }
 
-    private static PaymentDto ToDto(Payment payment, string orderNumber, string? nextActionUrl = null) => new()
+    internal static PaymentDto ToDto(
+        Payment payment, string orderNumber, string? nextActionUrl = null, decimal? refundedAmount = null) => new()
     {
         Id = payment.Id,
         OrderId = payment.OrderId,
@@ -990,6 +1207,8 @@ public sealed class PaymentService(
         Notes = payment.Notes,
         InitiatedAtUtc = payment.InitiatedAtUtc,
         PaidAtUtc = payment.PaidAtUtc,
+        RefundedAtUtc = payment.RefundedAtUtc,
+        RefundedAmount = refundedAmount,
         NextActionUrl = payment.Status == PaymentStatus.Pending ? nextActionUrl : null,
     };
 

@@ -20,6 +20,7 @@ public class AdminController(
     IAdminService admin,
     IBusinessService businessService,
     ITradeDocumentService documentService,
+    IPaymentService payments,
     IValidator<ReviewVerificationRequest> reviewValidator,
     IValidator<ReviewDocumentRequest> documentReviewValidator,
     IValidator<ModerateProductRequest> moderationValidator) : ControllerBase
@@ -126,6 +127,38 @@ public class AdminController(
             Page = page,
             PageSize = pageSize,
         }, ct));
+    }
+
+    /// <summary>
+    /// The payments on one order, for the refund screen — the parties' own payment list lives
+    /// under <c>GET /orders/{id}/payments</c> and this is the administration-only counterpart.
+    /// Each payment carries its refunded total, so an administrator can see what is refundable.
+    /// </summary>
+    [HttpGet("orders/{orderId:guid}/payments")]
+    [ProducesResponseType(typeof(IReadOnlyList<PaymentDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<PaymentDto>>> OrderPayments(
+        Guid orderId, CancellationToken ct)
+    {
+        return Ok(await admin.ListOrderPaymentsAsync(orderId, ct));
+    }
+
+    /// <summary>
+    /// Gives money back on a settled payment. Books a compensating ledger entry (negative, so the
+    /// order's net settled figure and the corridor statistics fall with it); a full refund of the
+    /// payment's remaining refundable amount moves the payment to <c>Refunded</c>. The order is
+    /// re-rolled up, a Paid invoice reopens if the order drops below fully paid, and both parties
+    /// are notified. Every refund is written to the audit trail.
+    /// </summary>
+    [HttpPost("payments/{paymentId:guid}/refund")]
+    [ProducesResponseType(typeof(PaymentDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PaymentDto>> RefundPayment(
+        Guid paymentId, RefundPaymentRequest request, CancellationToken ct)
+    {
+        EnsureBody(request);
+        return Ok(await payments.RefundAsync(paymentId, User.GetUserId(), request, ct));
     }
 
     [HttpPost("businesses/{id:guid}/verification/review")]

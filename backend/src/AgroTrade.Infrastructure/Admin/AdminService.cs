@@ -1,10 +1,12 @@
 using AgroTrade.Application.Admin;
 using AgroTrade.Application.Common;
+using AgroTrade.Application.Trade;
 using AgroTrade.Domain.Admin;
 using AgroTrade.Domain.Enums;
 using AgroTrade.Domain.Trade;
 using Microsoft.EntityFrameworkCore;
 using AgroTrade.Infrastructure.Data;
+using AgroTrade.Infrastructure.Payments;
 
 namespace AgroTrade.Infrastructure.Admin;
 
@@ -668,7 +670,8 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
         var total = await filtered.CountAsync(ct);
 
         // Paid is summed from the payment rows rather than read off the order, for the same reason
-        // the order detail page does it that way: there is no column to drift.
+        // the order detail page does it that way: there is no column to drift. Refunds are netted
+        // out — they are negative ledger entries, so adding them subtracts money that went back.
         var rows = await filtered
             .OrderByDescending(o => o.CreatedAtUtc)
             .ThenByDescending(o => o.Id)
@@ -691,9 +694,12 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
                     .FirstOrDefault(),
                 SellerTradingName = o.SellerBusiness != null ? o.SellerBusiness.TradingName : null,
                 ShipmentCount = db.Shipments.Count(s => s.OrderId == o.Id),
-                AmountPaid = o.Payments
-                    .Where(p => p.Status == PaymentStatus.Paid)
-                    .Sum(p => p.Amount),
+                NetPaid = o.Payments
+                        .Where(p => p.Status == PaymentStatus.Paid)
+                        .Sum(p => p.Amount)
+                    + db.Transactions
+                        .Where(t => t.OrderId == o.Id && t.Type == TransactionType.Refund)
+                        .Sum(t => t.Amount),
             })
             .ToListAsync(ct);
 
@@ -707,7 +713,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
                 PaymentStatus = o.PaymentStatus,
                 Currency = o.Currency,
                 Total = o.Total,
-                AmountPaid = o.AmountPaid,
+                AmountPaid = o.NetPaid,
                 BuyerDisplayName = o.BuyerDisplayName,
                 SellerTradingName = o.SellerTradingName,
                 DestinationCountry = o.DestinationCountry,
@@ -720,6 +726,43 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
             Total = total,
             TotalPages = TotalPages(total, pageSize),
         };
+    }
+
+    /// <summary>
+    /// The payments on one order, newest first, each carrying its refunded total so an
+    /// administrator can see how much is still refundable. Same projection the parties see, so
+    /// the admin refund screen and the buyer's payment list can never disagree about a number.
+    /// </summary>
+    public async Task<IReadOnlyList<PaymentDto>> ListOrderPaymentsAsync(
+        Guid orderId, CancellationToken ct = default)
+    {
+        var orderNumber = await db.Orders
+            .AsNoTracking()
+            .Where(o => o.Id == orderId)
+            .Select(o => o.OrderNumber)
+            .FirstOrDefaultAsync(ct)
+            ?? throw ApiException.NotFound("ORDER_NOT_FOUND", "Order not found.");
+
+        var payments = await db.Payments
+            .AsNoTracking()
+            .Where(p => p.OrderId == orderId)
+            .OrderByDescending(p => p.CreatedAtUtc ?? p.InitiatedAtUtc)
+            .ToListAsync(ct);
+
+        var refundedByPayment = (await db.Transactions
+                .AsNoTracking()
+                .Where(t => t.OrderId == orderId && t.Type == TransactionType.Refund && t.PaymentId != null)
+                .GroupBy(t => t.PaymentId!.Value)
+                .Select(g => new { PaymentId = g.Key, RefundedSum = g.Sum(t => t.Amount) })
+                .ToListAsync(ct))
+            .ToDictionary(x => x.PaymentId, x => -x.RefundedSum);
+
+        return payments
+            .Select(p => PaymentService.ToDto(
+                p,
+                orderNumber,
+                refundedAmount: refundedByPayment.TryGetValue(p.Id, out var refunded) ? refunded : null))
+            .ToList();
     }
 
     private static int TotalPages(int total, int pageSize) =>

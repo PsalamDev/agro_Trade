@@ -211,6 +211,7 @@ public enum NotificationType
     Dispute = 8,
     System = 9,
     Review = 10,
+    Refund = 11,
 }
 
 public enum DisputeStatus

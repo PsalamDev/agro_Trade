@@ -117,7 +117,8 @@ ledger entry cannot be addressed without naming the order it settles.
 | GET | `/payments/{id}` | Participant/Admin | Status |
 | POST | `/payments/webhooks/{provider}` | Public(secret) | Provider callback; signature verified; replay-safe; updates payment + order |
 | GET | `/admin/payments` | Admin | All payments; filters |
-| POST | `/admin/payments/{id}/refund` | Admin/Finance | Refund workflow (not started) |
+| POST | `/admin/payments/{id}/refund` | Admin | Refund a settled payment: books a compensating negative `Refund` ledger entry; `amount` defaults to the payment's remaining refundable and can never exceed it, `reason` (optional) is recorded on the entry and the audit trail. A full refund moves the payment to `Refunded` and sets `RefundedAtUtc`; the order re-rolls up, a Paid invoice reopens, and both parties are notified. Refused (409) on pending/failed/refunded payments; over-refunds rejected (400) |
+| GET | `/admin/orders/{id}/payments` | Admin | Payments on one order for the refund screen, each carrying its refunded total so an administrator can see what is still refundable |
 
 ## Invoices & Receipts
 

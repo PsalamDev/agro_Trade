@@ -51,6 +51,26 @@ public interface IPaymentService
         Guid orderId, Guid userId, CancellationToken ct = default);
 
     /// <summary>
+    /// Gives money back on a settled payment. <b>Administrator only</b> — the controller carrying
+    /// this call enforces that policy, and <paramref name="adminUserId"/> is passed in so the act
+    /// is attributed to a person in the audit trail.
+    ///
+    /// <para>
+    /// Books a compensating <see cref="TransactionType.Refund"/> ledger entry (negative amount)
+    /// rather than flipping the payment, because the ledger is the record an auditor reconciles
+    /// against and the entry must survive the payment row being edited. A full refund of the
+    /// payment's remaining refundable amount also moves the payment to
+    /// <see cref="PaymentStatus.Refunded"/> and sets
+    /// <see cref="PaymentDto.RefundedAtUtc"/>; a partial refund leaves it
+    /// <see cref="PaymentStatus.Paid"/> with the ledger saying what went back. Either way the
+    /// order's status is re-rolled up, a Paid invoice reopens if the order drops below fully
+    /// paid, and both parties are notified.
+    /// </para>
+    /// </summary>
+    Task<PaymentDto> RefundAsync(
+        Guid paymentId, Guid adminUserId, RefundPaymentRequest request, CancellationToken ct = default);
+
+    /// <summary>
     /// Verifies, deduplicates and applies one gateway event. <paramref name="rawBody"/> must be
     /// the exact bytes received: the signature covers them, and a re-serialised payload will
     /// not verify.
@@ -150,6 +170,28 @@ public sealed class RecordManualPaymentRequest
     public string? IdempotencyKey { get; init; }
 }
 
+/// <summary>
+/// An administrator refunding money back on a settled payment.
+/// </summary>
+/// <remarks>
+/// The refund is booked as a compensating ledger entry and can never exceed what the payment
+/// still has refundable (its settled amount less anything already refunded), so a retried or
+/// doubled call is refused rather than silently over-refunded.
+/// </remarks>
+public sealed class RefundPaymentRequest
+{
+    /// <summary>
+    /// Amount to refund. Defaults to everything the payment still has refundable.
+    /// </summary>
+    public decimal? Amount { get; init; }
+
+    /// <summary>
+    /// Why. Optional, and recorded on the ledger entry and in the audit trail — the money
+    /// movement is immutable, and so should its justification be.
+    /// </summary>
+    public string? Reason { get; init; }
+}
+
 /// <summary>Simulated outcomes, kept in step with <see cref="GatewayStatuses"/>.</summary>
 public static class SimulateOutcomes
 {
@@ -190,6 +232,15 @@ public sealed record PaymentDto
     public string? Notes { get; init; }
     public DateTime InitiatedAtUtc { get; init; }
     public DateTime? PaidAtUtc { get; init; }
+
+    /// <summary>When the payment was refunded in full. Null until nothing is left to refund.</summary>
+    public DateTime? RefundedAtUtc { get; init; }
+
+    /// <summary>
+    /// How much of this payment has been refunded so far, as a positive number. Null when none
+    /// has — history ledger rows tell the full story; this is the same money for the list view.
+    /// </summary>
+    public decimal? RefundedAmount { get; init; }
 
     /// <summary>Where the payer completes the charge. Sandbox only; null once settled.</summary>
     public string? NextActionUrl { get; init; }

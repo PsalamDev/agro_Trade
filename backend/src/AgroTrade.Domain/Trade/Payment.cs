@@ -54,11 +54,12 @@ public sealed class Payment : IAuditableEntity
     /// Where the payment has got to.
     /// </summary>
     /// <remarks>
-    /// <see cref="PaymentStatus.Paid"/> is terminal. Settled money on a card rail does not
-    /// un-settle, so a later failure is either a mis-stamped duplicate or — if the gateway really
-    /// did claw the money back — a refund, which needs a compensating ledger entry rather than a
-    /// status flip. Allowing the flip would leave the ledger claiming a settlement the order no
-    /// longer counts, with nothing recording that they disagree.
+    /// <see cref="PaymentStatus.Paid"/> does not un-settle on its own. Settled money on a card
+    /// rail is not reversed by a late <c>payment.failed</c> — that would leave the ledger claiming
+    /// a settlement the order no longer counts, with nothing recording that they disagree. Money
+    /// is returned only by an explicit refund, which writes a compensating
+    /// <see cref="TransactionType.Refund"/> ledger entry and, once nothing is left to refund,
+    /// moves this payment to <see cref="PaymentStatus.Refunded"/>.
     /// </remarks>
     public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
 
@@ -66,6 +67,14 @@ public sealed class Payment : IAuditableEntity
 
     public DateTime InitiatedAtUtc { get; set; }
     public DateTime? PaidAtUtc { get; set; }
+
+    /// <summary>
+    /// When the payment was refunded in full. A partial refund leaves this null — the payment
+    /// stays <see cref="PaymentStatus.Paid"/> and the ledger records what went back; only when
+    /// nothing is left to refund does the payment itself change state.
+    /// </summary>
+    public DateTime? RefundedAtUtc { get; set; }
+
     public string? Notes { get; set; }
 
     public DateTime? CreatedAtUtc { get; set; }
