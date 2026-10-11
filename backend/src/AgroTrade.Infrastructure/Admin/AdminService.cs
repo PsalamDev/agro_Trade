@@ -6,6 +6,7 @@ using AgroTrade.Domain.Enums;
 using AgroTrade.Domain.Trade;
 using Microsoft.EntityFrameworkCore;
 using AgroTrade.Infrastructure.Data;
+using AgroTrade.Infrastructure.Identity;
 using AgroTrade.Infrastructure.Payments;
 
 namespace AgroTrade.Infrastructure.Admin;
@@ -60,13 +61,13 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
         return new AdminOverviewDto
         {
             Counts = await CountsAsync(ct),
-            BusinessVerificationFunnel = await BusinessFunnelAsync(ct),
+            BusinessVerificationFunnel = await BusinessFunnelAsync(null, null, ct),
             DocumentVerificationFunnel = await DocumentFunnelAsync(ct),
             OrderFunnel = await OrderFunnelAsync(ct),
             PaymentFunnel = await PaymentFunnelAsync(ct),
-            Corridors = await CorridorsAsync(ct),
-            Commodities = await CommoditiesAsync(ct),
-            Demand = await DemandAsync(ct),
+            Corridors = await CorridorsAsync(null, null, ct),
+            Commodities = await CommoditiesAsync(null, null, ct),
+            Demand = await DemandAsync(null, null, ct),
         };
     }
 
@@ -92,15 +93,58 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
             .CountAsync(ct),
     };
 
-    private async Task<IReadOnlyList<AdminFunnelStageDto>> BusinessFunnelAsync(CancellationToken ct) =>
-        await FunnelAsync(
-            db.Businesses.AsNoTracking()
+    private async Task<IReadOnlyList<AdminFunnelStageDto>> BusinessFunnelAsync(
+        DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        // The window, when one is given, filters by registration date - "of the businesses that
+        // registered in this period, where do they sit now". A verification funnel is a
+        // current-state picture, so the window belongs on the population it describes, not on the
+        // current status, which no date can meaningfully bound.
+        var query = db.Businesses.AsNoTracking().AsQueryable();
+        if (from.HasValue)
+        {
+            query = query.Where(b => b.CreatedAtUtc >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            query = query.Where(b => b.CreatedAtUtc <= to.Value);
+        }
+
+        return await FunnelAsync(
+            query
                 .GroupBy(b => (int)b.VerificationStatus)
                 .Select(g => new { Status = g.Key, Count = g.Count() }),
             VerificationLabels,
             row => row.Status,
             row => row.Count,
             ct);
+    }
+
+    /// <summary>RFQs by status, empty statuses included, over an optional filing window.</summary>
+    private async Task<IReadOnlyList<AdminFunnelStageDto>> RfqStatusFunnelAsync(
+        DateTime? from, DateTime? to, CancellationToken ct)
+    {
+        var query = db.TradeRequests.AsNoTracking().AsQueryable();
+        if (from.HasValue)
+        {
+            query = query.Where(r => r.CreatedAtUtc >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            query = query.Where(r => r.CreatedAtUtc <= to.Value);
+        }
+
+        return await FunnelAsync(
+            query
+                .GroupBy(r => (int)r.Status)
+                .Select(g => new { Status = g.Key, Count = g.Count() }),
+            RfqLabels,
+            row => row.Status,
+            row => row.Count,
+            ct);
+    }
 
     private async Task<IReadOnlyList<AdminFunnelStageDto>> DocumentFunnelAsync(CancellationToken ct) =>
         await FunnelAsync(
@@ -200,9 +244,24 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
     /// year reads as a route with none.
     /// </para>
     /// </remarks>
-    private async Task<IReadOnlyList<AdminCorridorStatDto>> CorridorsAsync(CancellationToken ct)
+    private async Task<IReadOnlyList<AdminCorridorStatDto>> CorridorsAsync(
+        DateTime? from, DateTime? to, CancellationToken ct)
     {
-        var gross = await db.Orders.AsNoTracking()
+        // Both sides of the reconciliation are windowed, on their own timestamps: gross on the
+        // order's placed date and net on the ledger entry's occurrence. Filtering only one would
+        // produce a window in which every order looks unpaid, or every payment belongs to no order.
+        var orders = db.Orders.AsNoTracking().AsQueryable();
+        if (from.HasValue)
+        {
+            orders = orders.Where(o => o.PlacedAtUtc >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            orders = orders.Where(o => o.PlacedAtUtc <= to.Value);
+        }
+
+        var gross = await orders
             .GroupBy(o => new { o.PortOfLoading, o.DestinationCountry, o.Currency })
             .Select(g => new
             {
@@ -214,7 +273,18 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
             })
             .ToListAsync(ct);
 
-        var net = await db.Transactions.AsNoTracking()
+        var ledger = db.Transactions.AsNoTracking().AsQueryable();
+        if (from.HasValue)
+        {
+            ledger = ledger.Where(t => t.OccurredAtUtc >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            ledger = ledger.Where(t => t.OccurredAtUtc <= to.Value);
+        }
+
+        var net = await ledger
             .Join(db.Orders.AsNoTracking(), t => t.OrderId, o => o.Id, (t, o) => new
             {
                 t.Amount,
@@ -280,7 +350,8 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
     /// and nobody is asking for it" and "everyone wants cocoa and we list none of it" are the two
     /// commercially interesting facts, and a single count per category would show neither.
     /// </remarks>
-    private async Task<IReadOnlyList<AdminCommodityStatDto>> CommoditiesAsync(CancellationToken ct)
+    private async Task<IReadOnlyList<AdminCommodityStatDto>> CommoditiesAsync(
+        DateTime? from, DateTime? to, CancellationToken ct)
     {
         var products = await db.Products.AsNoTracking()
             .Where(p => !p.IsDeleted)
@@ -304,8 +375,24 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
         // wanted this?" are different questions. A category whose only RFQ closed a year ago is
         // history, not a live gap, and flagging it as one would put a false signal on the exact
         // panel whose whole purpose is to be worth reading.
-        var rfqs = await db.TradeRequests.AsNoTracking()
-            .Where(r => r.CategoryId != null)
+        //
+        // The report window filters this side — demand filed in the period. Supply is deliberately
+        // left as the current catalogue: "what is listed now" is a present-tense fact, and filtering
+        // products by creation date would report a category with mature listings as empty stock.
+        var rfqs = db.TradeRequests.AsNoTracking()
+            .Where(r => r.CategoryId != null);
+
+        if (from.HasValue)
+        {
+            rfqs = rfqs.Where(r => r.CreatedAtUtc >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            rfqs = rfqs.Where(r => r.CreatedAtUtc <= to.Value);
+        }
+
+        var rfqRows = await rfqs
             .Join(db.Categories.AsNoTracking(), r => r.CategoryId!.Value, c => c.Id, (r, c) =>
                 new { c.Name, r.Status })
             .GroupBy(x => x.Name)
@@ -317,7 +404,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
             })
             .ToListAsync(ct);
 
-        var rfqByCategory = rfqs.ToDictionary(x => x.CategoryName);
+        var rfqByCategory = rfqRows.ToDictionary(x => x.CategoryName);
         var productByCategory = products.ToDictionary(x => x.CategoryName);
 
         // Driven by the union of both sides, not by the product list alone. A category buyers are
@@ -347,14 +434,28 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
             .ToList();
     }
 
-    private async Task<AdminDemandStatDto> DemandAsync(CancellationToken ct)
+    private async Task<AdminDemandStatDto> DemandAsync(
+        DateTime? from, DateTime? to, CancellationToken ct)
     {
-        var open = await db.TradeRequests.AsNoTracking()
+        // The window is on the RFQ's filing date, so a report reads as "what buyers asked for during
+        // this period" rather than "what they asked for then and is still open today".
+        var windowed = db.TradeRequests.AsNoTracking().AsQueryable();
+        if (from.HasValue)
+        {
+            windowed = windowed.Where(r => r.CreatedAtUtc >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            windowed = windowed.Where(r => r.CreatedAtUtc <= to.Value);
+        }
+
+        var open = await windowed
             .Where(r => r.Status == RfqStatus.Open || r.Status == RfqStatus.Quoting)
             .Select(r => new { r.Id, r.BudgetMax, r.PreferredCurrency })
             .ToListAsync(ct);
 
-        var total = await db.TradeRequests.CountAsync(ct);
+        var total = await windowed.CountAsync(ct);
 
         // "Unanswered" is the actionable figure: an open RFQ with no quotation at all is demand the
         // seller is not meeting. Counted as RFQs, not quotations, so one eager supplier quoting
@@ -522,6 +623,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
                 u.EmailConfirmed,
                 u.LockoutEnd,
                 u.CreatedAtUtc,
+                u.IsActive,
                 BusinessName = db.Businesses
                     .Where(b => b.OwnerUserId == u.Id)
                     .Select(b => b.TradingName)
@@ -547,6 +649,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
                 DisplayName = u.DisplayName,
                 EmailConfirmed = u.EmailConfirmed,
                 LockedOut = u.LockoutEnd != null && u.LockoutEnd > now,
+                IsActive = u.IsActive,
                 Roles = u.Roles,
                 BusinessName = u.BusinessName,
                 CreatedAtUtc = u.CreatedAtUtc,
@@ -1038,6 +1141,360 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
         };
     }
 
+    // ---- Ledger ----
+
+    public async Task<PagedResult<AdminTransactionRowDto>> SearchTransactionsAsync(
+        AdminTransactionSearchQuery query, CancellationToken ct = default)
+    {
+        var (page, pageSize) = PageHelper.Normalize(query.Page, query.PageSize);
+        var search = query.Q?.Trim();
+
+        var filtered = db.Transactions.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            // The order number is searched too, because the number an operator reads off a bank
+            // statement or a support ticket is as often the order as the ledger reference.
+            filtered = filtered.Where(t =>
+                EF.Functions.Like(t.Reference, $"%{search}%") ||
+                (t.ExternalReference != null && EF.Functions.Like(t.ExternalReference, $"%{search}%")) ||
+                (t.Narrative != null && EF.Functions.Like(t.Narrative, $"%{search}%")) ||
+                db.Orders.Any(o => o.Id == t.OrderId && EF.Functions.Like(o.OrderNumber, $"%{search}%")));
+        }
+
+        if (query.Type.HasValue)
+        {
+            filtered = filtered.Where(t => t.Type == (TransactionType)query.Type.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Currency))
+        {
+            // Upper-cased to match storage: ISO-4217 codes are stored upper-case, and a filter of
+            // "usd" that silently matched nothing would read as "no such payments".
+            var currency = query.Currency.Trim().ToUpperInvariant();
+            filtered = filtered.Where(t => t.Currency == currency);
+        }
+
+        if (query.OrderId.HasValue)
+        {
+            filtered = filtered.Where(t => t.OrderId == query.OrderId.Value);
+        }
+
+        if (query.From.HasValue)
+        {
+            filtered = filtered.Where(t => t.OccurredAtUtc >= query.From.Value);
+        }
+
+        if (query.To.HasValue)
+        {
+            filtered = filtered.Where(t => t.OccurredAtUtc <= query.To.Value);
+        }
+
+        var total = await filtered.CountAsync(ct);
+
+        var rows = await filtered
+            // The ledger reads newest movement first - that is the order an operator reconciling
+            // today's payments works in. Id breaks ties so a page boundary through entries stamped
+            // the same instant cannot show one twice and hide another.
+            .OrderByDescending(t => t.OccurredAtUtc)
+            .ThenByDescending(t => t.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(t => new
+            {
+                t.Id,
+                t.Reference,
+                Type = (int)t.Type,
+                t.Amount,
+                t.Currency,
+                t.OrderId,
+                OrderNumber = db.Orders
+                    .Where(o => o.Id == t.OrderId)
+                    .Select(o => o.OrderNumber)
+                    .FirstOrDefault(),
+                t.PaymentId,
+                t.OccurredAtUtc,
+                t.Narrative,
+                t.ExternalReference,
+                t.CreatedAtUtc,
+            })
+            .ToListAsync(ct);
+
+        return new PagedResult<AdminTransactionRowDto>
+        {
+            Items = rows.Select(t => new AdminTransactionRowDto
+            {
+                Id = t.Id,
+                Reference = t.Reference,
+                Type = t.Type,
+                Amount = t.Amount,
+                Currency = t.Currency,
+                OrderId = t.OrderId,
+                OrderNumber = t.OrderNumber ?? string.Empty,
+                PaymentId = t.PaymentId,
+                OccurredAtUtc = t.OccurredAtUtc,
+                Narrative = t.Narrative,
+                ExternalReference = t.ExternalReference,
+                CreatedAtUtc = t.CreatedAtUtc,
+            }).ToList(),
+            Page = page,
+            PageSize = pageSize,
+            Total = total,
+            TotalPages = TotalPages(total, pageSize),
+        };
+    }
+
+    // ---- Reports ----
+
+    public async Task<AdminReportDto> GetReportAsync(
+        AdminReportKind kind, DateTime? from, DateTime? to, CancellationToken ct = default)
+    {
+        // An inverted window is refused rather than run. It would match nothing, and an empty report
+        // reads as "this period saw no trade" - a conclusion the caller would draw from a mistake.
+        if (from.HasValue && to.HasValue && from.Value > to.Value)
+        {
+            throw ApiException.BadRequest(
+                "INVALID_DATE_RANGE", "The report's 'from' date must not be after its 'to' date.");
+        }
+
+        var envelope = new AdminReportDto
+        {
+            Kind = ReportKindName(kind),
+            FromUtc = from,
+            ToUtc = to,
+        };
+
+        return kind switch
+        {
+            AdminReportKind.Corridors => envelope with { Corridors = await CorridorsAsync(from, to, ct) },
+            AdminReportKind.Commodities => envelope with { Commodities = await CommoditiesAsync(from, to, ct) },
+            AdminReportKind.VerificationFunnel => envelope with { Stages = await BusinessFunnelAsync(from, to, ct) },
+            AdminReportKind.Rfq => envelope with
+            {
+                Rfq = new AdminRfqReportDto
+                {
+                    Demand = await DemandAsync(from, to, ct),
+                    ByStatus = await RfqStatusFunnelAsync(from, to, ct),
+                },
+            },
+            _ => throw ApiException.BadRequest("UNKNOWN_REPORT", "Unknown report kind."),
+        };
+    }
+
+    // ---- Settings ----
+
+    public async Task<IReadOnlyList<AdminSettingDto>> GetSettingsAsync(CancellationToken ct = default)
+    {
+        var stored = await db.PlatformSettings.AsNoTracking()
+            .ToDictionaryAsync(s => s.Key, ct);
+
+        // Driven by the catalogue, not by the stored rows: every known setting appears, whether or
+        // not it has been changed. A screen that only listed written rows would hide the defaults an
+        // operator most needs to see before changing anything.
+        return PlatformSettingsCatalog.Definitions
+            .Select(definition =>
+            {
+                stored.TryGetValue(definition.Key, out var row);
+                return new AdminSettingDto
+                {
+                    Key = definition.Key,
+                    Value = row?.Value ?? definition.DefaultValue,
+                    DefaultValue = definition.DefaultValue,
+                    Kind = SettingKindName(definition.Kind),
+                    IsOverridden = row is not null,
+                    Label = definition.Label,
+                    Description = definition.Description,
+                    UpdatedByUserId = row?.UpdatedByUserId,
+                    UpdatedAtUtc = row?.UpdatedAtUtc,
+                };
+            })
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<AdminSettingDto>> UpdateSettingsAsync(
+        Guid adminUserId, AdminSettingsUpdateRequest request, CancellationToken ct = default)
+    {
+        if (request.Settings.Count == 0)
+        {
+            throw ApiException.BadRequest("NO_SETTINGS", "Supply at least one setting to update.");
+        }
+
+        var changes = new List<(PlatformSettingDefinition Definition, string Value)>();
+
+        // Every change is validated before any is written. Applying the first three settings and
+        // failing on the fourth would leave the platform in a state nobody chose, and the operator
+        // could not reach it from the response they got.
+        foreach (var change in request.Settings)
+        {
+            var definition = PlatformSettingsCatalog.Find(change.Key)
+                ?? throw ApiException.BadRequest(
+                    "UNKNOWN_SETTING",
+                    $"\"{change.Key}\" is not a setting this platform recognises.");
+
+            var error = PlatformSettingsCatalog.Validate(definition, change.Value);
+            if (error is not null)
+            {
+                throw ApiException.BadRequest("INVALID_SETTING_VALUE", error);
+            }
+
+            changes.Add((definition, PlatformSettingsCatalog.Normalize(definition, change.Value)));
+        }
+
+        var keys = changes.Select(c => c.Definition.Key).ToList();
+        var existing = await db.PlatformSettings
+            .Where(s => keys.Contains(s.Key))
+            .ToDictionaryAsync(s => s.Key, ct);
+
+        foreach (var (definition, value) in changes)
+        {
+            if (existing.TryGetValue(definition.Key, out var row))
+            {
+                row.Value = value;
+                row.UpdatedByUserId = adminUserId;
+            }
+            else
+            {
+                db.PlatformSettings.Add(new PlatformSetting
+                {
+                    Key = definition.Key,
+                    Value = value,
+                    UpdatedByUserId = adminUserId,
+                });
+            }
+        }
+
+        // One entry for the batch, naming every key touched. The question an auditor asks is "what
+        // did this administrator change", and the values are kept in the detail line so a later
+        // reader can see what it was changed to without reconstructing it from the current state.
+        audit.Record(
+            adminUserId,
+            "settings.updated",
+            "PlatformSetting",
+            null,
+            $"Updated platform settings: {string.Join(", ", keys)}",
+            string.Join("; ", changes.Select(c => $"{c.Definition.Key} = {c.Value}")));
+
+        await db.SaveChangesAsync(ct);
+
+        return await GetSettingsAsync(ct);
+    }
+
+    // ---- Account status ----
+
+    public async Task<AdminUserDto> SetUserStatusAsync(
+        Guid userId, Guid adminUserId, SetUserStatusCommand command, CancellationToken ct = default)
+    {
+        if (userId == adminUserId && command.Action == UserStatusAction.Suspend)
+        {
+            // Suspending yourself locks the platform out of its own administration: the account that
+            // would have to reverse the decision can no longer sign in to make it. Refused here, and
+            // not merely hidden in the UI, because the UI is not the only caller.
+            throw ApiException.Conflict(
+                "CANNOT_SUSPEND_SELF",
+                "You cannot suspend your own account. Ask another administrator to do it.");
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct)
+            ?? throw ApiException.NotFound("USER_NOT_FOUND", "Account not found.");
+
+        switch (command.Action)
+        {
+            case UserStatusAction.Suspend:
+                if (!user.IsActive)
+                {
+                    // Both no-op transitions are refused. Silently succeeding would leave an
+                    // administrator believing they had applied a restriction that was never needed,
+                    // or lifted one that was never there.
+                    throw ApiException.Conflict("USER_ALREADY_SUSPENDED", "This account is already suspended.");
+                }
+
+                if (string.IsNullOrWhiteSpace(command.Reason))
+                {
+                    // Re-checked even though the controller validates it: a suspension with no stated
+                    // reason is the one moderation record nobody could later act on.
+                    throw ApiException.BadRequest("REASON_REQUIRED", "Suspending an account must state a reason.");
+                }
+
+                user.IsActive = false;
+                audit.Record(
+                    adminUserId,
+                    "user.suspended",
+                    "User",
+                    user.Id,
+                    $"Suspended account {user.Email}",
+                    command.Reason.Trim());
+                break;
+
+            case UserStatusAction.Activate:
+                if (user.IsActive)
+                {
+                    throw ApiException.Conflict("USER_ALREADY_ACTIVE", "This account is not suspended.");
+                }
+
+                user.IsActive = true;
+                audit.Record(
+                    adminUserId,
+                    "user.activated",
+                    "User",
+                    user.Id,
+                    $"Reactivated account {user.Email}",
+                    command.Reason?.Trim());
+                break;
+
+            default:
+                throw ApiException.BadRequest(
+                    "UNKNOWN_STATUS_ACTION", "Unknown account status action. Expected Suspend or Activate.");
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        return await ToAdminUserDtoAsync(user, ct);
+    }
+
+    /// <summary>Projects one account to the admin row shape, resolving its roles and business.</summary>
+    private async Task<AdminUserDto> ToAdminUserDtoAsync(ApplicationUser user, CancellationToken ct)
+    {
+        var roles = await db.UserRoles
+            .Where(ur => ur.UserId == user.Id)
+            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+            .ToArrayAsync(ct);
+
+        var businessName = await db.Businesses
+            .Where(b => b.OwnerUserId == user.Id)
+            .Select(b => b.TradingName)
+            .FirstOrDefaultAsync(ct);
+
+        var now = DateTime.UtcNow;
+        return new AdminUserDto
+        {
+            Id = user.Id,
+            Email = user.Email ?? string.Empty,
+            DisplayName = user.DisplayName,
+            EmailConfirmed = user.EmailConfirmed,
+            LockedOut = user.LockoutEnd != null && user.LockoutEnd > now,
+            IsActive = user.IsActive,
+            Roles = roles,
+            BusinessName = businessName,
+            CreatedAtUtc = user.CreatedAtUtc,
+        };
+    }
+
+    private static string ReportKindName(AdminReportKind kind) => kind switch
+    {
+        AdminReportKind.Corridors => "corridors",
+        AdminReportKind.Rfq => "rfq",
+        AdminReportKind.VerificationFunnel => "verification-funnel",
+        AdminReportKind.Commodities => "commodities",
+        _ => "unknown",
+    };
+
+    private static string SettingKindName(PlatformSettingKind kind) => kind switch
+    {
+        PlatformSettingKind.Boolean => "boolean",
+        PlatformSettingKind.Role => "role",
+        _ => "unknown",
+    };
+
     // ---- Labels ----
 
     // Held beside the queries rather than in the DTOs: a stage's display name is a presentation
@@ -1083,5 +1540,17 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
         [(int)PaymentStatus.Paid] = "Paid",
         [(int)PaymentStatus.Refunded] = "Refunded",
         [(int)PaymentStatus.Failed] = "Failed",
+    };
+
+    private static readonly IReadOnlyDictionary<int, string> RfqLabels = new Dictionary<int, string>
+    {
+        [(int)RfqStatus.Open] = "Open",
+        [(int)RfqStatus.Quoting] = "Quoting",
+        [(int)RfqStatus.Negotiating] = "Negotiating",
+        [(int)RfqStatus.Accepted] = "Accepted",
+        [(int)RfqStatus.ConvertedToOrder] = "Converted to order",
+        [(int)RfqStatus.Expired] = "Expired",
+        [(int)RfqStatus.Closed] = "Closed",
+        [(int)RfqStatus.Cancelled] = "Cancelled",
     };
 }

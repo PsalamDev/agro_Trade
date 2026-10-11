@@ -33,6 +33,9 @@ import AdminOrdersPage from './pages/AdminOrdersPage'
 import AdminShipmentsPage from './pages/AdminShipmentsPage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import AdminAuditLogPage from './pages/AdminAuditLogPage'
+import AdminTransactionsPage from './pages/AdminTransactionsPage'
+import AdminReportsPage from './pages/AdminReportsPage'
+import AdminSettingsPage from './pages/AdminSettingsPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RequireRole } from './components/RequireRole'
 import { BUYER_ROLES } from './types/auth'
@@ -278,6 +281,30 @@ export default function App() {
           element={
             <RequireRole roles={ADMIN_ROLES}>
               <AdminAuditLogPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/transactions"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminTransactionsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/reports"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminReportsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/settings"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminSettingsPage />
             </RequireRole>
           }
         />

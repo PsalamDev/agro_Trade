@@ -23,7 +23,8 @@ public class AdminController(
     IPaymentService payments,
     IValidator<ReviewVerificationRequest> reviewValidator,
     IValidator<ReviewDocumentRequest> documentReviewValidator,
-    IValidator<ModerateProductRequest> moderationValidator) : ControllerBase
+    IValidator<ModerateProductRequest> moderationValidator,
+    IValidator<AdminUserStatusRequest> userStatusValidator) : ControllerBase
 {
     /// <summary>
     /// Everything the dashboard shows, in one read: platform counts, the four funnels, corridor
@@ -247,6 +248,110 @@ public class AdminController(
             PageSize = pageSize,
         }, ct));
     }
+
+    /// <summary>
+    /// The transaction ledger: every movement of money, newest first, across every order.
+    /// </summary>
+    /// <remarks>
+    /// The administrative counterpart to the parties' order-scoped payment list. This is the record
+    /// that reconciles: entries are read from the ledger rather than rolled up from payments, so a
+    /// corrected payment does not rewrite history.
+    /// </remarks>
+    [HttpGet("transactions")]
+    [ProducesResponseType(typeof(PagedResult<AdminTransactionRowDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<AdminTransactionRowDto>>> Transactions(
+        [FromQuery] string? q, [FromQuery] int? type, [FromQuery] string? currency,
+        [FromQuery] Guid? orderId, [FromQuery] DateTime? from, [FromQuery] DateTime? to,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        return Ok(await admin.SearchTransactionsAsync(new AdminTransactionSearchQuery
+        {
+            Q = q,
+            Type = type,
+            Currency = currency,
+            OrderId = orderId,
+            From = from,
+            To = to,
+            Page = page,
+            PageSize = pageSize,
+        }, ct));
+    }
+
+    /// <summary>
+    /// One analytics report over an optional date window.
+    /// </summary>
+    /// <remarks>
+    /// A path segment rather than a query parameter, because the four reports do not share a payload
+    /// shape: <c>/reports/corridors</c> reads as the resource it is, and an unknown kind is a 400
+    /// rather than an empty 200.
+    /// </remarks>
+    [HttpGet("reports/{kind}")]
+    [ProducesResponseType(typeof(AdminReportDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<AdminReportDto>> Report(
+        string kind, [FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
+    {
+        return Ok(await admin.GetReportAsync(ParseReportKind(kind), from, to, ct));
+    }
+
+    /// <summary>The operator-editable settings, catalogue defaults included.</summary>
+    [HttpGet("settings")]
+    [ProducesResponseType(typeof(IReadOnlyList<AdminSettingDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<AdminSettingDto>>> Settings(CancellationToken ct)
+    {
+        return Ok(await admin.GetSettingsAsync(ct));
+    }
+
+    /// <summary>
+    /// Writes the supplied settings. Partial: keys not sent keep their current value or default.
+    /// </summary>
+    [HttpPut("settings")]
+    [ProducesResponseType(typeof(IReadOnlyList<AdminSettingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<AdminSettingDto>>> UpdateSettings(
+        AdminSettingsUpdateRequest request, CancellationToken ct)
+    {
+        EnsureBody(request);
+        return Ok(await admin.UpdateSettingsAsync(User.GetUserId(), request, ct));
+    }
+
+    /// <summary>
+    /// Suspends or reactivates an account.
+    /// </summary>
+    /// <remarks>
+    /// Suspension sets the platform's own <c>IsActive</c> flag, which is checked on sign-in and on
+    /// token validation: it blocks a suspended user immediately rather than only at their next
+    /// login. The account is never deleted — the audit trail is <c>ON DELETE RESTRICT</c> precisely
+    /// so the record of what an account approved cannot be removed with it.
+    /// </remarks>
+    [HttpPatch("users/{id:guid}/status")]
+    [ProducesResponseType(typeof(AdminUserDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<AdminUserDto>> SetUserStatus(
+        Guid id, AdminUserStatusRequest request, CancellationToken ct)
+    {
+        EnsureBody(request);
+        await userStatusValidator.ValidateAndThrowAsync(request, ct);
+        return Ok(await admin.SetUserStatusAsync(id, User.GetUserId(), new SetUserStatusCommand
+        {
+            Action = request.Action,
+            Reason = request.Reason,
+        }, ct));
+    }
+
+    private static AdminReportKind ParseReportKind(string kind) => kind.Trim().ToLowerInvariant() switch
+    {
+        "corridors" => AdminReportKind.Corridors,
+        "rfq" or "rfqs" => AdminReportKind.Rfq,
+        "verification-funnel" => AdminReportKind.VerificationFunnel,
+        "commodities" => AdminReportKind.Commodities,
+        _ => throw ApiException.BadRequest(
+            "UNKNOWN_REPORT",
+            "Unknown report kind. Expected corridors, rfq, verification-funnel or commodities."),
+    };
 
     private static void EnsureBody(object? request)
     {

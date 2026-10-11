@@ -5,8 +5,13 @@ import type {
   AdminAuditLogDto,
   AdminOrderRowDto,
   AdminOverviewDto,
+  AdminReportDto,
+  AdminSettingDto,
+  AdminSettingsUpdateRequest,
   AdminShipmentDto,
+  AdminTransactionRowDto,
   AdminUserDto,
+  AdminUserStatusRequest,
   AppendTrackingEventRequest,
   BusinessDetailDto,
   BusinessDocumentDto,
@@ -603,6 +608,66 @@ export function adminSearchShipments(params: {
 } = {}): Promise<PagedResult<AdminShipmentDto>> {
   return unwrap(api.get<PagedResult<AdminShipmentDto>>(`/admin/shipments${query({ ...params })}`))
 }
+
+/**
+ * The transaction ledger: every movement of money, newest first, across every order.
+ *
+ * Read from the ledger rows themselves rather than rolled up from payments, so a corrected payment
+ * does not rewrite history. `q` searches the ledger reference, the external reference (a bank trace
+ * id), the narrative and the order number. `type` is a `TransactionType`; `currency` and the
+ * half-open date bounds are exact filters.
+ */
+export function adminSearchTransactions(params: {
+  q?: string
+  type?: number
+  currency?: string
+  orderId?: string
+  from?: string
+  to?: string
+  page?: number
+  pageSize?: number
+} = {}): Promise<PagedResult<AdminTransactionRowDto>> {
+  return unwrap(api.get<PagedResult<AdminTransactionRowDto>>(`/admin/transactions${query({ ...params })}`))
+}
+
+/**
+ * One analytics report over an optional date window.
+ *
+ * The kind is a path segment because the four reports do not share a payload shape; an unknown kind
+ * is a 400 rather than an empty 200. `from`/`to` are inclusive and optional — omitting both means
+ * all time, and an inverted window is refused.
+ */
+export function adminReport(
+  kind: string,
+  params: { from?: string; to?: string } = {},
+): Promise<AdminReportDto> {
+  return unwrap(api.get<AdminReportDto>(`/admin/reports/${kind}${query({ ...params })}`))
+}
+
+/** The operator-editable settings, catalogue defaults included. */
+export function adminGetSettings(): Promise<AdminSettingDto[]> {
+  return unwrap(api.get<AdminSettingDto[]>('/admin/settings'))
+}
+
+/**
+ * Writes the supplied settings. Partial: keys not sent keep their current value, or their default.
+ * Every change is validated before any is written, and the batch is one audit entry.
+ */
+export function adminUpdateSettings(request: AdminSettingsUpdateRequest): Promise<AdminSettingDto[]> {
+  return unwrap(api.put<AdminSettingDto[]>('/admin/settings', request))
+}
+
+/**
+ * Suspends or reactivates an account.
+ *
+ * Sets the platform's own active flag, which is checked on sign-in and on token validation — so a
+ * suspension takes effect at the account's next request, not only at its next login. A reason is
+ * required to suspend and is written to the audit trail against the account.
+ */
+export function adminSetUserStatus(id: string, request: AdminUserStatusRequest): Promise<AdminUserDto> {
+  return unwrap(api.patch<AdminUserDto>(`/admin/users/${id}/status`, request))
+}
+
 // ---- Market intelligence (Phase 3) ----
 
 /**

@@ -57,6 +57,41 @@ public interface IAdminService
     /// </summary>
     Task<IReadOnlyList<PaymentDto>> ListOrderPaymentsAsync(
         Guid orderId, CancellationToken ct = default);
+
+    /// <summary>Every movement of money, newest first, across every order.</summary>
+    Task<PagedResult<AdminTransactionRowDto>> SearchTransactionsAsync(
+        AdminTransactionSearchQuery query, CancellationToken ct = default);
+
+    /// <summary>
+    /// One analytics report over an optional date window: trade by corridor, RFQ volume, the
+    /// verification funnel, or supply against demand by commodity.
+    /// </summary>
+    Task<AdminReportDto> GetReportAsync(
+        AdminReportKind kind, DateTime? from, DateTime? to, CancellationToken ct = default);
+
+    /// <summary>
+    /// The operator-editable settings, every catalogue key included — stored values where they
+    /// exist and the documented default where they do not.
+    /// </summary>
+    Task<IReadOnlyList<AdminSettingDto>> GetSettingsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Writes the supplied settings, leaving every other key untouched, and records who changed them.
+    /// </summary>
+    Task<IReadOnlyList<AdminSettingDto>> UpdateSettingsAsync(
+        Guid adminUserId, AdminSettingsUpdateRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Suspends or reactivates an account. Suspension blocks sign-in and invalidates existing
+    /// sessions; the account and its history are kept.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="adminUserId"/> is the acting administrator, passed in and checked by the
+    /// service rather than trusted from the request: an administrator must not be able to suspend
+    /// their own account and lock the platform out of its own administration.
+    /// </remarks>
+    Task<AdminUserDto> SetUserStatusAsync(
+        Guid userId, Guid adminUserId, SetUserStatusCommand command, CancellationToken ct = default);
 }
 
 /// <summary>Records an administrative action. Called explicitly by the action, never automatically.</summary>
@@ -154,6 +189,45 @@ public sealed class AdminRfqSearchQuery
     public int PageSize { get; init; } = 20;
 }
 
+public sealed class AdminTransactionSearchQuery
+{
+    /// <summary>Free text: ledger reference, external reference, narrative, or order number.</summary>
+    public string? Q { get; init; }
+
+    /// <summary>Ledger entry type. Unset means every type.</summary>
+    public int? Type { get; init; }
+
+    /// <summary>ISO-4217. The ledger is per-currency and never converted, so this is a real filter.</summary>
+    public string? Currency { get; init; }
+
+    public Guid? OrderId { get; init; }
+
+    /// <summary>Inclusive lower bound on <c>OccurredAtUtc</c>.</summary>
+    public DateTime? From { get; init; }
+
+    /// <summary>Inclusive upper bound on <c>OccurredAtUtc</c>.</summary>
+    public DateTime? To { get; init; }
+
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+}
+
+/// <summary>The analytics reports an administrator can pull, each over an optional date window.</summary>
+public enum AdminReportKind
+{
+    /// <summary>Trade value per corridor per currency.</summary>
+    Corridors = 0,
+
+    /// <summary>RFQ volume: what buyers asked for, by status.</summary>
+    Rfq = 1,
+
+    /// <summary>Where businesses sit in verification.</summary>
+    VerificationFunnel = 2,
+
+    /// <summary>Listed supply against buyer demand, by commodity category.</summary>
+    Commodities = 3,
+}
+
 /// <summary>The two things an administrator may do to a listing.</summary>
 public enum ProductModerationAction
 {
@@ -173,6 +247,41 @@ public sealed record ModerateProductCommand
     /// why it was resolved is useful but not the point of the call.
     /// </remarks>
     public string? Reason { get; init; }
+}
+
+/// <summary>The two things an administrator may do to an account.</summary>
+public enum UserStatusAction
+{
+    Suspend = 0,
+    Activate = 1,
+}
+
+public sealed record SetUserStatusCommand
+{
+    public UserStatusAction Action { get; init; }
+
+    /// <summary>Required to suspend, optional to activate. See the validator.</summary>
+    public string? Reason { get; init; }
+}
+
+/// <summary>
+/// A partial update to the platform settings: only the keys supplied are written.
+/// </summary>
+/// <remarks>
+/// Partial, not a whole-object replace, because the settings screen may save one field and because
+/// a full replace would silently reset any key the caller did not send back — a read-modify-write
+/// that a client performing it from a stale page would get wrong. An omitted key keeps its value,
+/// or its default when it never had one.
+/// </remarks>
+public sealed record AdminSettingsUpdateRequest
+{
+    public IReadOnlyList<AdminSettingChange> Settings { get; init; } = [];
+}
+
+public sealed record AdminSettingChange
+{
+    public string Key { get; init; } = string.Empty;
+    public string Value { get; init; } = string.Empty;
 }
 
 // ---- Audit log ----
@@ -362,6 +471,17 @@ public sealed record AdminUserDto
     public string? DisplayName { get; init; }
     public bool EmailConfirmed { get; init; }
     public bool LockedOut { get; init; }
+
+    /// <summary>
+    /// The platform's own suspension flag, distinct from Identity's lockout.
+    /// </summary>
+    /// <remarks>
+    /// Two independent states, and the screen shows both because they are set by different things.
+    /// <c>LockedOut</c> is Identity's failed-sign-in throttle and clears itself; this is an
+    /// administrator's decision and only an administrator clears it.
+    /// </remarks>
+    public bool IsActive { get; init; }
+
     public string[] Roles { get; init; } = [];
     public string? BusinessName { get; init; }
     public DateTime? CreatedAtUtc { get; init; }
@@ -469,4 +589,104 @@ public sealed record AdminRfqRowDto
 
     public DateTime ExpiresAtUtc { get; init; }
     public DateTime? CreatedAtUtc { get; init; }
+}
+
+// ---- Ledger ----
+
+/// <summary>One movement of money, as the operator's ledger shows it.</summary>
+public sealed record AdminTransactionRowDto
+{
+    public Guid Id { get; init; }
+
+    /// <summary>The ledger's own reference, e.g. "TXN-2026-000001".</summary>
+    public string Reference { get; init; } = string.Empty;
+
+    public int Type { get; init; }
+
+    /// <summary>Signed: positive for money in, negative for refunds out.</summary>
+    public decimal Amount { get; init; }
+
+    public string Currency { get; init; } = string.Empty;
+
+    public Guid OrderId { get; init; }
+    public string OrderNumber { get; init; } = string.Empty;
+
+    /// <summary>Correlation only; null for off-platform entries with no originating payment row.</summary>
+    public Guid? PaymentId { get; init; }
+
+    public DateTime OccurredAtUtc { get; init; }
+    public string? Narrative { get; init; }
+
+    /// <summary>The counterparty's own identity for the money: a gateway charge id, a bank trace id.</summary>
+    public string? ExternalReference { get; init; }
+
+    public DateTime? CreatedAtUtc { get; init; }
+}
+
+// ---- Reports ----
+
+/// <summary>
+/// One report, with exactly one payload populated according to <see cref="Kind"/>.
+/// </summary>
+/// <remarks>
+/// An envelope rather than four endpoints or a weakly-typed sheet of rows. Four endpoints would
+/// repeat the same window parsing and authorisation four times; a generic row shape would throw away
+/// the per-report types the frontend already knows. The payload field for the requested kind is set;
+/// the rest stay empty, so a client switches on <see cref="Kind"/> and reads the one it asked for.
+/// </remarks>
+public sealed record AdminReportDto
+{
+    public string Kind { get; init; } = string.Empty;
+
+    /// <summary>The window the report was run over, echoed back. Null means "all time".</summary>
+    public DateTime? FromUtc { get; init; }
+    public DateTime? ToUtc { get; init; }
+
+    /// <summary>Populated for <c>corridors</c>.</summary>
+    public IReadOnlyList<AdminCorridorStatDto> Corridors { get; init; } = [];
+
+    /// <summary>Populated for <c>commodities</c>.</summary>
+    public IReadOnlyList<AdminCommodityStatDto> Commodities { get; init; } = [];
+
+    /// <summary>Populated for <c>verification-funnel</c>.</summary>
+    public IReadOnlyList<AdminFunnelStageDto> Stages { get; init; } = [];
+
+    /// <summary>Populated for <c>rfq</c>.</summary>
+    public AdminRfqReportDto? Rfq { get; init; }
+}
+
+/// <summary>RFQ volume: the demand summary beside a count of RFQs by status.</summary>
+public sealed record AdminRfqReportDto
+{
+    public AdminDemandStatDto Demand { get; init; } = new();
+
+    /// <summary>
+    /// RFQs by status, empty statuses included, over the same window as the summary.
+    /// </summary>
+    public IReadOnlyList<AdminFunnelStageDto> ByStatus { get; init; } = [];
+}
+
+// ---- Settings ----
+
+/// <summary>One setting, its current value, and enough context for an operator to change it safely.</summary>
+public sealed record AdminSettingDto
+{
+    public string Key { get; init; } = string.Empty;
+
+    /// <summary>The stored value, or the catalogue default when no row exists.</summary>
+    public string Value { get; init; } = string.Empty;
+
+    /// <summary>What the value would be if the row were removed. Shown so a change can be undone.</summary>
+    public string DefaultValue { get; init; } = string.Empty;
+
+    /// <summary>The value's type, for the client to pick an editor: "boolean" or "role".</summary>
+    public string Kind { get; init; } = string.Empty;
+
+    /// <summary>Whether a row exists at all, as opposed to the value being the default.</summary>
+    public bool IsOverridden { get; init; }
+
+    public string Label { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public Guid? UpdatedByUserId { get; init; }
+    public DateTime? UpdatedAtUtc { get; init; }
 }

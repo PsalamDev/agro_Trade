@@ -1,9 +1,12 @@
 import { Link, useLocation } from 'react-router-dom'
 import {
+  ChartIcon,
   ClockIcon,
+  CoinsIcon,
   FileTextIcon,
   GridIcon,
   PackageIcon,
+  SettingsIcon,
   ShieldCheckIcon,
   TruckIcon,
   UsersIcon,
@@ -51,6 +54,18 @@ const DESTINATIONS = [
     icon: <TruckIcon className="h-4 w-4" />,
   },
   {
+    to: '/admin/transactions',
+    label: 'Ledger',
+    body: 'Every movement of money, reconciled against the bank.',
+    icon: <CoinsIcon className="h-4 w-4" />,
+  },
+  {
+    to: '/admin/reports',
+    label: 'Reports',
+    body: 'Corridors, demand, verification and supply, over a window.',
+    icon: <ChartIcon className="h-4 w-4" />,
+  },
+  {
     to: '/admin/users',
     label: 'Users',
     body: 'Accounts, roles and the businesses they own.',
@@ -61,6 +76,12 @@ const DESTINATIONS = [
     label: 'Audit trail',
     body: 'Who decided what, and when.',
     icon: <ClockIcon className="h-4 w-4" />,
+  },
+  {
+    to: '/admin/settings',
+    label: 'Settings',
+    body: 'Platform controls that running code actually reads.',
+    icon: <SettingsIcon className="h-4 w-4" />,
   },
 ]
 

@@ -1119,10 +1119,29 @@ export interface AdminUserDto {
   email: string
   displayName: string | null
   emailConfirmed: boolean
+  /** Identity's failed-sign-in throttle. Clears itself. */
   lockedOut: boolean
+  /**
+   * The platform's own suspension flag, distinct from `lockedOut`. Set by an administrator and
+   * cleared only by one; a suspended account is refused on sign-in *and* on token validation, so
+   * the session ends at the next request rather than at the next login.
+   */
+  isActive: boolean
   roles: string[]
   businessName: string | null
   createdAtUtc: string | null
+}
+
+/** What an administrator may do to an account. Matches the server's `UserStatusAction`. */
+export const USER_STATUS_ACTION = {
+  Suspend: 0,
+  Activate: 1,
+} as const
+
+export interface AdminUserStatusRequest {
+  action: number
+  /** Required to suspend. The reason is written to the audit trail against the account. */
+  reason?: string
 }
 
 export interface AdminOrderRowDto {
@@ -1157,6 +1176,100 @@ export interface AdminShipmentDto {
   milestoneCount: number
   estimatedArrivalUtc: string | null
   createdAtUtc: string | null
+}
+
+// ---- Admin ledger, reports and settings (Phase 4 — operations surface) ----
+
+/**
+ * One movement of money, read from the ledger rather than rolled up from payments.
+ *
+ * `amount` is signed: positive for money in, negative for a refund out. `paymentId` is correlation
+ * only and is null for off-platform entries with no originating payment row. `externalReference`
+ * is the counterparty's own identity for the money — a gateway charge id, a bank trace id.
+ */
+export interface AdminTransactionRowDto {
+  id: string
+  /** The ledger's own reference, e.g. `TXN-2026-000001`. */
+  reference: string
+  type: number
+  amount: number
+  currency: string
+  orderId: string
+  orderNumber: string
+  paymentId: string | null
+  occurredAtUtc: string
+  narrative: string | null
+  externalReference: string | null
+  createdAtUtc: string | null
+}
+
+/** The reports an administrator can pull. Each returns a differently-shaped payload. */
+export const REPORT_KINDS = [
+  { value: 'corridors', label: 'Corridors', body: 'Trade value per route, per currency.' },
+  { value: 'rfq', label: 'RFQ volume', body: 'What buyers asked for, by status.' },
+  {
+    value: 'verification-funnel',
+    label: 'Verification funnel',
+    body: 'Where supplier registrations sit.',
+  },
+  { value: 'commodities', label: 'Commodities', body: 'Listed supply against buyer demand.' },
+] as const
+
+export type ReportKind = (typeof REPORT_KINDS)[number]['value']
+
+/**
+ * One report. Exactly one payload is populated according to `kind`; the rest arrive empty, so a
+ * client switches on `kind` and reads the shape it asked for.
+ *
+ * `fromUtc`/`toUtc` echo the window the report ran over, or are null for all time.
+ */
+export interface AdminReportDto {
+  kind: string
+  fromUtc: string | null
+  toUtc: string | null
+  /** Populated for `corridors`. */
+  corridors: AdminCorridorStatDto[]
+  /** Populated for `commodities`. */
+  commodities: AdminCommodityStatDto[]
+  /** Populated for `verification-funnel`. */
+  stages: AdminFunnelStageDto[]
+  /** Populated for `rfq`. */
+  rfq: AdminRfqReportDto | null
+}
+
+/** RFQ volume: the demand summary beside a count of RFQs by status. */
+export interface AdminRfqReportDto {
+  demand: AdminDemandStatDto
+  byStatus: AdminFunnelStageDto[]
+}
+
+/**
+ * One operator-editable setting.
+ *
+ * `defaultValue` is what the value would be with no row, so a change is undoable from the screen.
+ * `kind` tells the client which editor to draw (`'boolean'` or `'role'`). `isOverridden` is true
+ * when a row exists, as opposed to the value merely coinciding with the default.
+ */
+export interface AdminSettingDto {
+  key: string
+  value: string
+  defaultValue: string
+  kind: string
+  isOverridden: boolean
+  label: string
+  description: string
+  updatedByUserId: string | null
+  updatedAtUtc: string | null
+}
+
+export interface AdminSettingChange {
+  key: string
+  value: string
+}
+
+/** A partial update: keys not sent keep their current value, or their default if never set. */
+export interface AdminSettingsUpdateRequest {
+  settings: AdminSettingChange[]
 }
 
 // ---- Market intelligence (Phase 3): commodity price series ----

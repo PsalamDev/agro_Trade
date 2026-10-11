@@ -298,8 +298,8 @@ market report pages remain planned content work, not API surface.
 
 ## Admin
 
-Implemented in tasks 2.3 and 2.7. Every route below is live; the remaining planned
-administrative surface is listed separately so the two are never confused.
+Implemented in tasks 2.3, 2.7 and the Phase 4 admin-operations slice. Every route below is live;
+there is no remaining planned administrative surface.
 
 | Method | Route | Description |
 | --- | --- | --- |
@@ -315,6 +315,11 @@ administrative surface is listed separately so the two are never confused.
 | GET | `/admin/products` | Product moderation queue — listings across every seller, filterable by status/category |
 | PATCH | `/admin/products/{id}/moderation` | Unpublish/suspend a listing |
 | GET | `/admin/rfqs` | All RFQs + volume filters |
+| GET | `/admin/transactions` | The transaction ledger across every order. `?q=&type=&currency=&orderId=&from=&to=` |
+| GET | `/admin/reports/{kind}` | One analytics report. `kind` is `corridors`, `rfq`, `verification-funnel` or `commodities`; `?from=&to=` is an inclusive window. An unknown kind or an inverted window is a 400. |
+| GET | `/admin/settings` | The operator-editable settings, each with its catalogue default. |
+| PUT | `/admin/settings` | Partial update — only the keys sent are written. Every change is validated before any is written; one audit entry per call. |
+| PATCH | `/admin/users/{id}/status` | Suspend (`action=0`) or reactivate (`action=1`) an account. Suspension requires a `reason`; suspending yourself is refused. Writes an audit entry. |
 
 ### Notes on the dashboard contract
 
@@ -355,22 +360,44 @@ RFQs genuinely disagree, and empty when none are open.
 bearer secret exposed to non-accounts, which makes that a real question for an operator to be
 able to ask.
 
-## Admin — planned, not yet built
+### Ledger, reports, settings and account status
 
-The Phase 2 scope in `01-roadmap.md` names seven admin queues: users, businesses, products,
-RFQs, orders, documents, shipments. All seven now exist — the product moderation queue and the
-RFQ queue landed after this section was first written, so Phase 2's queues are closed. The rows
-below are reporting and operations surface, not queues.
+`GET /admin/transactions` reads the **ledger rows themselves**, not a payment rollup. Refunds and
+fees are booked as signed entries rather than by editing the payment they relate to, so a corrected
+payment adds a row instead of rewriting history, and an administrator can reconcile the page against
+a bank statement line by line. `q` searches the ledger reference, the external reference (a bank
+trace id), the narrative and the order number; `type`, `currency` and the inclusive `from`/`to`
+window on `OccurredAtUtc` are exact filters.
 
-| Method | Route | Description |
-| --- | --- | --- |
-| GET | `/admin/transactions` | Ledger + reconciliation |
-| GET | `/admin/reports/{kind}` | `corridors\|rfq\|verification-funnel\|commodities`, `?from=&to=` |
-| GET/PUT | `/admin/settings` | Default currency list per corridor, verification levels, feature flags |
-| PATCH | `/admin/users/{id}/status` | Directory + suspend/activate. Users are **not** hard-deleted — `AuditLog.UserId` is `ON DELETE RESTRICT` precisely so that removing an account cannot remove the evidence that it approved a transaction. |
+`GET /admin/reports/{kind}` returns one `AdminReportDto` **envelope with exactly one payload
+populated** according to `kind`; the other payload fields stay empty, so a client switches on `kind`
+and reads the one shape it asked for. Four endpoints would repeat the same window parsing and
+authorisation four times, and a generic row shape would throw away the per-report types the client
+already knows. `from`/`to` are inclusive and optional; an inverted window and an unknown kind are
+both 400s. The windows are honest about what they bound: corridors filter **both** sides of the
+reconciliation — orders on `PlacedAtUtc`, ledger entries on `OccurredAtUtc` — so a period cannot
+show orders whose payments sit outside it. The RFQ report, the commodities report and the
+verification funnel each filter their subject on `CreatedAtUtc`; the commodities report's supply side
+is deliberately the *current* catalogue rather than a windowed timestamp.
 
-`GET /admin/audit-log` and the product/RFQ queues were previously listed here as planned. They are
-now implemented, above.
+`GET/PUT /admin/settings` exposes a **code-defined catalogue**, not an arbitrary key/value store.
+Only keys that running code actually reads appear — a setting nothing consumes would be a screen
+that lies about its reach. `PUT` is partial (omitted keys keep their value or default), validates
+every change before writing any, and records one `settings.updated` audit entry for the batch. The
+catalogue today:
+
+| Key | Kind | Default | What it changes |
+| --- | --- | --- | --- |
+| `registration.open` | boolean | `true` | `false` makes `POST /auth/register` return 403 `REGISTRATION_CLOSED`. |
+| `registration.default_role` | role | `Buyer` | The role assigned to a registrant who states none, in `POST /auth/register`. |
+
+`PATCH /admin/users/{id}/status` sets the platform's own `IsActive` flag, which is distinct from
+Identity's `LockedOut` (a failed-sign-in throttle that clears itself). Suspension is checked on
+sign-in **and** on token validation, so it ends an existing session at that session's next request
+rather than only blocking the next login; reactivation is the resolution and takes no reason.
+Suspension requires one, and a no-op transition or suspending yourself is a 409. Accounts are never
+hard-deleted — `AuditLog.UserId` is `ON DELETE RESTRICT` precisely so removing an account cannot
+remove the evidence that it approved a transaction.
 
 ## Not in scope until noted
 

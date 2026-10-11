@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using AgroTrade.Application.Admin;
 using AgroTrade.Application.Auth;
 using AgroTrade.Application.Common;
 using AgroTrade.Domain.Enums;
@@ -42,9 +43,27 @@ public sealed class AuthService(
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
-        // Single-supplier model: registration is buyers/importers only. Supplier-side
-        // roles are filtered out and non-buyer registrations default to Buyer.
-        var roles = request.Roles.Count > 0 ? request.Roles : [RoleNames.Buyer];
+
+        // Two platform settings gate registration: whether it is open at all, and which role a
+        // registrant who names none receives. Both are read here rather than in a validator because
+        // they are runtime state, not properties of the request, and a validator cannot see the
+        // database. The catalogue supplies the default when no row has been written.
+        var open = PlatformSettingsCatalog.ReadBoolean(
+            await ReadSettingAsync(PlatformSettingsCatalog.RegistrationOpenKey, ct), fallback: true);
+        if (!open)
+        {
+            throw ApiException.Forbidden(
+                "REGISTRATION_CLOSED",
+                "Registration is temporarily closed. Please try again later.");
+        }
+
+        // Single-supplier model: registration is buyers/importers only. Supplier-side roles are
+        // filtered out, and a registrant who names none gets the configured default role — Buyer
+        // unless an administrator has chosen otherwise.
+        var fallbackRole = PlatformSettingsCatalog.ReadRole(
+            await ReadSettingAsync(PlatformSettingsCatalog.RegistrationDefaultRoleKey, ct), RoleNames.Buyer);
+
+        var roles = request.Roles.Count > 0 ? request.Roles : [fallbackRole];
         roles = roles
             .Where(r => RoleNames.Registrable.Contains(r))
             .Distinct()
@@ -52,7 +71,7 @@ public sealed class AuthService(
 
         if (roles.Count == 0)
         {
-            roles = [RoleNames.Buyer];
+            roles = [fallbackRole];
         }
 
         var user = new ApplicationUser
@@ -96,6 +115,18 @@ public sealed class AuthService(
 
         return await IssueTokenPairAsync(user);
     }
+
+    /// <summary>Reads one platform setting's stored value, or null when no row exists.</summary>
+    /// <remarks>
+    /// A single-key read rather than loading the whole table: registration is on a hot path and only
+    /// cares about the two keys it names. The catalogue turns the null into the documented default,
+    /// so "no row" and "row removed" behave identically.
+    /// </remarks>
+    private async Task<string?> ReadSettingAsync(string key, CancellationToken ct) =>
+        await db.PlatformSettings.AsNoTracking()
+            .Where(s => s.Key == key)
+            .Select(s => s.Value)
+            .FirstOrDefaultAsync(ct);
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {

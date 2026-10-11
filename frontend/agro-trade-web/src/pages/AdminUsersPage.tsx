@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AppHeader } from '../components/AppHeader'
 import { AdminNav } from '../components/AdminNav'
-import { Card, EmptyState, ErrorAlert, PageHeader, Spinner } from '../components/ui'
+import { Modal } from '../components/overlays'
+import { Button, Card, EmptyState, ErrorAlert, PageHeader, Spinner, TextArea } from '../components/ui'
 import { UsersIcon } from '../components/icons'
-import { adminSearchUsers } from '../lib/trade'
+import { adminSearchUsers, adminSetUserStatus } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import { count, formatUtc } from '../lib/format'
+import { USER_STATUS_ACTION } from '../types/trade'
 import type { AdminUserDto, PagedResult } from '../types/trade'
 
 /**
@@ -32,6 +34,9 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1)
   const [result, setResult] = useState<PagedResult<AdminUserDto> | null>(null)
   const [error, setError] = useState<{ detail?: string } | null>(null)
+  const [statusTarget, setStatusTarget] = useState<AdminUserDto | null>(null)
+  const [statusError, setStatusError] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -60,6 +65,28 @@ export default function AdminUsersPage() {
     }
   }
 
+  /**
+   * Brings a suspended account back. Reactivation does not take a reason — it is the resolution of
+   * a suspension, and the suspension's own reason already says what was wrong.
+   */
+  async function reactivate(account: AdminUserDto) {
+    setStatusError(null)
+    setBusyId(account.id)
+    try {
+      await adminSetUserStatus(account.id, { action: USER_STATUS_ACTION.Activate })
+      await load()
+    } catch (err) {
+      setStatusError(problemFrom(err).detail ?? 'The server refused the change.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  function onStatusChanged() {
+    setStatusTarget(null)
+    void load()
+  }
+
   return (
     <div className="min-h-screen">
       <AppHeader />
@@ -67,7 +94,7 @@ export default function AdminUsersPage() {
         <PageHeader
           eyebrow="Administration"
           title="Users"
-          subtitle="Every account on the platform, with the roles it holds and the business it owns. This queue is read-only — roles and standing are changed by the registration flow and by an administrator acting on a case, not from this screen."
+          subtitle="Every account on the platform, with the roles it holds and the business it owns. Roles are set by the registration flow; an administrator may suspend an account or bring it back, and each such decision is recorded in the audit trail."
         />
 
         <div className="mt-5">
@@ -104,6 +131,12 @@ export default function AdminUsersPage() {
           </label>
         </div>
 
+        {statusError ? (
+          <div className="mt-4">
+            <ErrorAlert title="Could not change the account" detail={statusError} />
+          </div>
+        ) : null}
+
         {error ? (
           <div className="mt-6">
             <ErrorAlert title="Could not load users" detail={error.detail} />
@@ -137,7 +170,12 @@ export default function AdminUsersPage() {
                         <p className="truncate text-xs text-stone-500">{account.email}</p>
                       </div>
 
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {!account.isActive ? (
+                          <span className="rounded-md bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 ring-1 ring-red-200">
+                            Suspended
+                          </span>
+                        ) : null}
                         {account.roles.map((name) => (
                           <span
                             key={name}
@@ -180,6 +218,30 @@ export default function AdminUsersPage() {
                         </div>
                       ) : null}
                     </dl>
+
+                    <div className="mt-3 flex justify-end">
+                      {account.isActive ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStatusError(null)
+                            setStatusTarget(account)
+                          }}
+                          className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-red-700 ring-1 ring-red-200 transition hover:bg-red-50"
+                        >
+                          Suspend
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busyId === account.id}
+                          onClick={() => void reactivate(account)}
+                          className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-brand-700 ring-1 ring-brand-200 transition hover:bg-brand-50 disabled:opacity-50"
+                        >
+                          {busyId === account.id ? 'Reactivating…' : 'Reactivate'}
+                        </button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -219,6 +281,98 @@ export default function AdminUsersPage() {
           </p>
         </Card>
       </main>
+
+      {statusTarget ? (
+        <SuspendUserDialog
+          account={statusTarget}
+          onClose={() => setStatusTarget(null)}
+          onDone={onStatusChanged}
+        />
+      ) : null}
     </div>
+  )
+}
+
+/**
+ * Suspends an account.
+ *
+ * The reason is mandatory here and on the server: a suspension the account cannot read is a state
+ * change nobody can act on or appeal, and the reason is what the audit trail keeps.
+ */
+function SuspendUserDialog({
+  account,
+  onClose,
+  onDone,
+}: {
+  account: AdminUserDto
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [reason, setReason] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit() {
+    const trimmed = reason.trim()
+    if (!trimmed) {
+      setError('A suspension needs a reason. It is recorded against the account and in the audit trail.')
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+    try {
+      await adminSetUserStatus(account.id, {
+        action: USER_STATUS_ACTION.Suspend,
+        reason: trimmed,
+      })
+      onDone()
+    } catch (err) {
+      setError(problemFrom(err).detail ?? 'The server refused the change.')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Suspend an account"
+      description={account.email}
+      size="md"
+      dismissOnBackdrop={!submitting}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={() => void submit()} disabled={submitting}>
+            {submitting ? 'Suspending…' : 'Suspend account'}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-stone-600">
+        A suspended account is refused at sign-in, and any session already open ends at its next
+        request rather than when its token expires. The account is not deleted: the audit trail
+        refers to it.
+      </p>
+
+      <div className="mt-4">
+        <TextArea
+          label="Reason"
+          id="suspend-reason"
+          rows={3}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Why is this account being suspended?"
+        />
+      </div>
+
+      {error ? (
+        <div className="mt-4">
+          <ErrorAlert title="Suspension refused" detail={error} />
+        </div>
+      ) : null}
+    </Modal>
   )
 }

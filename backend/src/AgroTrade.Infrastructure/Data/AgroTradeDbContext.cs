@@ -24,6 +24,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<PlatformSetting> PlatformSettings => Set<PlatformSetting>();
 
     // Business & trust
     public DbSet<Business> Businesses => Set<Business>();
@@ -729,6 +730,18 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.HasIndex(a => new { a.CreatedAtUtc, a.Id });
             e.HasIndex(a => a.Action);
             e.HasIndex(a => a.UserId);
+        });
+
+        builder.Entity<PlatformSetting>(e =>
+        {
+            // The catalogue key is the natural primary key: at most one row per setting, so a read
+            // never has to decide which of several rows is "the" value.
+            e.HasKey(s => s.Key);
+            e.Property(s => s.Key).HasMaxLength(80).IsRequired();
+            e.Property(s => s.Value).HasMaxLength(400).IsRequired();
+
+            // Not a foreign key. The setting, and the fact that an administrator changed it, outlive
+            // that account — see PlatformSetting.UpdatedByUserId.
         });
 
         builder.Entity<Domain.Trust.Review>(e =>
