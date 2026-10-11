@@ -62,7 +62,7 @@ Api → Application → Domain
 | Logging | `Serilog.AspNetCore`, `Serilog.Sinks.Console`, `Serilog.Sinks.File` |
 | Storage | Cloudinary `CloudinaryDotNet` or AWS `AWSSDK.S3` (behind `IFileStorage`) |
 | Email | `MailKit` |
-| Jobs | `Quartz.Extensions.Hosting` (RFQ expiry, payment timeouts, reports) |
+| Jobs | Hosted services (`BackgroundService`) from the framework — no Quartz dependency (see §6) |
 | Tests | `xunit`, `Microsoft.AspNetCore.Mvc.Testing`, `Testcontainers.MsSql` (optional heavy) |
 
 ## 4. Authentication & authorization design
@@ -101,7 +101,7 @@ Api → Application → Domain
 | CORS | Allowlisted origins from config |
 | Storage | `IFileStorage.UploadAsync/GetSignedUrlAsync/DeleteAsync`; local disk in dev, Cloudinary/S3 in cloud |
 | Config | `appsettings*.json` + **user-secrets** in dev; Key Vault/environment in cloud |
-| Background | Quartz jobs: RFQ expiry, payment timeout → auto-cancel, email queue, market-data ingest |
+| Background | `ScheduledBackgroundService` hosted workers: a scoped, idempotent pass on a configurable interval, one bad pass logged and retried rather than killing the worker. Today: RFQ expiry + refresh-token cleanup; the base is where the later payment-timeout, email-queue and ingest jobs belong. `BackgroundJobs:Enabled` is the master switch |
 | Health | `/health` (liveness) + `/health/ready` (DB reachability) |
 | Trade terms & money | Shared services/labels for incoterms, HS-code starter map, currency formatting per ISO-4217 — used by listings, RFQs, quotes, orders |
 

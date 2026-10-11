@@ -27,4 +27,11 @@ public interface IRfqService
     Task<QuotationDto> AcceptQuotationAsync(Guid quotationId, Guid buyerUserId, CancellationToken ct = default);
 
     Task<QuotationDto> WithdrawQuotationAsync(Guid quotationId, Guid supplierUserId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Marks Open RFQs whose deadline has passed as Expired and notifies their buyers. Read paths
+    /// call this lazily; the RFQ expiry worker calls it on a schedule. Exposing it keeps a single
+    /// definition of "expired". Returns how many RFQs were closed in this pass.
+    /// </summary>
+    Task<int> ExpireOverdueAsync(CancellationToken ct = default);
 }

@@ -394,7 +394,8 @@ public sealed class RfqService(AgroTradeDbContext db) : IRfqService
     /// <summary>Per-year prefix for RFQ numbers.</summary>
     private static string RfqNumberPrefix() => $"RFQ-{DateTime.UtcNow.Year}-";
 
-    private async Task ExpireOverdueAsync(CancellationToken ct)
+    /// <inheritdoc />
+    public async Task<int> ExpireOverdueAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
         var overdue = await db.TradeRequests
@@ -402,7 +403,7 @@ public sealed class RfqService(AgroTradeDbContext db) : IRfqService
             .ToListAsync(ct);
         if (overdue.Count == 0)
         {
-            return;
+            return 0;
         }
 
         foreach (var rfq in overdue)
@@ -418,6 +419,7 @@ public sealed class RfqService(AgroTradeDbContext db) : IRfqService
             });
         }
         await db.SaveChangesAsync(ct);
+        return overdue.Count;
     }
 
     private async Task<TradeRequestDetailDto> ToDetailAsync(TradeRequest rfq, Guid userId, CancellationToken ct)

@@ -222,6 +222,13 @@ Phase 4.
   - **Audit exports delivered** — an admin CSV download of the audit trail and the transaction
     ledger, reusing each list's filters with no page cap (`/admin/audit-log/export`,
     `/admin/transactions/export`).
+  - **Background workers delivered** — a hosted-service scheduler (see
+    `ScheduledBackgroundService`) with two idempotent, failure-isolated sweeps: overdue RFQs are
+    expired and their buyers notified even with no traffic on the RFQ (the lazy read-path sweep
+    only fired when someone looked), and refresh tokens that can no longer authenticate are
+    pruned — deliberately keeping revoked-but-live rows so a replayed token is still detectable.
+    Intervals and a master switch live under `BackgroundJobs` in configuration; the test host
+    runs with the switch off and drives each pass directly.
 - Mobile via the same versioned API.
 
 **Exit criteria**

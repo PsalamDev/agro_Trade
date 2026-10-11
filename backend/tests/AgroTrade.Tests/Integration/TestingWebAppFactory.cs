@@ -44,6 +44,10 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
         // cannot produce a body the API will accept. Payments:SigningSecret is validated on
         // start, so it cannot simply be left empty here.
         Environment.SetEnvironmentVariable("Payments__SigningSecret", "test-webhook-signing-secret-0123456789");
+        // The test host starts the hosted maintenance workers too. Their sweeps would race every
+        // assertion about RFQ/token state, so the suite runs the host with them switched off and
+        // drives each worker's pass directly where it is under test.
+        Environment.SetEnvironmentVariable("BackgroundJobs__Enabled", "false");
         Environment.SetEnvironmentVariable("Serilog__MinimumLevel__Default", "Warning");
     }
 

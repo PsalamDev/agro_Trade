@@ -5,6 +5,7 @@ using AgroTrade.Application.Communication;
 using AgroTrade.Application.Trade;
 using AgroTrade.Infrastructure.Admin;
 using AgroTrade.Infrastructure.Auth;
+using AgroTrade.Infrastructure.BackgroundJobs;
 using AgroTrade.Infrastructure.Communication;
 using AgroTrade.Infrastructure.Data;
 using AgroTrade.Infrastructure.Email;
@@ -80,6 +81,19 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailSender, ConsoleEmailSender>();
         services.AddScoped<DbSeeder>();
+
+        // Background maintenance workers (Phase 5 — "background workers"). Each runs a scoped,
+        // idempotent sweep on an interval. BackgroundJobs:Enabled=false (used by the test host)
+        // stops the whole set without touching the code that owns the work.
+        //
+        // Registered as singletons *and* hosted, via the same instance: the host runs them, and an
+        // operator (or a test) can also resolve one by name to trigger a pass immediately.
+        services.AddOptions<BackgroundJobsOptions>()
+            .Bind(configuration.GetSection(BackgroundJobsOptions.SectionName));
+        services.AddSingleton<RfqExpiryWorker>();
+        services.AddHostedService(sp => sp.GetRequiredService<RfqExpiryWorker>());
+        services.AddSingleton<RefreshTokenCleanupWorker>();
+        services.AddHostedService(sp => sp.GetRequiredService<RefreshTokenCleanupWorker>());
 
         // Trade & communication (Phase 1)
         services.AddScoped<IFileStorage, LocalFileStorage>();
