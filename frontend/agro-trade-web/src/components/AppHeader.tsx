@@ -16,6 +16,7 @@ import {
   MessageIcon,
   PackageIcon,
   SearchIcon,
+  TruckIcon,
 } from './icons'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -42,6 +43,7 @@ export function AppHeader() {
   const isCompany = roles.includes(COMPANY_ROLE)
   const isAdmin = roles.includes('Administrator')
   const isBuyer = roles.some((role) => (REGISTRABLE_ROLES as readonly string[]).includes(role))
+  const isLsp = roles.includes('LogisticsProvider')
   const [menuOpen, setMenuOpen] = useState(false)
 
   const tradingLinks = [
@@ -51,6 +53,8 @@ export function AppHeader() {
     { to: '/messages', label: 'Messages', icon: <MessageIcon className="h-4 w-4" />, show: true },
     { to: '/my/products', label: 'My listings', icon: <GridIcon className="h-4 w-4" />, show: isCompany },
     { to: '/business', label: 'Business', icon: <BuildingIcon className="h-4 w-4" />, show: true },
+    { to: '/logistics/bookings', label: 'Logistics bookings', icon: <TruckIcon className="h-4 w-4" />, show: true },
+    { to: '/logistics/profile', label: 'My LSP profile', icon: <BuildingIcon className="h-4 w-4" />, show: isLsp },
     // One admin entry, not six. The header had a link to each of two queues with no overview above
     // them; the dashboard now carries onward navigation to every queue, including these two.
     { to: '/admin', label: 'Admin', icon: <GridIcon className="h-4 w-4" />, show: isAdmin },
@@ -60,6 +64,7 @@ export function AppHeader() {
     { to: '/', label: 'Home', end: true },
     { to: '/marketplace', label: 'Products', end: false },
     { to: '/market-intelligence', label: 'Market data', end: false },
+    { to: '/logistics', label: 'Logistics', end: false },
     { to: '/about', label: 'About', end: false },
     { to: '/contact', label: 'Contact', end: false },
   ]

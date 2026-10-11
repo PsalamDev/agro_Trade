@@ -56,6 +56,11 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     // Logistics
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<ShipmentTrackingEvent> ShipmentTrackingEvents => Set<ShipmentTrackingEvent>();
+
+    // Logistics-provider directory + booking (Phase 4)
+    public DbSet<LogisticsProvider> LogisticsProviders => Set<LogisticsProvider>();
+    public DbSet<LogisticsProviderCountry> LogisticsProviderCountries => Set<LogisticsProviderCountry>();
+    public DbSet<LogisticsBooking> LogisticsBookings => Set<LogisticsBooking>();
     public DbSet<Domain.Intelligence.MarketData> MarketData => Set<Domain.Intelligence.MarketData>();
     public DbSet<Domain.Trust.Review> Reviews => Set<Domain.Trust.Review>();
     public DbSet<Domain.Trade.Dispute> Disputes => Set<Domain.Trade.Dispute>();
@@ -97,6 +102,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
         ConfigureTradeRequests(builder);
         ConfigureOrders(builder);
         ConfigureCarts(builder);
+        ConfigureLogisticsDirectory(builder);
         ConfigureCommunication(builder);
     }
 
@@ -574,6 +580,72 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
                 .WithMany()
                 .HasForeignKey(i => i.ProductId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureLogisticsDirectory(ModelBuilder builder)
+    {
+        builder.Entity<LogisticsProvider>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.CompanyName).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Description).HasMaxLength(2000);
+            e.Property(p => p.HomeCountry).HasMaxLength(2).IsRequired();
+            e.Property(p => p.ContactEmail).HasMaxLength(200);
+            e.Property(p => p.ContactPhone).HasMaxLength(40);
+            e.Property(p => p.Website).HasMaxLength(300);
+            e.Property(p => p.Rating).HasPrecision(3, 2);
+            // One profile per owner, and the service reads it back with FirstOrDefault: the index
+            // is what makes "my profile" a single answer rather than a race between two rows.
+            e.HasIndex(p => p.OwnerUserId).IsUnique();
+            // The directory's default view is active providers, ranked verified first.
+            e.HasIndex(p => new { p.IsActive, p.IsVerified });
+            e.HasIndex(p => p.HomeCountry);
+            e.Ignore(p => p.ModeList);
+            e.Ignore(p => p.ServiceList);
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(p => p.OwnerUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<LogisticsProviderCountry>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Country).HasMaxLength(2).IsRequired();
+            e.HasIndex(c => new { c.LogisticsProviderId, c.Country }).IsUnique();
+            e.HasIndex(c => c.Country);
+            e.HasOne<LogisticsProvider>()
+                .WithMany(p => p.Coverage)
+                .HasForeignKey(c => c.LogisticsProviderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<LogisticsBooking>(e =>
+        {
+            e.HasKey(b => b.Id);
+            e.Property(b => b.Reference).HasMaxLength(32).IsRequired();
+            e.Property(b => b.Notes).HasMaxLength(2000);
+            e.Property(b => b.ResponseNotes).HasMaxLength(1000);
+            e.HasIndex(b => b.Reference).IsUnique();
+            e.HasIndex(b => new { b.OrderId, b.LogisticsProviderId });
+            e.HasIndex(b => new { b.RequestedByUserId, b.Status });
+            e.HasIndex(b => new { b.LogisticsProviderId, b.Status });
+            e.HasOne(b => b.Order)
+                .WithMany(o => o.LogisticsBookings)
+                .HasForeignKey(b => b.OrderId)
+                // Cascade, like shipments: a booking has no meaning without the order it is for.
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(b => b.Provider)
+                .WithMany(p => p.Bookings)
+                .HasForeignKey(b => b.LogisticsProviderId)
+                // Restrict: a provider's booking history is the record of the work they were
+                // engaged for, and it must outlive any attempt to remove the provider.
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(b => b.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 

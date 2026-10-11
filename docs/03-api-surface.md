@@ -10,7 +10,7 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 | Versioning | `/api/v1/...` (URL segment); v2+ additive, breaking changes bump version |
 | Auth | `Authorization: Bearer <jwt>`; 401 unauth, 403 forbidden-for-role |
 | Role classes | **Public**, **User** (any authenticated), **Exporter/Seller** (Farmer/Supplier/AgroProcessor/Exporter/Distributor), **Importer/Buyer** (Buyer/Importer/Distributor), **LSP** (LogisticsProvider), **Admin** |
-| Policies | `Administrator`, `VerifiedSeller` (business Verified), `SellerOrAdmin`, `BuyerOrAdmin`, `Buyer` (Buyer/Importer/Distributor — cart, Phase 4); ownership enforced in services (not just roles) |
+| Policies | `Administrator`, `VerifiedSeller` (business Verified), `SellerOrAdmin`, `BuyerOrAdmin`, `Buyer` (Buyer/Importer/Distributor — cart, Phase 4), `Lsp` (LogisticsProvider — provider profile + booking responses); ownership enforced in services (not just roles) |
 | Pagination | `?page=1&pageSize=20` (max 100) → envelope `{ items, page, pageSize, total, totalPages }` |
 | Sorting | `?sortBy=<field>&sortDir=asc\|desc` (allowlist per resource) |
 | Filtering | Query params per resource; search = `q` |
@@ -130,6 +130,35 @@ Checkout errors: `CART_EMPTY`, `PRODUCT_NOT_FOUND` (404), `PRODUCT_UNAVAILABLE` 
 changed after it was added — taken down, deactivated, suspended, short of stock), `PRODUCT_NOT_DOMESTIC`,
 `ORDER_SELF_SALE`, `CURRENCY_MIXED`, `DELIVERY_COUNTRY_MISMATCH` (address country ≠ seller origin —
 "domestic" is fixed by this check), `QUANTITY_EXCEEDS_AVAILABLE`, `INSUFFICIENT_STOCK` (409).
+
+## Logistics directory & booking (Phase 4 — Slice 3)
+
+A logistics provider is a user with the `LogisticsProvider` role who has published a profile. The
+directory is **public** and carries no contact details; the full profile (contact details included)
+requires an account, and only the owner may write a profile. Provider profiles are seeded/
+operator-onboarded, not self-registered — `LogisticsProvider` is not in `RoleNames.Registrable`.
+
+| Method | Route | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/logistics/providers` | Public | Directory search; `?country=&mode=&service=&q=&page=&pageSize=`. An unrecognised `mode`/`service` is a 400 `INVALID_FILTER`, never a silent "any". Card shape carries **no contact details** |
+| GET | `/logistics/providers/mine` | LSP | The caller's own profile, or 404 `PROVIDER_NOT_FOUND` |
+| PUT | `/logistics/providers/mine` | LSP | Create or **replace** the caller's profile — whole-object, not a patch. Requires `companyName`, an alpha-2 `homeCountry`, ≥ 1 `modes`, ≥ 1 `coverage` country; optional contact fields and `isActive` |
+| GET | `/logistics/providers/{id}` | User | Full profile including contact details; `isMine` tells the UI whether to offer editing |
+| POST | `/orders/{orderId}/logistics-bookings` | Participant | `{ providerId, mode, notes? }` — either party to the order may ask. An order the caller has no part in is a 404, not a 403 |
+| GET | `/orders/{orderId}/logistics-bookings` | Participant | The order's bookings; both parties see the same list |
+| GET | `/logistics/bookings` | User | Everything the caller raised or was named in; `?status=` |
+| GET | `/logistics/bookings/{id}` | Participant | One booking |
+| POST | `/logistics/bookings/{id}/respond` | LSP | `{ accept, notes? }` — the named provider accepts or declines an open request |
+| POST | `/logistics/bookings/{id}/cancel` | Requester | Withdraw an un-answered request |
+| POST | `/logistics/bookings/{id}/complete` | Requester | Close an accepted booking as fulfilled |
+
+Booking rules and errors: only a **listed and active** provider can be booked
+(`PROVIDER_NOT_FOUND`, 404); a draft or cancelled order is closed to new bookings (`ORDER_CLOSED`,
+409); one open or agreed booking per provider per order, so a second request is a duplicate
+(`BOOKING_EXISTS`, 409). Only the named provider may answer (`NOT_PROVIDER`, 403), only the requester
+may withdraw or complete (`NOT_REQUESTER`, 403), and only an un-decided request can be withdrawn or
+answered and only an accepted one completed (`BOOKING_CLOSED` / `BOOKING_NOT_ACCEPTED`, 409).
+Validation failures (bad mode/service, missing coverage, an email that is not an email) are 400s.
 
 ## Payments & Transactions
 
@@ -331,13 +360,12 @@ now implemented, above.
 
 ## Not in scope until noted
 
-Domestic logistics-provider *directory/booking*
-marketplace (Phase 4), escrow, AI, price-feed ingestion API (internal job), and
-customs-service integrations (Phase 5).
+Escrow, AI, price-feed ingestion API (internal job), and customs-service integrations
+(Phase 5). Domestic logistics-provider *directory/booking* shipped in Phase 4 — Slice 3, above.
 
 ## Realtime model
 
 - **Notifications hub** (`/hubs/notifications`, bearer): push on RFQ/quote/order/
-  document/payment/shipment/verification events.
+  document/payment/shipment/verification/logistics events.
 - **Messages hub** (`/hubs/messages`): join per `conversationKey`; `Send`/`Read` events.
 - Fallback: poll `GET /me/notifications?unreadOnly=true` every 30s.

@@ -109,6 +109,10 @@ public static class DependencyInjection
         // Shipments (task 2.6). The guest tracking read is anonymous, so this service is also the
         // one place that has to be careful about what it puts in the public payload.
         services.AddScoped<IShipmentService, ShipmentService>();
+
+        // Logistics-provider directory + booking (Phase 4 exit criterion). A booking links a
+        // directory provider to an order; see LogisticsDirectoryService.
+        services.AddScoped<ILogisticsDirectoryService, LogisticsDirectoryService>();
     services.AddScoped<IAdminService, AdminService>();
     // Save-less by design: the entry is flushed by the same SaveChanges as the action it records.
     services.AddScoped<IAuditLogWriter, AuditLogWriter>();

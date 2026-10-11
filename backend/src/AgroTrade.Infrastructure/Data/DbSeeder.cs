@@ -47,6 +47,7 @@ public sealed partial class DbSeeder(
         await SeedCategoriesAsync(ct);
         await SeedDemoCorridorsAsync(ct);
         await SeedCompanyCatalogAsync(ct);
+        await SeedLogisticsProvidersAsync(ct);
         await SeedMarketDataAsync(ct);
     }
 
@@ -805,5 +806,115 @@ public sealed partial class DbSeeder(
         }
 
         return slug.ToString();
+    }
+
+    // ---- Logistics-provider directory (Phase 4 exit criterion) ----
+
+    /// <summary>
+    /// A small, idempotent provider directory so the buyer-facing LSP directory is not empty on a
+    /// fresh dev database. Providers are seeded rather than self-registered because the
+    /// LogisticsProvider role is not in <see cref="RoleNames.Registrable"/> — in the MVP they are
+    /// onboarded by the operator. All three are verified so the directory's trust mark is visible.
+    /// </summary>
+    private async Task SeedLogisticsProvidersAsync(CancellationToken ct)
+    {
+        const string password = "Demo@12345";
+
+        var seeds = new (string Email, string Company, string Country, string? Phone,
+            ShipmentMode[] Modes, LogisticsService[] Services, string[] Coverage,
+            string Description, decimal Rating, int RatingCount)[]
+        {
+            (
+                "logistics@lagosfreight.demo", "Lagos Freight & Logistics Ltd", "NG", "+234 700 000 0001",
+                [ShipmentMode.Road, ShipmentMode.Sea],
+                [LogisticsService.FreightForwarding, LogisticsService.CustomsBrokerage, LogisticsService.Warehousing],
+                ["NG", "GH", "CI", "BJ", "TG"],
+                "Port-to-door freight forwarding out of Apapa and Tin Can, with in-house customs brokerage "
+                + "and bonded warehousing across the Lagos corridor.",
+                4.60m, 38),
+            (
+                "ops@sahelair.demo", "Sahel Air Cargo", "NG", "+234 700 000 0002",
+                [ShipmentMode.Air, ShipmentMode.Road],
+                [LogisticsService.FreightForwarding, LogisticsService.Insurance, LogisticsService.LastMile],
+                ["NG", "KE", "AE", "GH", "ZA"],
+                "Time-critical air freight and last-mile distribution for perishables and high-value cargo, "
+                + "with consolidated uplift into Nairobi, Dubai and Johannesburg.",
+                4.30m, 21),
+            (
+                "dispatch@westcoasthaulage.demo", "West Coast Haulage", "NG", "+234 700 000 0003",
+                [ShipmentMode.Road],
+                [LogisticsService.Trucking, LogisticsService.LastMile, LogisticsService.Warehousing],
+                ["NG", "BJ", "TG"],
+                "Regional road haulage and distribution across Nigeria and the coastal West African "
+                + "corridor, from single flatbeds to dedicated fleet contracts.",
+                4.10m, 14),
+        };
+
+        var added = 0;
+
+        foreach (var seed in seeds)
+        {
+            var owner = await userManager.FindByEmailAsync(seed.Email);
+            if (owner is null)
+            {
+                owner = new ApplicationUser
+                {
+                    UserName = seed.Email,
+                    Email = seed.Email,
+                    DisplayName = seed.Company,
+                    HomeCountry = seed.Country,
+                    DefaultCurrency = "NGN",
+                    IsActive = true,
+                    EmailConfirmed = true,
+                    CreatedAtUtc = DateTime.UtcNow,
+                };
+
+                var result = await userManager.CreateAsync(owner, password);
+                if (!result.Succeeded)
+                {
+                    logger.LogWarning(
+                        "Could not seed logistics provider {Email}: {Errors}",
+                        seed.Email, string.Join("; ", result.Errors.Select(e => e.Description)));
+                    continue;
+                }
+
+                await userManager.AddToRoleAsync(owner, RoleNames.LogisticsProvider);
+            }
+
+            if (await db.LogisticsProviders.AnyAsync(p => p.OwnerUserId == owner.Id, ct))
+            {
+                continue;
+            }
+
+            var provider = new LogisticsProvider
+            {
+                OwnerUserId = owner.Id,
+                CompanyName = seed.Company,
+                Description = seed.Description,
+                HomeCountry = seed.Country,
+                ContactEmail = seed.Email,
+                ContactPhone = seed.Phone,
+                Modes = ShipmentModeMask.ToMask(seed.Modes),
+                Services = seed.Services.Aggregate(0, (mask, s) => mask | (int)s),
+                IsActive = true,
+                IsVerified = true,
+                Rating = seed.Rating,
+                RatingCount = seed.RatingCount,
+            };
+
+            foreach (var country in seed.Coverage)
+            {
+                provider.Coverage.Add(new LogisticsProviderCountry { Country = country });
+            }
+
+            db.LogisticsProviders.Add(provider);
+            added++;
+        }
+
+        if (added > 0)
+        {
+            await db.SaveChangesAsync(ct);
+            logger.LogInformation("Seeded {Count} logistics provider(s).", added);
+        }
     }
 }

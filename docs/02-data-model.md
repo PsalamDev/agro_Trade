@@ -396,6 +396,60 @@ to now). Since every later milestone is sorted against it, this is what makes a 
 coherent: a consignment booked ten days ago and departed eight days ago has to be able to say so,
 or the booking silently outranks its own history.
 
+### LogisticsProviders (Phase 4 — LSP directory)
+
+A logistics service provider, listed in a directory and bookable against orders. Owned by one user
+holding the `LogisticsProvider` role.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| Id | guid | PK |
+| OwnerUserId | guid | FK Users (**restrict**) — the user who maintains the profile |
+| CompanyName | nvarchar(200) | |
+| Description | nvarchar(2000)? | |
+| HomeCountry | nvarchar(2) | ISO-3166 alpha-2 |
+| ContactEmail / ContactPhone / Website | nvarchar(200/40/300)? | contact details, shown only to signed-in users |
+| Modes | int | **bitmask** over `ShipmentMode`, read/written via `ShipmentModeMask` |
+| Services | int | **bitmask** over `[Flags] LogisticsService` |
+| IsActive | bit | owner-controlled visibility; an inactive provider leaves the directory |
+| IsVerified | bit | operator-set trust mark, independent of `IsActive` |
+| Rating / RatingCount | decimal(3,2) / int | seeded reputation; no write path yet |
+| CreatedAtUtc / UpdatedAtUtc | datetime2? | |
+
+Unique index on `OwnerUserId` — one profile per user. Deliberately **not** a `BusinessType`: a
+provider is discovered and booked, never verified-and-transacted-with, so folding it into
+`Business` would make every business query answer "but may this one sell?".
+
+### LogisticsProviderCountries (Phase 4 — LSP coverage)
+
+`Id, LogisticsProviderId FK (cascade), Country nvarchar(2)`. One row per country served, so the
+directory can index and filter coverage instead of parsing a delimited string. Replaced wholesale on
+profile save.
+
+### LogisticsBookings (Phase 4 — LSP booking)
+
+The link between an order and a provider. Distinct from `Shipments`: a shipment is the seller's
+operational record once goods move (one per order, append-only milestones), while a booking is the
+commercial step before it, and either party to the order may raise one.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| Id | guid | PK |
+| Reference | nvarchar(30) | e.g. `LSP-2026-000001`, **unique** |
+| OrderId | guid | FK Orders (**cascade**) |
+| LogisticsProviderId | guid | FK LogisticsProviders (**restrict**) — referenced by FK, not a name snapshot |
+| RequestedByUserId | guid | FK Users (**restrict**) — the buyer or seller, never the provider |
+| Mode | int | **ShipmentMode** — the single leg requested |
+| Status | int | **LogisticsBookingStatus** — Requested/Accepted/Declined/Cancelled/Completed |
+| Notes | nvarchar(2000)? | requester's cargo details, collection window |
+| ResponseNotes | nvarchar(1000)? | the provider's note on accept/decline |
+| DecidedAtUtc | datetime2? | null while the request is open |
+| CreatedAtUtc / UpdatedAtUtc | datetime2? | |
+
+Unique index on `Reference`, plus `(OrderId)` and `(LogisticsProviderId, Status)`. A booking
+references its provider by FK — a directory entry's whole purpose is to be found again — and a
+deactivated provider is hidden by `IsActive` rather than deleted.
+
 ---
 
 ## Documents (trade documents — core)
@@ -493,11 +547,13 @@ Phase 3+ powers commodity prices and trade-trend charts.
 | QuotationStatus | Submitted, UnderReview, Negotiating, Accepted, Declined, Withdrawn, Expired |
 | Incoterms | EXW, FCA, FAS, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP |
 | ShipmentStatus | Pending, Booked, Departed, InTransit, Arrived, Delivered, Exception |
-| ShipmentMode | Road, Rail, Sea, Air, Multimodal |
+| ShipmentMode | Road=0, Rail=1, Sea=2, Air=3, Multimodal=4 |
+| LogisticsService | **bitmask** — None=0, FreightForwarding=1, CustomsBrokerage=2, Warehousing=4, Trucking=8, Insurance=16, Inspection=32, ColdChain=64, LastMile=128 |
+| LogisticsBookingStatus | Requested=0, Accepted=1, Declined=2, Cancelled=3, Completed=4 |
 | DisputeStatus | Open, UnderReview, Resolved, Rejected, Escalated |
 | InvoiceStatus | Draft, Issued, Overdue, Paid, Cancelled |
 | TransactionType | Payment, Refund, Fee |
-| NotificationType | Order, Rfq, Quotation, Message, Payment, Shipment, Verification, Document, Dispute, System, Review |
+| NotificationType | Order, Rfq, Quotation, Message, Payment, Shipment, Verification, Document, Dispute, System, Review, Refund, Logistics |
 
 **Enums:** stored as `int`, appended only, never renumbered.
 
@@ -520,6 +576,7 @@ hashing, lockout, email confirm, and refresh-token storage for free.
 | Demo corridors | Verified exporters (Mombasa FOB cashew; Lagos CIF maize), verified importer (Ng/Lagos), LSP (sea freight) |
 | Demo products | ~10 export listings with trade terms, certifications, stock |
 | Domestic availability | Idempotent backfill (Phase 4): the four Nigerian catalogue listings get `SellsDomestically=true` with flat `DomesticDeliveryFee` — Palm Kernel 25, Palm Kernel Cake 20, Yellow Maize 30, Milled Rice 5% Broken 40 |
+| Logistics providers | 3 verified directory entries (Phase 4 — Slice 3): Lagos Freight & Logistics (road/sea; freight forwarding, customs, warehousing), Sahel Air Cargo (road/air; freight forwarding, insurance, last mile), West Coast Haulage (road; warehousing, trucking, last mile) — each owned by a `LogisticsProvider` user |
 | MarketData | 2–3 commodities × weeks of daily prices (Phase 3 charts) |
 
 ## Migration & schema management

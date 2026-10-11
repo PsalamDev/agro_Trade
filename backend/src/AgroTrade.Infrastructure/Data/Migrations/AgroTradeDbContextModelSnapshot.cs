@@ -739,6 +739,159 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.ToTable("Invoices");
                 });
 
+            modelBuilder.Entity("AgroTrade.Domain.Trade.LogisticsBooking", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("LogisticsProviderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<Guid>("RequestedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ResponseNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Reference")
+                        .IsUnique();
+
+                    b.HasIndex("LogisticsProviderId", "Status");
+
+                    b.HasIndex("OrderId", "LogisticsProviderId");
+
+                    b.HasIndex("RequestedByUserId", "Status");
+
+                    b.ToTable("LogisticsBookings");
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.LogisticsProvider", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("HomeCountry")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Modes")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Rating")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("decimal(3,2)");
+
+                    b.Property<int>("RatingCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Services")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HomeCountry");
+
+                    b.HasIndex("OwnerUserId")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "IsVerified");
+
+                    b.ToTable("LogisticsProviders");
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.LogisticsProviderCountry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Country")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<Guid>("LogisticsProviderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Country");
+
+                    b.HasIndex("LogisticsProviderId", "Country")
+                        .IsUnique();
+
+                    b.ToTable("LogisticsProviderCountries");
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Trade.Order", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2133,6 +2286,49 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.Navigation("Order");
                 });
 
+            modelBuilder.Entity("AgroTrade.Domain.Trade.LogisticsBooking", b =>
+                {
+                    b.HasOne("AgroTrade.Domain.Trade.LogisticsProvider", "Provider")
+                        .WithMany("Bookings")
+                        .HasForeignKey("LogisticsProviderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AgroTrade.Domain.Trade.Order", "Order")
+                        .WithMany("LogisticsBookings")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AgroTrade.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+
+                    b.Navigation("Provider");
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.LogisticsProvider", b =>
+                {
+                    b.HasOne("AgroTrade.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.LogisticsProviderCountry", b =>
+                {
+                    b.HasOne("AgroTrade.Domain.Trade.LogisticsProvider", null)
+                        .WithMany("Coverage")
+                        .HasForeignKey("LogisticsProviderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Trade.Order", b =>
                 {
                     b.HasOne("AgroTrade.Infrastructure.Identity.ApplicationUser", null)
@@ -2411,11 +2607,20 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.Navigation("Items");
                 });
 
+            modelBuilder.Entity("AgroTrade.Domain.Trade.LogisticsProvider", b =>
+                {
+                    b.Navigation("Bookings");
+
+                    b.Navigation("Coverage");
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Trade.Order", b =>
                 {
                     b.Navigation("Documents");
 
                     b.Navigation("Items");
+
+                    b.Navigation("LogisticsBookings");
 
                     b.Navigation("Payments");
 

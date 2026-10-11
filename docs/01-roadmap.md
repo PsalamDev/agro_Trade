@@ -154,8 +154,8 @@ reserved atomically. Listings opt in with `SellsDomestically` + `DomesticDeliver
 on the four Nigerian catalogue items). Buyer-side access is `Policies.Buyer`
 (Buyer/Importer/Distributor). Frontend: a header cart badge, a `/cart` page (grouped by
 seller, quantity steppers, delivery-address form, per-order success links) and a buy-now card
-on the product page. Logistics-provider directory/booking and domestic onboarding paths remain
-for later slices.
+on the product page. Domestic onboarding paths and deeper logistics (warehousing, insurance
+hooks) remain for later slices.
 
 **Slice 1 hardening (shipped).** The seller listing form now exposes `SellsDomestically` and the
 flat domestic delivery fee (and *My listings* badges domestic items), so a real seller — not only
@@ -163,6 +163,19 @@ the seeder — can opt a listing into buy-now. At checkout the delivery address 
 the order** (`DeliveryLine1`…`DeliveryPostalCode`, country in `DestinationCountry`) rather than
 written as a hidden address-book row, and it is surfaced on the order page; order cards also show
 `Domestic · {country}` and the delivery fee, so both parties can see where the goods go.
+
+**Slice 3 — logistics-provider directory + booking (shipped).** A `LogisticsProvider` is a profile
+owned by a user holding the (already-seeded) `LogisticsProvider` role; it is deliberately **not** a
+`BusinessType`, because a provider is discovered and booked, not verified and transacted-with.
+Coverage is a child table of ISO-3166 alpha-2 countries; transport modes and ancillary services are
+bitmasks (`ShipmentMode` bits via `ShipmentModeMask`; `[Flags] LogisticsService`). The directory
+list is **public** and carries no contact details — it is a front door for people deciding whether
+to register — while the full profile, including contact details, requires an account. Either party
+to an order may raise a `LogisticsBooking` against it; the named provider accepts or declines, the
+requester withdraws an un-answered request, and the requester closes an accepted one out. A booking
+references its provider by FK and never a `Shipment`, so it leaves the seller-only, one-per-order
+consignment model untouched. Three verified providers are seeded in development. This closes Phase
+4's exit criterion that an LSP can be found and linked to orders.
 
 ---
 

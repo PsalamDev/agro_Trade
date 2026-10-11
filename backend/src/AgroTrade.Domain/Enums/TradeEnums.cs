@@ -198,6 +198,37 @@ public enum ShipmentMode
     Multimodal = 4,
 }
 
+/// <summary>
+/// Ancillary services a logistics provider offers, alongside the transport modes it has declared
+/// (Phase 4 — LSP directory). A bitmask, because a provider routinely offers several and the
+/// directory has to filter on any one of them without a join.
+/// </summary>
+[Flags]
+public enum LogisticsService
+{
+    None = 0,
+    FreightForwarding = 1,
+    CustomsBrokerage = 2,
+    Warehousing = 4,
+    Trucking = 8,
+    Insurance = 16,
+    Inspection = 32,
+    ColdChain = 64,
+    LastMile = 128,
+}
+
+/// <summary>Lifecycle of a logistics booking request made against an order (Phase 4).</summary>
+public enum LogisticsBookingStatus
+{
+    /// <summary>Raised by a party to the order; the provider has not answered yet.</summary>
+    Requested = 0,
+    Accepted = 1,
+    Declined = 2,
+    /// <summary>Withdrawn by the requester before the provider answered.</summary>
+    Cancelled = 3,
+    Completed = 4,
+}
+
 public enum NotificationType
 {
     Order = 0,
@@ -212,6 +243,7 @@ public enum NotificationType
     System = 9,
     Review = 10,
     Refund = 11,
+    Logistics = 12,
 }
 
 public enum DisputeStatus

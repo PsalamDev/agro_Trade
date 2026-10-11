@@ -83,6 +83,7 @@ public sealed class Order : IAuditableEntity
     public List<Payment> Payments { get; set; } = [];
     public List<TradeDocument> Documents { get; set; } = [];
     public List<Shipment> Shipments { get; set; } = [];
+    public List<LogisticsBooking> LogisticsBookings { get; set; } = [];
 
     public Quotation? Quotation { get; set; }
     public TradeRequest? TradeRequest { get; set; }

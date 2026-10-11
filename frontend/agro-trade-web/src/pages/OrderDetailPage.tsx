@@ -6,6 +6,7 @@ import { OrderDocumentsPanel } from '../components/OrderDocumentsPanel'
 import { OrderPaymentsPanel } from '../components/OrderPaymentsPanel'
 import { OrderBillingPanel } from '../components/OrderBillingPanel'
 import { OrderShipmentsPanel } from '../components/OrderShipmentsPanel'
+import { OrderLogisticsPanel } from '../components/OrderLogisticsPanel'
 import { ConfirmDialog } from '../components/overlays'
 import { Button, Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { problemFrom } from '../lib/api'
@@ -296,6 +297,8 @@ export default function OrderDetailPage() {
                 <OrderBillingPanel order={order} onChanged={refresh} />
 
                 <OrderShipmentsPanel order={order} onChanged={refresh} />
+
+                <OrderLogisticsPanel order={order} onChanged={refresh} />
 
                 <OrderDocumentsPanel
                   order={order}

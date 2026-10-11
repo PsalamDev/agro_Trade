@@ -134,6 +134,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(Policies.Administrator, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.Administrator));
     options.AddPolicy(Policies.Seller, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.SellerRoles.ToArray()));
     options.AddPolicy(Policies.Buyer, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.BuyerRoles.ToArray()));
+    options.AddPolicy(Policies.Lsp, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.LogisticsProvider));
 });
 
 // ---- Cross-cutting ----
@@ -211,6 +212,8 @@ public static partial class Policies
     public const string Seller = "Seller";
     /// <summary>Buyer-side roles: Buyer, Importer, Distributor.</summary>
     public const string Buyer = "Buyer";
+    /// <summary>Logistics-provider role (Phase 4): maintains a directory profile and answers bookings.</summary>
+    public const string Lsp = "Lsp";
 }
 
 /// <summary>Factory entry point for WebApplicationFactory integration tests.</summary>

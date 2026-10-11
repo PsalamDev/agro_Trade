@@ -36,9 +36,14 @@ import AdminAuditLogPage from './pages/AdminAuditLogPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RequireRole } from './components/RequireRole'
 import CartPage from './pages/CartPage'
+import LogisticsDirectoryPage from './pages/LogisticsDirectoryPage'
+import LogisticsProviderPage from './pages/LogisticsProviderPage'
+import LogisticsBookingsPage from './pages/LogisticsBookingsPage'
+import LogisticsProfilePage from './pages/LogisticsProfilePage'
 
 const ADMIN_ROLES = ['Administrator']
 const BUYER_ROLES = ['Buyer', 'Importer', 'Distributor']
+const LSP_ROLES = ['LogisticsProvider']
 
 export default function App() {
   return (
@@ -59,6 +64,7 @@ export default function App() {
         <Route path="/products/:idOrSlug" element={<ProductDetailPage />} />
         <Route path="/businesses/:id" element={<PublicBusinessPage />} />
         <Route path="/rfqs" element={<RfqDirectoryPage />} />
+        <Route path="/logistics" element={<LogisticsDirectoryPage />} />
 
         {/*
           Guest consignment tracking. Deliberately outside ProtectedRoute: the link goes to freight
@@ -147,6 +153,34 @@ export default function App() {
             <ProtectedRoute>
               <OrderDetailPage />
             </ProtectedRoute>
+          }
+        />
+        {/*
+          The directory itself is public, but a provider's full profile carries contact details and
+          is signed-in only — so the detail route sits behind ProtectedRoute.
+        */}
+        <Route
+          path="/logistics/providers/:id"
+          element={
+            <ProtectedRoute>
+              <LogisticsProviderPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/logistics/bookings"
+          element={
+            <ProtectedRoute>
+              <LogisticsBookingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/logistics/profile"
+          element={
+            <RequireRole roles={LSP_ROLES}>
+              <LogisticsProfilePage />
+            </RequireRole>
           }
         />
         <Route
