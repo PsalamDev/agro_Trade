@@ -17,6 +17,18 @@ public interface IAdminService
     Task<PagedResult<AdminAuditLogDto>> SearchAuditLogAsync(
         AdminAuditLogQuery query, CancellationToken ct = default);
 
+    /// <summary>
+    /// Writes the audit trail as CSV under the same filters as the list, and returns the number of
+    /// rows written (the header is not counted).
+    /// </summary>
+    /// <remarks>
+    /// Streamed rather than returned as a string: an audit trail only grows, and the whole point of
+    /// taking it away is that it may be larger than a page. Writing to a <see cref="TextWriter"/>
+    /// rather than straight to the response keeps the query testable without an HTTP server.
+    /// </remarks>
+    Task<int> ExportAuditLogCsvAsync(
+        AdminAuditLogQuery query, TextWriter writer, CancellationToken ct = default);
+
     /// <summary>Platform users, for the admin list.</summary>
     Task<PagedResult<AdminUserDto>> SearchUsersAsync(
         AdminUserSearchQuery query, CancellationToken ct = default);
@@ -61,6 +73,18 @@ public interface IAdminService
     /// <summary>Every movement of money, newest first, across every order.</summary>
     Task<PagedResult<AdminTransactionRowDto>> SearchTransactionsAsync(
         AdminTransactionSearchQuery query, CancellationToken ct = default);
+
+    /// <summary>
+    /// Writes the transaction ledger as CSV under the same filters as the list, and returns the
+    /// number of rows written (the header is not counted).
+    /// </summary>
+    /// <remarks>
+    /// The ledger is the record an operator reconciles against a bank statement, so a filtered
+    /// screen is often not enough: they need the rows themselves, in a spreadsheet, without paging
+    /// through the UI a screenful at a time. Same filters, same ordering, no page cap.
+    /// </remarks>
+    Task<int> ExportTransactionsCsvAsync(
+        AdminTransactionSearchQuery query, TextWriter writer, CancellationToken ct = default);
 
     /// <summary>
     /// One analytics report over an optional date window: trade by corridor, RFQ volume, the

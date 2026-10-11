@@ -219,6 +219,9 @@ Phase 4.
 - OS/spedition integrations: customs declarations, port systems.
 - AI-assisted supplier/buyer matching and trade-document processing (pilot).
 - Redis caching, cloud storage migration, background workers at scale, audit exports.
+  - **Audit exports delivered** — an admin CSV download of the audit trail and the transaction
+    ledger, reusing each list's filters with no page cap (`/admin/audit-log/export`,
+    `/admin/transactions/export`).
 - Mobile via the same versioned API.
 
 **Exit criteria**

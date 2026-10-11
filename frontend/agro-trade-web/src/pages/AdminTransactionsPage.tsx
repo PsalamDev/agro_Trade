@@ -3,7 +3,8 @@ import { AppHeader } from '../components/AppHeader'
 import { AdminNav } from '../components/AdminNav'
 import { Card, EmptyState, ErrorAlert, PageHeader, Spinner } from '../components/ui'
 import { CoinsIcon } from '../components/icons'
-import { adminSearchTransactions } from '../lib/trade'
+import { adminExportTransactions, adminSearchTransactions } from '../lib/trade'
+import { ExportButton } from '../components/ExportButton'
 import { problemFrom } from '../lib/api'
 import { count, formatUtc, money } from '../lib/format'
 import { TRANSACTION_TYPES } from '../types/trade'
@@ -128,6 +129,19 @@ export default function AdminTransactionsPage() {
               ))}
             </select>
           </label>
+
+          <ExportButton
+            className="ml-auto"
+            label="Export CSV"
+            fileName={`transactions-${new Date().toISOString().slice(0, 10)}.csv`}
+            load={() =>
+              adminExportTransactions({
+                q: term.trim() || undefined,
+                type: type === '' ? undefined : Number(type),
+                currency: currency || undefined,
+              })
+            }
+          />
         </div>
 
         {error ? (

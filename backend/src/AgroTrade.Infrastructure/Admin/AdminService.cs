@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using AgroTrade.Infrastructure.Data;
 using AgroTrade.Infrastructure.Identity;
 using AgroTrade.Infrastructure.Payments;
+using System.Globalization;
 
 namespace AgroTrade.Infrastructure.Admin;
 
@@ -497,35 +498,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
         AdminAuditLogQuery query, CancellationToken ct = default)
     {
         var (page, pageSize) = PageHelper.Normalize(query.Page, query.PageSize);
-        var search = query.Q?.Trim();
-
-        var filtered = db.AuditLogs.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(query.Action))
-        {
-            filtered = filtered.Where(a => a.Action == query.Action);
-        }
-
-        if (query.UserId.HasValue)
-        {
-            filtered = filtered.Where(a => a.UserId == query.UserId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            Guid? searchId = null;
-            if (Guid.TryParse(search, out var pid))
-            {
-                searchId = pid;
-            }
-
-            filtered = filtered.Where(a =>
-                EF.Functions.Like(a.Summary, $"%{search}%") ||
-                EF.Functions.Like(a.EntityType, $"%{search}%") ||
-                EF.Functions.Like(a.Action, $"%{search}%") ||
-                (a.Details != null && EF.Functions.Like(a.Details, $"%{search}%")) ||
-                (searchId.HasValue && a.EntityId == searchId.Value));
-        }
+        var filtered = FilterAuditLogs(query);
 
         var total = await filtered.CountAsync(ct);
         var rows = await filtered
@@ -564,6 +537,94 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
             TotalPages = TotalPages(total, pageSize),
         };
     }
+
+    public async Task<int> ExportAuditLogCsvAsync(
+        AdminAuditLogQuery query, TextWriter writer, CancellationToken ct = default)
+    {
+        // The header goes out before the first result, so an export that matches nothing is still a
+        // valid, openable file rather than a zero-byte download.
+        await writer.WriteAsync(
+            Csv.Row("OccurredAtUtc", "Action", "EntityType", "EntityId", "Actor", "ActorUserId", "Summary", "Details").AsMemory(),
+            ct);
+
+        var rows = FilterAuditLogs(query)
+            .OrderByDescending(a => a.CreatedAtUtc)
+            .ThenByDescending(a => a.Id)
+            .Select(a => new
+            {
+                a.UserId,
+                // Resolved in the query, not a second pass: the export streams in one round trip and
+                // a trail larger than memory still writes row by row.
+                Actor = db.Users.Where(u => u.Id == a.UserId).Select(u => u.DisplayName).FirstOrDefault(),
+                a.Action,
+                a.EntityType,
+                a.EntityId,
+                a.Summary,
+                a.Details,
+                a.CreatedAtUtc,
+            });
+
+        var count = 0;
+        await foreach (var row in rows.AsAsyncEnumerable().WithCancellation(ct))
+        {
+            await writer.WriteAsync(Csv.Row(
+                Iso(row.CreatedAtUtc),
+                row.Action,
+                row.EntityType,
+                row.EntityId?.ToString(),
+                // Matches the list: a deleted actor reads as unknown rather than absent, and the id
+                // keeps its own column so the row stays attributable.
+                string.IsNullOrWhiteSpace(row.Actor) ? row.UserId.ToString() : row.Actor,
+                row.UserId.ToString(),
+                row.Summary,
+                row.Details).AsMemory(), ct);
+            count++;
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// The audit-log filters, shared by the paged list and the export so the two can never disagree
+    /// about what "the same filter" means.
+    /// </summary>
+    private IQueryable<AuditLog> FilterAuditLogs(AdminAuditLogQuery query)
+    {
+        var search = query.Q?.Trim();
+        var filtered = db.AuditLogs.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query.Action))
+        {
+            filtered = filtered.Where(a => a.Action == query.Action);
+        }
+
+        if (query.UserId.HasValue)
+        {
+            filtered = filtered.Where(a => a.UserId == query.UserId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            Guid? searchId = null;
+            if (Guid.TryParse(search, out var pid))
+            {
+                searchId = pid;
+            }
+
+            filtered = filtered.Where(a =>
+                EF.Functions.Like(a.Summary, $"%{search}%") ||
+                EF.Functions.Like(a.EntityType, $"%{search}%") ||
+                EF.Functions.Like(a.Action, $"%{search}%") ||
+                (a.Details != null && EF.Functions.Like(a.Details, $"%{search}%")) ||
+                (searchId.HasValue && a.EntityId == searchId.Value));
+        }
+
+        return filtered;
+    }
+
+    /// <summary>ISO-8601, invariant, for a column a spreadsheet or a script will re-parse.</summary>
+    private static string Iso(DateTime? value) =>
+        value?.ToString("o", CultureInfo.InvariantCulture) ?? string.Empty;
 
     // ---- Lists ----
 
@@ -1147,48 +1208,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
         AdminTransactionSearchQuery query, CancellationToken ct = default)
     {
         var (page, pageSize) = PageHelper.Normalize(query.Page, query.PageSize);
-        var search = query.Q?.Trim();
-
-        var filtered = db.Transactions.AsNoTracking().AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            // The order number is searched too, because the number an operator reads off a bank
-            // statement or a support ticket is as often the order as the ledger reference.
-            filtered = filtered.Where(t =>
-                EF.Functions.Like(t.Reference, $"%{search}%") ||
-                (t.ExternalReference != null && EF.Functions.Like(t.ExternalReference, $"%{search}%")) ||
-                (t.Narrative != null && EF.Functions.Like(t.Narrative, $"%{search}%")) ||
-                db.Orders.Any(o => o.Id == t.OrderId && EF.Functions.Like(o.OrderNumber, $"%{search}%")));
-        }
-
-        if (query.Type.HasValue)
-        {
-            filtered = filtered.Where(t => t.Type == (TransactionType)query.Type.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.Currency))
-        {
-            // Upper-cased to match storage: ISO-4217 codes are stored upper-case, and a filter of
-            // "usd" that silently matched nothing would read as "no such payments".
-            var currency = query.Currency.Trim().ToUpperInvariant();
-            filtered = filtered.Where(t => t.Currency == currency);
-        }
-
-        if (query.OrderId.HasValue)
-        {
-            filtered = filtered.Where(t => t.OrderId == query.OrderId.Value);
-        }
-
-        if (query.From.HasValue)
-        {
-            filtered = filtered.Where(t => t.OccurredAtUtc >= query.From.Value);
-        }
-
-        if (query.To.HasValue)
-        {
-            filtered = filtered.Where(t => t.OccurredAtUtc <= query.To.Value);
-        }
+        var filtered = FilterTransactions(query);
 
         var total = await filtered.CountAsync(ct);
 
@@ -1243,6 +1263,114 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
             TotalPages = TotalPages(total, pageSize),
         };
     }
+
+    public async Task<int> ExportTransactionsCsvAsync(
+        AdminTransactionSearchQuery query, TextWriter writer, CancellationToken ct = default)
+    {
+        await writer.WriteAsync(
+            Csv.Row("OccurredAtUtc", "Reference", "Type", "Amount", "Currency", "OrderNumber", "PaymentId", "ExternalReference", "Narrative").AsMemory(),
+            ct);
+
+        var rows = FilterTransactions(query)
+            .OrderByDescending(t => t.OccurredAtUtc)
+            .ThenByDescending(t => t.Id)
+            .Select(t => new
+            {
+                t.Reference,
+                Type = (int)t.Type,
+                t.Amount,
+                t.Currency,
+                OrderNumber = db.Orders
+                    .Where(o => o.Id == t.OrderId)
+                    .Select(o => o.OrderNumber)
+                    .FirstOrDefault(),
+                t.PaymentId,
+                t.OccurredAtUtc,
+                t.ExternalReference,
+                t.Narrative,
+            });
+
+        var count = 0;
+        await foreach (var row in rows.AsAsyncEnumerable().WithCancellation(ct))
+        {
+            await writer.WriteAsync(Csv.Row(
+                Iso(row.OccurredAtUtc),
+                row.Reference,
+                TransactionTypeLabel((TransactionType)row.Type),
+                // Invariant and unsigned-looking at a glance but signed in fact: a refund is negative.
+                // No thousands separator, because this column is meant to be summed by whatever opens
+                // the file, and a separator would only get in the way.
+                row.Amount.ToString("0.00", CultureInfo.InvariantCulture),
+                row.Currency,
+                row.OrderNumber,
+                row.PaymentId?.ToString(),
+                row.ExternalReference,
+                row.Narrative).AsMemory(), ct);
+            count++;
+        }
+
+        return count;
+    }
+
+    /// <summary>The ledger filters, shared by the paged list and the export.</summary>
+    private IQueryable<Transaction> FilterTransactions(AdminTransactionSearchQuery query)
+    {
+        var search = query.Q?.Trim();
+        var filtered = db.Transactions.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            // The order number is searched too, because the number an operator reads off a bank
+            // statement or a support ticket is as often the order as the ledger reference.
+            filtered = filtered.Where(t =>
+                EF.Functions.Like(t.Reference, $"%{search}%") ||
+                (t.ExternalReference != null && EF.Functions.Like(t.ExternalReference, $"%{search}%")) ||
+                (t.Narrative != null && EF.Functions.Like(t.Narrative, $"%{search}%")) ||
+                db.Orders.Any(o => o.Id == t.OrderId && EF.Functions.Like(o.OrderNumber, $"%{search}%")));
+        }
+
+        if (query.Type.HasValue)
+        {
+            filtered = filtered.Where(t => t.Type == (TransactionType)query.Type.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Currency))
+        {
+            // Upper-cased to match storage: ISO-4217 codes are stored upper-case, and a filter of
+            // "usd" that silently matched nothing would read as "no such payments".
+            var currency = query.Currency.Trim().ToUpperInvariant();
+            filtered = filtered.Where(t => t.Currency == currency);
+        }
+
+        if (query.OrderId.HasValue)
+        {
+            filtered = filtered.Where(t => t.OrderId == query.OrderId.Value);
+        }
+
+        if (query.From.HasValue)
+        {
+            filtered = filtered.Where(t => t.OccurredAtUtc >= query.From.Value);
+        }
+
+        if (query.To.HasValue)
+        {
+            filtered = filtered.Where(t => t.OccurredAtUtc <= query.To.Value);
+        }
+
+        return filtered;
+    }
+
+    /// <summary>
+    /// The word an operator reads, not the enum's name. Kept here rather than in the DTO, per the
+    /// convention that a status enum does not leak into a client contract.
+    /// </summary>
+    private static string TransactionTypeLabel(TransactionType type) => type switch
+    {
+        TransactionType.Payment => "Payment",
+        TransactionType.Refund => "Refund",
+        TransactionType.Fee => "Fee",
+        _ => type.ToString(),
+    };
 
     // ---- Reports ----
 

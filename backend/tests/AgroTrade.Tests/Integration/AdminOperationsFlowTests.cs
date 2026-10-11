@@ -118,6 +118,108 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
         Assert.DoesNotContain(refunds.Items, t => t.ExternalReference == remittance);
     }
 
+    // ---- Exports ----
+
+    [Fact]
+    public async Task Exports_RequireAdministrator()
+    {
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.GetAsync("/api/v1/admin/audit-log/export")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Unauthorized,
+            (await _client.GetAsync("/api/v1/admin/transactions/export")).StatusCode);
+
+        var buyerToken = await RegisterAndLoginAsync($"ops_export_forbid_{Guid.NewGuid():N}");
+        Assert.Equal(
+            HttpStatusCode.Forbidden,
+            (await GetAsync("/api/v1/admin/audit-log/export", buyerToken)).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Forbidden,
+            (await GetAsync("/api/v1/admin/transactions/export", buyerToken)).StatusCode);
+    }
+
+    [Fact]
+    public async Task AuditExport_IsACsvFile_ForTheFilteredEntry()
+    {
+        var token = await VerifyBusinessAsync(
+            await RegisterAndLoginAsync($"ops_export_audit_{Guid.NewGuid():N}"));
+        var businessId = await SupplierBusinessIdAsync(token);
+
+        var response = await GetAsync(
+            $"/api/v1/admin/audit-log/export?q={businessId}", await AdminTokenAsync());
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("text/csv", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("attachment", response.Content.Headers.ContentDisposition?.DispositionType);
+        Assert.EndsWith(".csv", response.Content.Headers.ContentDisposition?.FileName);
+
+        var lines = CsvLines(await response.Content.ReadAsStringAsync());
+        Assert.Equal(
+            "OccurredAtUtc,Action,EntityType,EntityId,Actor,ActorUserId,Summary,Details",
+            lines[0]);
+
+        // The review of this one business is the only entry naming its id, so exactly one row comes
+        // back - and the id sits in the column the heading promises, not merely somewhere in the file.
+        var row = Assert.Single(lines.Skip(1));
+        Assert.Equal(businessId.ToString(), row.Split(',')[3]);
+        Assert.Contains("business.verification.approved", row);
+    }
+
+    [Fact]
+    public async Task LedgerExport_IsACsvFile_ForTheSettlement()
+    {
+        var (buyerToken, sellerToken) = await SeedTradeAsync("ledger-export");
+        var orderId = await SeedOrderAsync(buyerToken, sellerToken);
+        var orderNumber = await GetOrderNumberAsync(buyerToken, orderId);
+        var remittance = $"UTR-{Guid.NewGuid():N}";
+
+        (await PostAsync($"/api/v1/orders/{orderId}/payments/manual", sellerToken,
+            new { amount = 4000m, remittanceReference = remittance })).EnsureSuccessStatusCode();
+
+        var response = await GetAsync(
+            $"/api/v1/admin/transactions/export?q={Uri.EscapeDataString(remittance)}",
+            await AdminTokenAsync());
+
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("text/csv", response.Content.Headers.ContentType?.MediaType);
+
+        var lines = CsvLines(await response.Content.ReadAsStringAsync());
+        Assert.Equal(
+            "OccurredAtUtc,Reference,Type,Amount,Currency,OrderNumber,PaymentId,ExternalReference,Narrative",
+            lines[0]);
+
+        var row = Assert.Single(lines.Skip(1));
+        // Type is the word an operator reads, and the amount is the signed figure with no thousands
+        // separator, so the column can be summed straight from the file.
+        Assert.Contains("Payment", row);
+        Assert.Contains("4000.00", row);
+        Assert.Contains("USD", row);
+        Assert.Contains(orderNumber, row);
+        Assert.Contains(remittance, row);
+    }
+
+    [Fact]
+    public async Task Exports_AreValidFiles_WhenNothingMatches()
+    {
+        var adminToken = await AdminTokenAsync();
+        var missing = $"no-such-{Guid.NewGuid():N}";
+
+        var audit = await GetAsync(
+            $"/api/v1/admin/audit-log/export?q={Uri.EscapeDataString(missing)}", adminToken);
+        audit.EnsureSuccessStatusCode();
+        Assert.Equal(
+            "OccurredAtUtc,Action,EntityType,EntityId,Actor,ActorUserId,Summary,Details",
+            CsvLines(await audit.Content.ReadAsStringAsync()).Single());
+
+        var ledger = await GetAsync(
+            $"/api/v1/admin/transactions/export?q={Uri.EscapeDataString(missing)}", adminToken);
+        ledger.EnsureSuccessStatusCode();
+        Assert.Equal(
+            "OccurredAtUtc,Reference,Type,Amount,Currency,OrderNumber,PaymentId,ExternalReference,Narrative",
+            CsvLines(await ledger.Content.ReadAsStringAsync()).Single());
+    }
+
     // ---- Reports ----
 
     [Fact]
@@ -802,6 +904,16 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
         var response = await GetAsync($"/api/v1/orders/{orderId}", token);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<OrderMirror>())!.OrderNumber;
+    }
+
+    /// <summary>
+    /// Splits an export body into lines on the CRLF the writer emits, dropping the trailing newline
+    /// and the UTF-8 BOM the file deliberately starts with for Excel.
+    /// </summary>
+    private static string[] CsvLines(string body)
+    {
+        var trimmed = body.TrimStart('\uFEFF').TrimEnd('\r', '\n');
+        return trimmed.Length == 0 ? [] : trimmed.Split("\r\n");
     }
 
     // ---- DTO mirrors ----

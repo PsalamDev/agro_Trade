@@ -6,6 +6,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AgroTrade.Domain.Enums;
+using System.Text;
 
 namespace AgroTrade.Api.Controllers;
 
@@ -60,6 +61,28 @@ public class AdminController(
             Page = page,
             PageSize = pageSize,
         }, ct));
+    }
+
+    /// <summary>
+    /// The audit trail as a CSV file, under the same filters as the list.
+    /// </summary>
+    /// <remarks>
+    /// A route of its own rather than a <c>format</c> parameter on the list, because the two are read
+    /// by different things: the list is paged for a screen, the file is taken away whole. The response
+    /// streams, so a large trail is not held in server memory before it is sent.
+    /// </remarks>
+    [HttpGet("audit-log/export")]
+    [Produces("text/csv")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ExportAuditLog(
+        [FromQuery] string? action, [FromQuery] Guid? userId, [FromQuery] string? q,
+        CancellationToken ct = default)
+    {
+        return await CsvDownloadAsync(
+            "audit-log",
+            (writer, token) => admin.ExportAuditLogCsvAsync(
+                new AdminAuditLogQuery { Action = action, UserId = userId, Q = q }, writer, token),
+            ct);
     }
 
     [HttpGet("users")]
@@ -276,6 +299,69 @@ public class AdminController(
             Page = page,
             PageSize = pageSize,
         }, ct));
+    }
+
+    /// <summary>
+    /// The transaction ledger as a CSV file, under the same filters as the list.
+    /// </summary>
+    /// <remarks>
+    /// The ledger is what an operator reconciles against a bank statement, so being able to take the
+    /// filtered rows away is the point, not a convenience. Ordering matches the list exactly, so a
+    /// spreadsheet sorted the way it was exported is the same order the screen showed.
+    /// </remarks>
+    [HttpGet("transactions/export")]
+    [Produces("text/csv")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ExportTransactions(
+        [FromQuery] string? q, [FromQuery] int? type, [FromQuery] string? currency,
+        [FromQuery] Guid? orderId, [FromQuery] DateTime? from, [FromQuery] DateTime? to,
+        CancellationToken ct = default)
+    {
+        return await CsvDownloadAsync(
+            "transactions",
+            (writer, token) => admin.ExportTransactionsCsvAsync(
+                new AdminTransactionSearchQuery
+                {
+                    Q = q,
+                    Type = type,
+                    Currency = currency,
+                    OrderId = orderId,
+                    From = from,
+                    To = to,
+                },
+                writer,
+                token),
+            ct);
+    }
+
+    /// <summary>
+    /// Starts a CSV download and lets a service stream rows straight into it.
+    /// </summary>
+    /// <remarks>
+    /// Written to the response rather than materialised into a string first, so the size of an export
+    /// is bounded by the client's patience rather than by the server's memory. The UTF-8 BOM is
+    /// deliberate: without it Excel reads a UTF-8 CSV as the local legacy code page and mangles any
+    /// non-ASCII text — a trading name, a rejection reason — the moment the file is double-clicked.
+    /// </remarks>
+    private async Task<IActionResult> CsvDownloadAsync(
+        string baseName,
+        Func<TextWriter, CancellationToken, Task<int>> write,
+        CancellationToken ct)
+    {
+        Response.ContentType = "text/csv; charset=utf-8";
+        Response.Headers["Content-Disposition"] =
+            $"attachment; filename=\"{baseName}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv\"";
+
+        await using var writer = new StreamWriter(
+            Response.Body,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: true),
+            bufferSize: 16 * 1024,
+            leaveOpen: true);
+
+        await write(writer, ct);
+        await writer.FlushAsync(ct);
+
+        return new EmptyResult();
     }
 
     /// <summary>

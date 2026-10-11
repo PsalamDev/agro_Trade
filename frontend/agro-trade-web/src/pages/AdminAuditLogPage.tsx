@@ -3,7 +3,8 @@ import { AppHeader } from '../components/AppHeader'
 import { AdminNav } from '../components/AdminNav'
 import { Card, EmptyState, ErrorAlert, PageHeader, Spinner } from '../components/ui'
 import { ClockIcon } from '../components/icons'
-import { adminSearchAuditLog } from '../lib/trade'
+import { adminExportAuditLog, adminSearchAuditLog } from '../lib/trade'
+import { ExportButton } from '../components/ExportButton'
 import { problemFrom } from '../lib/api'
 import { formatUtc } from '../lib/format'
 import { AUDIT_ACTIONS } from '../types/trade'
@@ -125,6 +126,18 @@ export default function AdminAuditLogPage() {
               ))}
             </select>
           </label>
+
+          <ExportButton
+            className="ml-auto"
+            label="Export CSV"
+            fileName={`audit-log-${new Date().toISOString().slice(0, 10)}.csv`}
+            load={() =>
+              adminExportAuditLog({
+                action: action || undefined,
+                q: term.trim() || undefined,
+              })
+            }
+          />
         </div>
 
         {error ? (

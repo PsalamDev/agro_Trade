@@ -299,12 +299,14 @@ market report pages remain planned content work, not API surface.
 ## Admin
 
 Implemented in tasks 2.3, 2.7 and the Phase 4 admin-operations slice. Every route below is live and
-every queue has an admin screen; there is no remaining planned administrative surface.
+every queue has an admin screen; the audit trail and the ledger can also be taken away as CSV. There
+is no remaining planned administrative surface.
 
 | Method | Route | Description |
 | --- | --- | --- |
 | GET | `/admin/overview` | **One request, the whole dashboard.** Platform counts, four funnels (business verification, document verification, order status, order payment status), corridor value, per-category supply vs demand, RFQ demand. |
 | GET | `/admin/audit-log` | Administrator decisions, newest first. `?action=&userId=&q=` |
+| GET | `/admin/audit-log/export` | The same trail as a **CSV download** under the same `?action=&userId=&q=` filters and ordering, with no page cap. Streamed, and the file opens with a UTF-8 BOM so Excel reads non-ASCII text (a trading name, a rejection reason) correctly. |
 | GET | `/admin/users` | User directory. `?q=&role=&emailConfirmed=&lockedOut=`. `role` is a role **name**, not an id — ids are database-generated and undiscoverable through the API, so an id filter would be a parameter no client could fill. |
 | GET | `/admin/orders` | Global order queue. `?status=&paymentStatus=&q=` |
 | GET | `/admin/shipments` | Global consignment queue. `?status=&q=&hasGuestTracking=` |
@@ -316,6 +318,7 @@ every queue has an admin screen; there is no remaining planned administrative su
 | PATCH | `/admin/products/{id}/moderation` | Suspend (`action=0`) or reinstate (`action=1`) a listing. Suspension requires a `reason`; re-suspending a suspended listing is a 409, and reinstating deliberately does not publish a draft. Writes an audit entry |
 | GET | `/admin/rfqs` | All RFQs + volume filters. `?status=&q=&unanswered=` — `unanswered` is a property of the RFQ (no quotation at all), not of any one supplier |
 | GET | `/admin/transactions` | The transaction ledger across every order. `?q=&type=&currency=&orderId=&from=&to=` |
+| GET | `/admin/transactions/export` | The same ledger as a **CSV download** under the same `?q=&type=&currency=&orderId=&from=&to=` filters and ordering, with no page cap. The amount column is signed and has no thousands separator, so the file can be summed straight from the spreadsheet. |
 | GET | `/admin/reports/{kind}` | One analytics report. `kind` is `corridors`, `rfq`, `verification-funnel` or `commodities`; `?from=&to=` is an inclusive window. An unknown kind or an inverted window is a 400. |
 | GET | `/admin/settings` | The operator-editable settings, each with its catalogue default. |
 | PUT | `/admin/settings` | Partial update — only the keys sent are written. Every change is validated before any is written; one audit entry per call. |
@@ -368,6 +371,13 @@ payment adds a row instead of rewriting history, and an administrator can reconc
 a bank statement line by line. `q` searches the ledger reference, the external reference (a bank
 trace id), the narrative and the order number; `type`, `currency` and the inclusive `from`/`to`
 window on `OccurredAtUtc` are exact filters.
+
+The audit trail and the ledger each have a **CSV export** beside their list. The export reuses the
+list's filter, so the two can never disagree about what a filter means, but drops the page cap: an
+operator reconciling a statement needs the rows themselves rather than a screenful at a time. The
+writer quotes only the fields that need it, so a comma in a rejection reason cannot shift a column.
+Both responses stream and are only reachable by an administrator; the frontend fetches them as blobs
+(a link would send no bearer token) and saves them in place.
 
 `GET /admin/reports/{kind}` returns one `AdminReportDto` **envelope with exactly one payload
 populated** according to `kind`; the other payload fields stay empty, so a client switches on `kind`

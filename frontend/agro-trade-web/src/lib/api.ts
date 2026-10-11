@@ -92,5 +92,18 @@ export function problemFrom(error: unknown) {
       fieldErrors: error.response?.data?.fieldErrors,
     }
   }
+
+  // `unwrap()` throws the parsed shape, so a caller that hands it back in must not have the real
+  // message replaced with the generic one. Passing through keeps the server's detail visible.
+  if (isProblem(error)) {
+    return error
+  }
+
   return { code: 'UNKNOWN', detail: 'Something went wrong.', fieldErrors: undefined }
+}
+
+function isProblem(
+  value: unknown,
+): value is { code: string; detail: string; fieldErrors?: Record<string, string[]> } {
+  return typeof value === 'object' && value !== null && typeof (value as { detail?: unknown }).detail === 'string'
 }
