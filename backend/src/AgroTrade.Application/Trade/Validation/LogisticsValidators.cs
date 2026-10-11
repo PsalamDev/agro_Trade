@@ -47,6 +47,17 @@ public sealed class CreateLogisticsBookingRequestValidator : AbstractValidator<C
         RuleFor(x => x.ProviderId).NotEmpty()
             .WithMessage("A logistics provider is required.");
         RuleFor(x => x.Mode).Must(m => EnumChecks.In<ShipmentMode>((int)m));
+        RuleForEach(x => x.Services)
+            .Must(s => s != LogisticsService.None && EnumChecks.In<LogisticsService>((int)s))
+            .WithMessage("Unrecognised service.");
+
+        // Whether insurance is actually engaged is checked against the provider's offer in the
+        // service — here we only need the value to be sane when one is given at all.
+        RuleFor(x => x.InsuredValue)
+            .GreaterThan(0)
+            .When(x => x.InsuredValue.HasValue)
+            .WithMessage("An insured value must be greater than zero.");
+
         RuleFor(x => x.Notes).MaximumLength(2000);
     }
 }

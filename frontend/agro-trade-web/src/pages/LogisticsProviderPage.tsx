@@ -245,6 +245,7 @@ export default function LogisticsProviderPage() {
                         providerId={provider.id}
                         providerName={provider.companyName}
                         providerModes={provider.modes}
+                        providerServices={provider.services}
                         onBooked={() => setBooked(true)}
                       />
                     </div>

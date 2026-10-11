@@ -751,6 +751,10 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.Property<DateTime?>("DecidedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal?>("InsuredValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<Guid>("LogisticsProviderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -775,6 +779,9 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.Property<string>("ResponseNotes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Services")
+                        .HasColumnType("int");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");

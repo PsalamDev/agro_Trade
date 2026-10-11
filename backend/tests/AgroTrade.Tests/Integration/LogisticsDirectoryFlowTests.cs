@@ -526,6 +526,112 @@ public sealed class LogisticsDirectoryFlowTests : IClassFixture<TestingWebAppFac
         Assert.Equal(HttpStatusCode.OK, stillMine.StatusCode);
     }
 
+    // ---- Ancillary services & insurance ----
+
+    [Fact]
+    public async Task ABookingCanEngageAncillaryServicesAndRecordAnInsuredValue()
+    {
+        var (buyerToken, sellerToken) = await SeedTradeAsync($"lsp_services_{Tag()}");
+        var orderId = await SeedOrderAsync(buyerToken, sellerToken);
+
+        var lspToken = await CreateLspUserAsync($"lsp_services_provider_{Tag()}");
+        var provider = await UpsertProviderAsync(lspToken, $"Services Freight {Guid.NewGuid():N}",
+            coverage: ["NG"], modes: [ShipmentMode.Sea],
+            services:
+            [
+                LogisticsService.FreightForwarding,
+                LogisticsService.Warehousing,
+                LogisticsService.Insurance,
+            ]);
+
+        var booking = await RequestBookingAsync(orderId, buyerToken, provider.Id, ShipmentMode.Sea,
+            services: [LogisticsService.Warehousing, LogisticsService.Insurance], insuredValue: 25000m);
+
+        // The engaged services are what was asked for — a subset of the provider's offer — and the
+        // declared value rides with the insurance.
+        Assert.Contains(LogisticsService.Warehousing, booking.Services);
+        Assert.Contains(LogisticsService.Insurance, booking.Services);
+        Assert.DoesNotContain(LogisticsService.FreightForwarding, booking.Services);
+        Assert.Equal(25000m, booking.InsuredValue);
+        Assert.Equal("USD", booking.Currency);
+
+        // And they survive the round trip through the order's booking list.
+        var forOrder = await GetAuthenticatedAsync($"/api/v1/orders/{orderId}/logistics-bookings", buyerToken);
+        forOrder.EnsureSuccessStatusCode();
+        var onOrder = Assert.Single((await forOrder.Content.ReadFromJsonAsync<List<BookingMirror>>(JsonOptions))!);
+        Assert.Equal(booking.Id, onOrder.Id);
+        Assert.Contains(LogisticsService.Warehousing, onOrder.Services);
+        Assert.Equal(25000m, onOrder.InsuredValue);
+    }
+
+    [Fact]
+    public async Task ABookingCannotEngageAServiceTheProviderDoesNotOffer()
+    {
+        var (buyerToken, sellerToken) = await SeedTradeAsync($"lsp_unoffered_{Tag()}");
+        var orderId = await SeedOrderAsync(buyerToken, sellerToken);
+
+        var lspToken = await CreateLspUserAsync($"lsp_unoffered_provider_{Tag()}");
+        var provider = await UpsertProviderAsync(lspToken, $"Unoffered Freight {Guid.NewGuid():N}",
+            coverage: ["NG"], modes: [ShipmentMode.Sea], services: [LogisticsService.Trucking]);
+
+        // Warehousing is not on this provider's list, so engaging it is refused rather than
+        // silently dropped: the provider never offered to warehouse.
+        var response = await PostAuthenticatedAsync(
+            $"/api/v1/orders/{orderId}/logistics-bookings", buyerToken,
+            new
+            {
+                providerId = provider.Id,
+                mode = (int)ShipmentMode.Sea,
+                services = new[] { (int)LogisticsService.Warehousing },
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("SERVICE_NOT_OFFERED", await ProblemCodeAsync(response));
+    }
+
+    [Fact]
+    public async Task InsuranceAndItsInsuredValueMustAgree()
+    {
+        var (buyerToken, sellerToken) = await SeedTradeAsync($"lsp_insurance_{Tag()}");
+        var orderId = await SeedOrderAsync(buyerToken, sellerToken);
+
+        var lspToken = await CreateLspUserAsync($"lsp_insurance_provider_{Tag()}");
+        var provider = await UpsertProviderAsync(lspToken, $"Insurance Freight {Guid.NewGuid():N}",
+            coverage: ["NG"], modes: [ShipmentMode.Sea], services: [LogisticsService.Insurance]);
+
+        // Insurance with no declared value insures nothing.
+        var missing = await PostAuthenticatedAsync(
+            $"/api/v1/orders/{orderId}/logistics-bookings", buyerToken,
+            new
+            {
+                providerId = provider.Id,
+                mode = (int)ShipmentMode.Sea,
+                services = new[] { (int)LogisticsService.Insurance },
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+        Assert.Equal("INSURED_VALUE_REQUIRED", await ProblemCodeAsync(missing));
+
+        // A value with no insurance is just as meaningless.
+        var orphan = await PostAuthenticatedAsync(
+            $"/api/v1/orders/{orderId}/logistics-bookings", buyerToken,
+            new { providerId = provider.Id, mode = (int)ShipmentMode.Sea, insuredValue = 1000m });
+        Assert.Equal(HttpStatusCode.BadRequest, orphan.StatusCode);
+        Assert.Equal("INSURANCE_NOT_REQUESTED", await ProblemCodeAsync(orphan));
+
+        // A non-positive value is a field validation failure, caught before the service sees it.
+        var zero = await PostAuthenticatedAsync(
+            $"/api/v1/orders/{orderId}/logistics-bookings", buyerToken,
+            new
+            {
+                providerId = provider.Id,
+                mode = (int)ShipmentMode.Sea,
+                services = new[] { (int)LogisticsService.Insurance },
+                insuredValue = 0m,
+            });
+        Assert.Equal(HttpStatusCode.BadRequest, zero.StatusCode);
+        Assert.Equal("VALIDATION_ERROR", await ProblemCodeAsync(zero));
+    }
+
     // ---- Seed helpers ----
 
     private async Task<(string BuyerToken, string SellerToken)> SeedTradeAsync(string tag)
@@ -648,11 +754,19 @@ public sealed class LogisticsDirectoryFlowTests : IClassFixture<TestingWebAppFac
     }
 
     private async Task<BookingMirror> RequestBookingAsync(
-        Guid orderId, string token, Guid providerId, ShipmentMode mode, string? notes = null)
+        Guid orderId, string token, Guid providerId, ShipmentMode mode, string? notes = null,
+        LogisticsService[]? services = null, decimal? insuredValue = null)
     {
         var response = await PostAuthenticatedAsync(
             $"/api/v1/orders/{orderId}/logistics-bookings", token,
-            new { providerId, mode = (int)mode, notes });
+            new
+            {
+                providerId,
+                mode = (int)mode,
+                services = (services ?? []).Select(s => (int)s).ToArray(),
+                insuredValue,
+                notes,
+            });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<BookingMirror>(JsonOptions))!;
     }
@@ -823,7 +937,10 @@ public sealed class LogisticsDirectoryFlowTests : IClassFixture<TestingWebAppFac
         public string OrderNumber { get; init; } = "";
         public Guid ProviderId { get; init; }
         public string ProviderName { get; init; } = "";
+        public string Currency { get; init; } = "";
         public ShipmentMode Mode { get; init; }
+        public List<LogisticsService> Services { get; init; } = [];
+        public decimal? InsuredValue { get; init; }
         public LogisticsBookingStatus Status { get; init; }
         public string? Notes { get; init; }
         public string? ResponseNotes { get; init; }

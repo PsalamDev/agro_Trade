@@ -186,6 +186,18 @@ kept separate from `Reviews` — a review is about a business through an order, 
 provider through the leg it carried — and are read on the provider page and carried back on a
 booking as `myRating`, so the card can confirm "you rated this" without a second fetch.
 
+**Slice 4 — booking services, insurance hook & destination requirements (shipped).** A booking now
+carries the ancillary services the requester is engaging as a `[Flags] LogisticsService` bitmask, and
+it must be a subset of what the provider actually offers — warehousing from a provider that does not
+warehouse is a `SERVICE_NOT_OFFERED` 400 rather than a silent trim. The `Insurance` bit carries its
+own hook, `InsuredValue` (`decimal(18,2)`): engaged insurance requires a declared value and a declared
+value requires insurance, so neither half can stand alone. Separately, the documented
+**destination-requirements helper** is now built — a pure function over an origin/destination pair
+that returns the trade documents a corridor is likely to need (mandatory vs suggested, each with a
+one-line reason) plus a corridor note, served anonymously at `GET /marketdata/destination-requirements`
+and surfaced as a lookup card on the market-intelligence page. Domestic onboarding paths remain for a
+later slice.
+
 ---
 
 ## Phase 5 — Global trade infrastructure (spec §15, §19)

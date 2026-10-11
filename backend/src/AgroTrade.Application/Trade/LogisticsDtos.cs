@@ -100,6 +100,20 @@ public sealed record CreateLogisticsBookingRequest
 {
     public Guid ProviderId { get; init; }
     public ShipmentMode Mode { get; init; }
+
+    /// <summary>
+    /// Ancillary services to engage, drawn from the provider's offered services. Empty means
+    /// transport only. Anything the provider does not offer is rejected rather than silently
+    /// dropped.
+    /// </summary>
+    public List<LogisticsService> Services { get; init; } = [];
+
+    /// <summary>
+    /// Declared cargo value to insure. Required when <see cref="LogisticsService.Insurance"/> is
+    /// among <see cref="Services"/>; must be absent otherwise.
+    /// </summary>
+    public decimal? InsuredValue { get; init; }
+
     public string? Notes { get; init; }
 }
 
@@ -129,6 +143,9 @@ public sealed record LogisticsBookingDto
     public string OrderNumber { get; init; } = string.Empty;
     public string? OrderDestinationCountry { get; init; }
 
+    /// <summary>The order's currency, so an insured value reads as money rather than a bare number.</summary>
+    public string Currency { get; init; } = string.Empty;
+
     public Guid ProviderId { get; init; }
     public string ProviderName { get; init; } = string.Empty;
     public string ProviderHomeCountry { get; init; } = string.Empty;
@@ -137,6 +154,13 @@ public sealed record LogisticsBookingDto
     public string RequestedByDisplayName { get; init; } = string.Empty;
 
     public ShipmentMode Mode { get; init; }
+
+    /// <summary>Ancillary services engaged for this leg, from the provider's offered list.</summary>
+    public IReadOnlyList<LogisticsService> Services { get; init; } = [];
+
+    /// <summary>Declared cargo value insured, when insurance is engaged. Null otherwise.</summary>
+    public decimal? InsuredValue { get; init; }
+
     public LogisticsBookingStatus Status { get; init; }
     public string? Notes { get; init; }
     public string? ResponseNotes { get; init; }

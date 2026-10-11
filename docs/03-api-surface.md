@@ -145,7 +145,7 @@ operator-onboarded, not self-registered — `LogisticsProvider` is not in `RoleN
 | PUT | `/logistics/providers/mine` | LSP | Create or **replace** the caller's profile — whole-object, not a patch. Requires `companyName`, an alpha-2 `homeCountry`, ≥ 1 `modes`, ≥ 1 `coverage` country; optional contact fields and `isActive` |
 | GET | `/logistics/providers/{id}` | User | Full profile including contact details; `isMine` tells the UI whether to offer editing |
 | GET | `/logistics/providers/{id}/ratings` | User | A provider's ratings, newest first (`?page=&pageSize=`). Hidden with the profile: a withdrawn provider's ratings are a 404 for strangers, readable by its owner |
-| POST | `/orders/{orderId}/logistics-bookings` | Participant | `{ providerId, mode, notes? }` — either party to the order may ask. An order the caller has no part in is a 404, not a 403 |
+| POST | `/orders/{orderId}/logistics-bookings` | Participant | `{ providerId, mode, services?, insuredValue?, notes? }` — either party to the order may ask. `services` are drawn from the provider's offer; `insuredValue` accompanies `Insurance`. An order the caller has no part in is a 404, not a 403 |
 | GET | `/orders/{orderId}/logistics-bookings` | Participant | The order's bookings; both parties see the same list |
 | GET | `/logistics/bookings` | User | Everything the caller raised or was named in; `?status=` |
 | GET | `/logistics/bookings/{id}` | Participant | One booking |
@@ -160,7 +160,10 @@ Booking rules and errors: only a **listed and active** provider can be booked
 (`BOOKING_EXISTS`, 409). Only the named provider may answer (`NOT_PROVIDER`, 403), only the requester
 may withdraw or complete (`NOT_REQUESTER`, 403), and only an un-decided request can be withdrawn or
 answered and only an accepted one completed (`BOOKING_CLOSED` / `BOOKING_NOT_ACCEPTED`, 409).
-Validation failures (bad mode/service, missing coverage, an email that is not an email) are 400s.
+Ancillary services must be a subset of the provider's offer (`SERVICE_NOT_OFFERED`, 400); engaging
+`Insurance` requires `insuredValue` (`INSURED_VALUE_REQUIRED`, 400) and a value without insurance is
+refused (`INSURANCE_NOT_REQUESTED`, 400). Validation failures (bad mode/service, missing coverage,
+an email that is not an email, a non-positive insured value) are 400s.
 
 Rating rules and errors: only the **requester** may rate (`NOT_REQUESTER`, 403) and only a
 `Completed` booking (`BOOKING_NOT_COMPLETED`, 409); one rating per booking, so a second attempt is a
@@ -283,12 +286,14 @@ trend line, a card's latest price and the observations table always describe the
 | Method | Route | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/marketdata/prices` | Public | Paginated price series: `?commodity=&country=&currency=&from=&to=&sort=` (`priceAsc\|priceDesc\|reportedAsc\|reportedAtDesc`) |
+| GET | `/marketdata/destination-requirements` | Public | The documents a route is likely to need, from `?origin=&destination=` ISO-3166 alpha-2 codes. Returns each document with `mandatory` + a one-line `reason`, a `domestic` flag when the codes match, and a corridor `notes` line. A code that is not a country is a 400 `INVALID_COUNTRY` |
 | GET | `/admin/marketdata` | Admin | Same rows, for maintenance |
 | POST | `/admin/marketdata` | Admin | Publish a price observation |
 
 The page groups the feed into trend lines per commodity × origin × unit × currency, draws them as
 hand-rolled SVG charts (no chart dependency), and shows a Δ-over-previous trend indicator per
-line. Destination-requirement notes and report pages remain planned content work, not API surface.
+line. The destination-requirements lookup sits above them (a curated guide, not a legal ruling); the
+market report pages remain planned content work, not API surface.
 
 ## Admin
 

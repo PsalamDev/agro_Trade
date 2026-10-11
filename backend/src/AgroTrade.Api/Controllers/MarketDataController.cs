@@ -8,7 +8,7 @@ namespace AgroTrade.Api.Controllers;
 
 [ApiController]
 [Route("api/v1")]
-public class MarketDataController(IMarketDataService marketData) : ControllerBase
+public class MarketDataController(IMarketDataService marketData, IDestinationRequirementsService destinationRequirements) : ControllerBase
 {
     [HttpGet("marketdata/prices")]
     [ProducesResponseType(typeof(PagedResult<MarketDataResponse>), StatusCodes.Status200OK)]
@@ -53,4 +53,15 @@ public class MarketDataController(IMarketDataService marketData) : ControllerBas
         var res = await marketData.CreateAsync(request, ct);
         return Created($"/api/v1/admin/marketdata/{res.Id}", res);
     }
+
+    /// <summary>
+    /// The documents a route is likely to need, from an origin/destination pair. Anonymous, like
+    /// the price series it sits beside: it is reference information, useful before anyone signs in.
+    /// </summary>
+    [HttpGet("marketdata/destination-requirements")]
+    [ProducesResponseType(typeof(DestinationRequirementsResponse), StatusCodes.Status200OK)]
+    public ActionResult<DestinationRequirementsResponse> GetDestinationRequirements(
+        [FromQuery] string? origin,
+        [FromQuery] string? destination)
+        => Ok(destinationRequirements.Get(origin ?? string.Empty, destination ?? string.Empty));
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import CountrySelect from '../components/CountrySelect'
+import { DestinationRequirementsCard } from '../components/DestinationRequirementsCard'
 import {
   Button,
   EmptyState,
@@ -360,6 +361,10 @@ export default function MarketIntelligencePage() {
             <ErrorAlert title="Could not load market data" detail={error.detail} />
           </div>
         ) : null}
+
+        <div className="mt-6">
+          <DestinationRequirementsCard />
+        </div>
 
         {loading ? (
           <div className="mt-6 space-y-4">

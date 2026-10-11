@@ -1,5 +1,6 @@
 using AgroTrade.Domain.Common;
 using AgroTrade.Domain.Enums;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AgroTrade.Domain.Trade;
 
@@ -42,6 +43,20 @@ public sealed class LogisticsBooking : IAuditableEntity
     /// booking and the consignment that follows it can be lined up.</summary>
     public ShipmentMode Mode { get; set; }
 
+    /// <summary>
+    /// Ancillary services the requester is engaging, as a bitmask over
+    /// <see cref="LogisticsService"/>. Must be a subset of what the provider offers: a booking
+    /// cannot buy warehousing from a provider that does not warehouse.
+    /// </summary>
+    public int Services { get; set; }
+
+    /// <summary>
+    /// The declared cargo value covered when <see cref="LogisticsService.Insurance"/> is among the
+    /// engaged services — the "insurance hook". Null when insurance is not engaged; required when
+    /// it is, because an insured booking with no value insures nothing.
+    /// </summary>
+    public decimal? InsuredValue { get; set; }
+
     public LogisticsBookingStatus Status { get; set; } = LogisticsBookingStatus.Requested;
 
     /// <summary>Free text from the requester: cargo details, collection window, special handling.</summary>
@@ -61,4 +76,14 @@ public sealed class LogisticsBooking : IAuditableEntity
 
     /// <summary>The rating left for this booking's provider, if any. One per booking.</summary>
     public LogisticsProviderRating? Rating { get; set; }
+
+    /// <summary>
+    /// The engaged services, decoded from <see cref="Services"/>. Excluded from the model like the
+    /// provider's equivalent, so the bitmask stays the single stored truth.
+    /// </summary>
+    [NotMapped]
+    public IReadOnlyList<LogisticsService> ServiceList =>
+        Enum.GetValues<LogisticsService>()
+            .Where(s => s != LogisticsService.None && (Services & (int)s) != 0)
+            .ToList();
 }

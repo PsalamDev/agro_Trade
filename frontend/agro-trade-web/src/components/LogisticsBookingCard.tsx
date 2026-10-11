@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button, Card, ErrorAlert, TextArea } from './ui'
 import { ConfirmDialog } from './overlays'
 import { Stars, StarRatingInput } from './Stars'
-import { formatUtc } from '../lib/format'
+import { formatUtc, money } from '../lib/format'
 import { countryName } from '../lib/trade'
 import {
   cancelLogisticsBooking,
@@ -12,7 +12,13 @@ import {
   respondToLogisticsBooking,
 } from '../lib/logistics'
 import { problemFrom } from '../lib/api'
-import { LOGISTICS_BOOKING_STATUS, bookingStatusLabel, bookingStatusTone, modeLabel } from '../types/logistics'
+import {
+  LOGISTICS_BOOKING_STATUS,
+  bookingStatusLabel,
+  bookingStatusTone,
+  modeLabel,
+  serviceLabels,
+} from '../types/logistics'
 import type { LogisticsBookingDto } from '../types/logistics'
 
 type DialogKind = 'decline' | 'withdraw' | 'complete'
@@ -119,6 +125,18 @@ export function LogisticsBookingCard({
           <dt className="text-stone-500">Mode</dt>
           <dd className="font-medium text-stone-800">{modeLabel(booking.mode)}</dd>
         </div>
+        {booking.services.length ? (
+          <div className="flex justify-between gap-3">
+            <dt className="text-stone-500">Services</dt>
+            <dd className="text-right font-medium text-stone-800">{serviceLabels(booking.services).join(', ')}</dd>
+          </div>
+        ) : null}
+        {booking.insuredValue != null ? (
+          <div className="flex justify-between gap-3">
+            <dt className="text-stone-500">Insured value</dt>
+            <dd className="font-medium text-stone-800">{money(booking.insuredValue, booking.currency)}</dd>
+          </div>
+        ) : null}
         <div className="flex justify-between gap-3">
           <dt className="text-stone-500">Requested</dt>
           <dd className="text-stone-700">{formatUtc(booking.createdAtUtc)}</dd>

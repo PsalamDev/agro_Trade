@@ -199,6 +199,35 @@ public sealed class LogisticsDirectoryService(AgroTradeDbContext db) : ILogistic
             throw ApiException.NotFound("PROVIDER_NOT_FOUND", "Logistics provider not found.");
         }
 
+        // Ancillary services are only bookable if the provider has declared them. Engaging
+        // warehousing from a provider that does not warehouse would be a promise it never made, so
+        // the request is rejected rather than silently trimmed to what the provider offers.
+        var serviceMask = ToServiceMask(request.Services);
+        var unoffered = serviceMask & ~provider.Services;
+        if (unoffered != 0)
+        {
+            throw ApiException.BadRequest(
+                "SERVICE_NOT_OFFERED",
+                $"This provider does not offer {DescribeServices(unoffered)}.");
+        }
+
+        // The insurance hook: engaging insurance means declaring what is insured. Either half
+        // without the other is meaningless, so both directions are rejected.
+        var insuring = (serviceMask & (int)LogisticsService.Insurance) != 0;
+        if (insuring && request.InsuredValue is null)
+        {
+            throw ApiException.BadRequest(
+                "INSURED_VALUE_REQUIRED",
+                "Declare the cargo value to insure when insurance is selected.");
+        }
+
+        if (!insuring && request.InsuredValue.HasValue)
+        {
+            throw ApiException.BadRequest(
+                "INSURANCE_NOT_REQUESTED",
+                "An insured value was given but insurance was not selected.");
+        }
+
         // One open or agreed booking per provider per order. A second request to the same provider
         // is a duplicate, not a second leg.
         if (await db.LogisticsBookings.AnyAsync(b =>
@@ -218,6 +247,8 @@ public sealed class LogisticsDirectoryService(AgroTradeDbContext db) : ILogistic
             LogisticsProviderId = provider.Id,
             RequestedByUserId = userId,
             Mode = request.Mode,
+            Services = serviceMask,
+            InsuredValue = insuring ? request.InsuredValue : null,
             Status = LogisticsBookingStatus.Requested,
             Notes = Blank(request.Notes),
         };
@@ -609,12 +640,15 @@ public sealed class LogisticsDirectoryService(AgroTradeDbContext db) : ILogistic
             OrderId = b.OrderId,
             OrderNumber = b.Order?.OrderNumber ?? string.Empty,
             OrderDestinationCountry = b.Order?.DestinationCountry,
+            Currency = b.Order?.Currency ?? string.Empty,
             ProviderId = b.LogisticsProviderId,
             ProviderName = b.Provider?.CompanyName ?? string.Empty,
             ProviderHomeCountry = b.Provider?.HomeCountry ?? string.Empty,
             RequestedByUserId = b.RequestedByUserId,
             RequestedByDisplayName = names.GetValueOrDefault(b.RequestedByUserId) ?? string.Empty,
             Mode = b.Mode,
+            Services = b.ServiceList,
+            InsuredValue = b.InsuredValue,
             Status = b.Status,
             Notes = b.Notes,
             ResponseNotes = b.ResponseNotes,
@@ -713,6 +747,36 @@ public sealed class LogisticsDirectoryService(AgroTradeDbContext db) : ILogistic
 
         return mask;
     }
+
+    /// <summary>Names the services in a bitmask for an error message ("warehousing or insurance").</summary>
+    private static string DescribeServices(int mask)
+    {
+        var names = Enum.GetValues<LogisticsService>()
+            .Where(s => s != LogisticsService.None && (mask & (int)s) != 0)
+            .Select(ServiceLabel)
+            .ToList();
+
+        return names.Count switch
+        {
+            0 => "any services",
+            1 => names[0],
+            _ => string.Join(", ", names.Take(names.Count - 1)) + " or " + names[^1],
+        };
+    }
+
+    /// <summary>Human wording for a service, so an API error reads as prose rather than an enum name.</summary>
+    private static string ServiceLabel(LogisticsService service) => service switch
+    {
+        LogisticsService.FreightForwarding => "freight forwarding",
+        LogisticsService.CustomsBrokerage => "customs brokerage",
+        LogisticsService.Warehousing => "warehousing",
+        LogisticsService.Trucking => "trucking",
+        LogisticsService.Insurance => "insurance",
+        LogisticsService.Inspection => "inspection",
+        LogisticsService.ColdChain => "cold chain",
+        LogisticsService.LastMile => "last-mile delivery",
+        _ => service.ToString(),
+    };
 
     private static List<string> NormalizeCountries(IEnumerable<string>? countries) =>
         (countries ?? [])

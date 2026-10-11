@@ -628,6 +628,9 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.Property(b => b.Reference).HasMaxLength(32).IsRequired();
             e.Property(b => b.Notes).HasMaxLength(2000);
             e.Property(b => b.ResponseNotes).HasMaxLength(1000);
+            // Money, so it needs an explicit precision: the default for decimal maps to the same
+            // truncated column the provider's rating would otherwise get (see MarketData.Price).
+            e.Property(b => b.InsuredValue).HasPrecision(18, 2);
             e.HasIndex(b => b.Reference).IsUnique();
             e.HasIndex(b => new { b.OrderId, b.LogisticsProviderId });
             e.HasIndex(b => new { b.RequestedByUserId, b.Status });

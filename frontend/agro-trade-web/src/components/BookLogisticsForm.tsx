@@ -4,7 +4,7 @@ import { SearchIcon } from './icons'
 import { getMyOrders, getSellingOrders, countryName } from '../lib/trade'
 import { requestLogisticsBooking, searchLogisticsProviders } from '../lib/logistics'
 import { problemFrom } from '../lib/api'
-import { SHIPMENT_MODES, modeLabel } from '../types/logistics'
+import { SHIPMENT_MODES, LOGISTICS_SERVICE_INSURANCE, LOGISTICS_SERVICE_OPTIONS, modeLabel } from '../types/logistics'
 import type { LogisticsBookingDto, LogisticsProviderCardDto } from '../types/logistics'
 import type { OrderCardDto } from '../types/trade'
 import { ORDER_STATUS } from '../types/trade'
@@ -18,6 +18,8 @@ interface Props {
   providerName?: string
   /** A provider's declared modes, used to pick a sensible default. */
   providerModes?: number[]
+  /** A provider's declared services, offered as extras the requester may engage. */
+  providerServices?: number[]
   onBooked: (booking: LogisticsBookingDto) => void
   onClose?: () => void
 }
@@ -33,14 +35,22 @@ export function BookLogisticsForm({
   providerId,
   providerName,
   providerModes,
+  providerServices,
   onBooked,
   onClose,
 }: Props) {
   const needsProvider = !providerId
   const needsOrder = !orderId
 
-  const [selectedProvider, setSelectedProvider] = useState<{ id: string; name: string; modes: number[] } | null>(
-    providerId ? { id: providerId, name: providerName ?? 'this provider', modes: providerModes ?? [] } : null,
+  const [selectedProvider, setSelectedProvider] = useState<{
+    id: string
+    name: string
+    modes: number[]
+    services: number[]
+  } | null>(
+    providerId
+      ? { id: providerId, name: providerName ?? 'this provider', modes: providerModes ?? [], services: providerServices ?? [] }
+      : null,
   )
   const [providerQuery, setProviderQuery] = useState('')
   const [providerResults, setProviderResults] = useState<LogisticsProviderCardDto[]>([])
@@ -51,11 +61,19 @@ export function BookLogisticsForm({
   const [selectedOrderId, setSelectedOrderId] = useState(orderId ?? '')
 
   const [mode, setMode] = useState<number | ''>('')
+  const [selectedServices, setSelectedServices] = useState<number[]>([])
+  const [insuredValue, setInsuredValue] = useState('')
   const [notes, setNotes] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<{ code?: string; detail?: string; fieldErrors?: Record<string, string[]> } | null>(
     null,
   )
+
+  const offeredServices = useMemo(
+    () => LOGISTICS_SERVICE_OPTIONS.filter((option) => selectedProvider?.services.includes(option.value)),
+    [selectedProvider],
+  )
+  const insuring = selectedServices.includes(LOGISTICS_SERVICE_INSURANCE)
 
   // A fixed provider's modes give a sensible default; otherwise the user picks one.
   useEffect(() => {
@@ -63,6 +81,12 @@ export function BookLogisticsForm({
       setMode(providerModes[0])
     }
   }, [providerModes, mode])
+
+  // Extras belong to the provider they were chosen from: changing provider clears them.
+  useEffect(() => {
+    setSelectedServices([])
+    setInsuredValue('')
+  }, [selectedProvider?.id])
 
   // Order picker: everything the caller is a party to, buyer side and seller side.
   useEffect(() => {
@@ -148,12 +172,21 @@ export function BookLogisticsForm({
       setError({ detail: 'Choose a transport mode.' })
       return
     }
+    if (insuring) {
+      const value = Number(insuredValue)
+      if (!Number.isFinite(value) || value <= 0) {
+        setError({ fieldErrors: { InsuredValue: ['Enter the cargo value to insure.'] } })
+        return
+      }
+    }
 
     setPending(true)
     try {
       const booking = await requestLogisticsBooking(targetOrderId, {
         providerId: provider.id,
         mode,
+        services: selectedServices,
+        insuredValue: insuring ? Number(insuredValue) : null,
         notes: notes.trim() || null,
       })
       onBooked(booking)
@@ -203,6 +236,7 @@ export function BookLogisticsForm({
                       id: provider.id,
                       name: provider.companyName,
                       modes: provider.modes,
+                      services: provider.services,
                     })
                     setProviderResults([])
                     setProviderQuery('')
@@ -249,6 +283,48 @@ export function BookLogisticsForm({
         value={mode === '' ? '' : String(mode)}
         onChange={(e) => setMode(e.target.value === '' ? '' : Number(e.target.value))}
       />
+
+      {offeredServices.length > 0 ? (
+        <fieldset>
+          <legend className="mb-1.5 block text-sm font-medium text-stone-700">Additional services</legend>
+          <div className="space-y-2">
+            {offeredServices.map((option) => (
+              <div key={option.value}>
+                <label className="flex items-center gap-2 text-sm text-stone-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500"
+                    checked={selectedServices.includes(option.value)}
+                    onChange={() =>
+                      setSelectedServices((current) =>
+                        current.includes(option.value)
+                          ? current.filter((value) => value !== option.value)
+                          : [...current, option.value],
+                      )
+                    }
+                  />
+                  {option.label}
+                </label>
+                {option.value === LOGISTICS_SERVICE_INSURANCE && selectedServices.includes(option.value) ? (
+                  <div className="mt-2 pl-6">
+                    <Field
+                      label="Cargo value to insure"
+                      id="book-insured-value"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={insuredValue}
+                      onChange={(e) => setInsuredValue(e.target.value)}
+                      hint="The declared value the insurance covers."
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
 
       <TextArea
         label="Notes for the provider"

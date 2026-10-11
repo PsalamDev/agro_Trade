@@ -117,6 +117,9 @@ public static class DependencyInjection
     // Save-less by design: the entry is flushed by the same SaveChanges as the action it records.
     services.AddScoped<IAuditLogWriter, AuditLogWriter>();
     services.AddScoped<AgroTrade.Application.Intelligence.IMarketDataService, AgroTrade.Infrastructure.Services.MarketDataService>();
+    // Pure and stateless: the destination-requirements helper answers from the two country codes
+    // alone, so it never touches the database.
+    services.AddSingleton<AgroTrade.Application.Intelligence.IDestinationRequirementsService, AgroTrade.Infrastructure.Services.DestinationRequirementsService>();
     services.AddScoped<AgroTrade.Application.Trust.IReviewService, AgroTrade.Infrastructure.Services.ReviewService>();
     services.AddScoped<AgroTrade.Application.Trade.IDisputeService, AgroTrade.Infrastructure.Services.DisputeService>();
     services.AddScoped<AgroTrade.Application.Trade.IInvoiceService, AgroTrade.Infrastructure.Services.InvoiceService>();

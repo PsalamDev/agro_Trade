@@ -440,6 +440,8 @@ commercial step before it, and either party to the order may raise one.
 | LogisticsProviderId | guid | FK LogisticsProviders (**restrict**) — referenced by FK, not a name snapshot |
 | RequestedByUserId | guid | FK Users (**restrict**) — the buyer or seller, never the provider |
 | Mode | int | **ShipmentMode** — the single leg requested |
+| Services | int | bitmask over **[Flags] LogisticsService** — ancillary services engaged (warehousing, insurance…). Must be a subset of what the provider offers |
+| InsuredValue | decimal(18,2)? | declared cargo value covered when `Insurance` is engaged — the "insurance hook". Required with insurance, null without |
 | Status | int | **LogisticsBookingStatus** — Requested/Accepted/Declined/Cancelled/Completed |
 | Notes | nvarchar(2000)? | requester's cargo details, collection window |
 | ResponseNotes | nvarchar(1000)? | the provider's note on accept/decline |
@@ -448,7 +450,9 @@ commercial step before it, and either party to the order may raise one.
 
 Unique index on `Reference`, plus `(OrderId)` and `(LogisticsProviderId, Status)`. A booking
 references its provider by FK — a directory entry's whole purpose is to be found again — and a
-deactivated provider is hidden by `IsActive` rather than deleted.
+deactivated provider is hidden by `IsActive` rather than deleted. The engaged `Services` must be a
+subset of the provider's own bitmask (a request for an un-offered service is a `SERVICE_NOT_OFFERED`
+400), and `InsuredValue` tracks the `Insurance` bit in both directions.
 
 ### LogisticsProviderRatings (Phase 4 — LSP reputation)
 
@@ -496,8 +500,9 @@ Index `(ContextType, ContextId)`, `(Status, DocType)` for admin queues.
 **Document-type library (trade-aligned):** CommercialInvoice, PackingList,
 CertificateOfOrigin, BillOfLading, PhytosanitaryCertificate, InspectionCertificate,
 ExportPermit, ImportPermit — plus business/KYC types: BusinessRegistration, TaxId,
-IdDocument, ProofOfAddress, ProductCertification, Other. A `DestinationRequirements`
-helper (Phase 4) will suggest required docs by origin/destination pair.
+IdDocument, ProofOfAddress, ProductCertification, Other. A `DestinationRequirements` helper (Phase 4)
+suggests required docs by origin/destination pair: a curated, pure function over the two ISO-3166
+alpha-2 codes, served anonymously at `GET /marketdata/destination-requirements`.
 
 ---
 

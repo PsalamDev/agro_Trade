@@ -27,6 +27,9 @@ export const LOGISTICS_SERVICE_OPTIONS = [
   { value: 128, label: 'Last mile' },
 ] as const
 
+/** The insurance flag, called out because engaging it gates the declared-value field. */
+export const LOGISTICS_SERVICE_INSURANCE = 16
+
 /** Friendly labels for a provider's service flags, in declaration order. */
 export function serviceLabels(services: number[] | undefined): string[] {
   if (!services?.length) return []
@@ -114,12 +117,15 @@ export interface LogisticsBookingDto {
   orderId: string
   orderNumber: string
   orderDestinationCountry: string | null
+  currency: string
   providerId: string
   providerName: string
   providerHomeCountry: string
   requestedByUserId: string
   requestedByDisplayName: string
   mode: number
+  services: number[]
+  insuredValue: number | null
   status: number
   notes: string | null
   responseNotes: string | null
@@ -133,6 +139,10 @@ export interface LogisticsBookingDto {
 export interface CreateLogisticsBookingRequest {
   providerId: string
   mode: number
+  /** Ancillary services to engage, drawn from the provider's offered list. */
+  services?: number[]
+  /** Declared cargo value; required when insurance is among the services. */
+  insuredValue?: number | null
   notes?: string | null
 }
 
