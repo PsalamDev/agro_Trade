@@ -432,6 +432,107 @@ public sealed class LogisticsDirectoryService(AgroTradeDbContext db) : ILogistic
         return await GetBookingAsync(bookingId, userId, isAdmin: false, ct);
     }
 
+    public async Task<LogisticsRatingDto> RateBookingAsync(
+        Guid bookingId, Guid userId, CreateLogisticsRatingRequest request, CancellationToken ct = default)
+    {
+        var booking = await LoadForWriteAsync(bookingId, ct);
+
+        // The rating is the requester's judgement of the provider, so only the requester may write
+        // it. The provider cannot rate itself, and a party to the order who did not engage the
+        // provider has no standing to score the leg.
+        if (booking.RequestedByUserId != userId)
+        {
+            throw ApiException.Forbidden("NOT_REQUESTER", "Only the requester can rate this booking.");
+        }
+
+        // The work has to be done before it can be judged. An open or accepted booking is a promise,
+        // not a delivery.
+        if (booking.Status != LogisticsBookingStatus.Completed)
+        {
+            throw ApiException.Conflict(
+                "BOOKING_NOT_COMPLETED", "Only a completed booking can be rated.");
+        }
+
+        if (await db.LogisticsProviderRatings.AnyAsync(r => r.LogisticsBookingId == bookingId, ct))
+        {
+            throw ApiException.Conflict("RATING_EXISTS", "This booking has already been rated.");
+        }
+
+        var provider = booking.Provider!;
+
+        db.LogisticsProviderRatings.Add(new LogisticsProviderRating
+        {
+            LogisticsBookingId = booking.Id,
+            LogisticsProviderId = provider.Id,
+            RatedByUserId = userId,
+            Rating = request.Rating,
+            Comment = Blank(request.Comment),
+        });
+
+        // The headline rating moves with every new score. The prior sum is implied by the stored
+        // average and count, which lets the seeded reputation blend with real ratings rather than
+        // being wiped by the first one. Rounded to the column's two decimals.
+        var priorSum = provider.Rating * provider.RatingCount;
+        provider.RatingCount += 1;
+        provider.Rating = Math.Round((priorSum + request.Rating) / provider.RatingCount, 2);
+
+        db.Notifications.Add(new Notification
+        {
+            UserId = provider.OwnerUserId,
+            Type = NotificationType.Review,
+            Title = $"New {request.Rating}-star rating",
+            Body = $"You were rated for booking {booking.Reference}.",
+            Link = "/logistics/bookings",
+        });
+
+        await db.SaveChangesAsync(ct);
+
+        return (await ProjectRatingsAsync(
+            await db.LogisticsProviderRatings.AsNoTracking()
+                .Where(r => r.LogisticsBookingId == bookingId)
+                .ToListAsync(ct),
+            userId, ct))[0];
+    }
+
+    public async Task<PagedResult<LogisticsRatingDto>> ListProviderRatingsAsync(
+        Guid providerId, Guid userId, bool isAdmin, LogisticsRatingQuery query, CancellationToken ct = default)
+    {
+        var (page, pageSize) = PageHelper.Normalize(query.Page, query.PageSize);
+
+        // Same visibility rule as the profile: a withdrawn provider's ratings are not readable by
+        // strangers, so the ratings page cannot become a side door into a hidden profile.
+        var provider = await db.LogisticsProviders
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == providerId, ct);
+
+        if (provider is null || (!provider.IsActive && !isAdmin && provider.OwnerUserId != userId))
+        {
+            throw ApiException.NotFound("PROVIDER_NOT_FOUND", "Logistics provider not found.");
+        }
+
+        var ratings = db.LogisticsProviderRatings
+            .AsNoTracking()
+            .Where(r => r.LogisticsProviderId == providerId);
+
+        var total = await ratings.CountAsync(ct);
+
+        var rows = await ratings
+            .OrderByDescending(r => r.CreatedAtUtc)
+            .ThenByDescending(r => r.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return new PagedResult<LogisticsRatingDto>
+        {
+            Items = await ProjectRatingsAsync(rows, userId, ct),
+            Page = page,
+            PageSize = pageSize,
+            Total = total,
+            TotalPages = (int)Math.Ceiling(total / (double)pageSize),
+        };
+    }
+
     // ---- Helpers ----
 
     private async Task<LogisticsBooking> LoadForWriteAsync(Guid bookingId, CancellationToken ct)
@@ -493,6 +594,14 @@ public sealed class LogisticsDirectoryService(AgroTradeDbContext db) : ILogistic
             .Where(u => requesterIds.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, u => u.DisplayName, ct);
 
+        // The caller's own ratings for this page of bookings, resolved in one round trip so the
+        // card can show "you rated this" without a per-booking fetch.
+        var bookingIds = bookings.Select(b => b.Id).ToList();
+        var myRatings = await db.LogisticsProviderRatings
+            .AsNoTracking()
+            .Where(r => r.RatedByUserId == userId && bookingIds.Contains(r.LogisticsBookingId))
+            .ToDictionaryAsync(r => r.LogisticsBookingId, r => r.Rating, ct);
+
         return bookings.Select(b => new LogisticsBookingDto
         {
             Id = b.Id,
@@ -512,7 +621,47 @@ public sealed class LogisticsDirectoryService(AgroTradeDbContext db) : ILogistic
             DecidedAtUtc = b.DecidedAtUtc,
             IsRequester = b.RequestedByUserId == userId,
             IsProvider = b.Provider?.OwnerUserId == userId,
+            MyRating = myRatings.TryGetValue(b.Id, out var mine) ? mine : null,
             CreatedAtUtc = b.CreatedAtUtc,
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Builds rating DTOs for a page of ratings, resolving rater and provider names in one round
+    /// trip. Cheaper than projecting each row, and it keeps the aggregate numbers off the wire.
+    /// </summary>
+    private async Task<List<LogisticsRatingDto>> ProjectRatingsAsync(
+        List<LogisticsProviderRating> ratings, Guid userId, CancellationToken ct)
+    {
+        if (ratings.Count == 0)
+        {
+            return [];
+        }
+
+        var raterIds = ratings.Select(r => r.RatedByUserId).Distinct().ToList();
+        var raterNames = await db.Users
+            .AsNoTracking()
+            .Where(u => raterIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.DisplayName, ct);
+
+        var providerIds = ratings.Select(r => r.LogisticsProviderId).Distinct().ToList();
+        var providerNames = await db.LogisticsProviders
+            .AsNoTracking()
+            .Where(p => providerIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.CompanyName, ct);
+
+        return ratings.Select(r => new LogisticsRatingDto
+        {
+            Id = r.Id,
+            BookingId = r.LogisticsBookingId,
+            ProviderId = r.LogisticsProviderId,
+            ProviderName = providerNames.GetValueOrDefault(r.LogisticsProviderId) ?? string.Empty,
+            RatedByUserId = r.RatedByUserId,
+            RatedByDisplayName = raterNames.GetValueOrDefault(r.RatedByUserId) ?? string.Empty,
+            Rating = r.Rating,
+            Comment = r.Comment,
+            IsMine = r.RatedByUserId == userId,
+            CreatedAtUtc = r.CreatedAtUtc,
         }).ToList();
     }
 

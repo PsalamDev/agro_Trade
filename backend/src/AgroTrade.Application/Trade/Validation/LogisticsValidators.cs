@@ -58,3 +58,17 @@ public sealed class RespondToLogisticsBookingRequestValidator : AbstractValidato
         RuleFor(x => x.Notes).MaximumLength(1000);
     }
 }
+
+public sealed class CreateLogisticsRatingRequestValidator : AbstractValidator<CreateLogisticsRatingRequest>
+{
+    public CreateLogisticsRatingRequestValidator()
+    {
+        // A missing rating deserialises to 0, which fails here — so an omitted score is a 400 rather
+        // than a silent zero-star rating.
+        RuleFor(x => x.Rating)
+            .InclusiveBetween((byte)1, (byte)5)
+            .WithMessage("A rating is between 1 and 5 stars.");
+
+        RuleFor(x => x.Comment).MaximumLength(1000);
+    }
+}

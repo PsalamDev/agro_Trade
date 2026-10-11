@@ -3,14 +3,16 @@ import { Link, useParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { VerifiedBadge } from '../components/badges'
 import { BookLogisticsForm } from '../components/BookLogisticsForm'
+import { Stars } from '../components/Stars'
 import { Button, Card, ErrorAlert, PageHeader, Spinner } from '../components/ui'
 import { ArrowLeftIcon, GlobeIcon, MailIcon, MapPinIcon, PhoneIcon, TruckIcon } from '../components/icons'
 import { countryName } from '../lib/trade'
-import { getLogisticsProvider } from '../lib/logistics'
+import { formatUtc } from '../lib/format'
+import { getLogisticsProvider, getLogisticsProviderRatings } from '../lib/logistics'
 import { problemFrom } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import { modeLabel, serviceLabels } from '../types/logistics'
-import type { LogisticsProviderDetailDto } from '../types/logistics'
+import type { LogisticsProviderDetailDto, LogisticsRatingDto } from '../types/logistics'
 
 export default function LogisticsProviderPage() {
   const { id = '' } = useParams()
@@ -19,6 +21,7 @@ export default function LogisticsProviderPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<{ code?: string; detail?: string } | null>(null)
   const [booked, setBooked] = useState(false)
+  const [ratings, setRatings] = useState<LogisticsRatingDto[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -33,6 +36,22 @@ export default function LogisticsProviderPage() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  // Ratings are a second, authenticated read. A failure here is not fatal to the page — the profile
+  // is still worth showing — so it degrades to "no ratings" rather than an error state.
+  useEffect(() => {
+    let cancelled = false
+    getLogisticsProviderRatings(id, { pageSize: 10 })
+      .then((page) => {
+        if (!cancelled) setRatings(page.items)
+      })
+      .catch(() => {
+        if (!cancelled) setRatings([])
       })
     return () => {
       cancelled = true
@@ -146,6 +165,40 @@ export default function LogisticsProviderPage() {
                     <p className="text-stone-500">This provider has not published contact details.</p>
                   ) : null}
                 </div>
+              </Card>
+
+              <Card className="mt-4">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">Reputation</h3>
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <span className="text-2xl font-semibold text-stone-900">{provider.rating.toFixed(1)}</span>
+                  <Stars value={provider.rating} />
+                  <span className="text-sm text-stone-500">
+                    {provider.ratingCount} rating{provider.ratingCount === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {ratings.length ? (
+                  <ul className="mt-4 space-y-3">
+                    {ratings.map((rating) => (
+                      <li key={rating.id} className="border-t border-stone-100 pt-3 first:border-t-0 first:pt-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-stone-700">
+                            {rating.ratedByDisplayName}
+                            {rating.isMine ? ' (you)' : ''}
+                          </span>
+                          <Stars value={rating.rating} size="sm" />
+                        </div>
+                        {rating.comment ? (
+                          <p className="mt-1 whitespace-pre-line text-sm text-stone-600">{rating.comment}</p>
+                        ) : null}
+                        <p className="mt-0.5 text-xs text-stone-400">{formatUtc(rating.createdAtUtc)}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-sm text-stone-500">
+                    No ratings yet. They appear once a party rates a completed booking.
+                  </p>
+                )}
               </Card>
 
               {provider.isMine ? (

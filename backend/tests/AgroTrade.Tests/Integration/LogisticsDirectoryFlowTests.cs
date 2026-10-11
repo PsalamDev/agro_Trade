@@ -372,6 +372,160 @@ public sealed class LogisticsDirectoryFlowTests : IClassFixture<TestingWebAppFac
         Assert.Equal(LogisticsBookingStatus.Completed, completed.Status);
     }
 
+    // ---- Ratings ----
+
+    [Fact]
+    public async Task TheRequesterRatesACompletedBookingAndItMovesTheProviderAverage()
+    {
+        var (buyerToken, sellerToken) = await SeedTradeAsync($"lsp_rate_{Tag()}");
+        var orderId = await SeedOrderAsync(buyerToken, sellerToken);
+
+        var lspToken = await CreateLspUserAsync($"lsp_rate_provider_{Tag()}");
+        var provider = await UpsertProviderAsync(lspToken, $"Rated Freight {Guid.NewGuid():N}",
+            coverage: ["NG"], modes: [ShipmentMode.Road], services: []);
+
+        // A directory-fresh provider starts unrated.
+        Assert.Equal(0, provider.RatingCount);
+
+        var booking = await RequestBookingAsync(orderId, buyerToken, provider.Id, ShipmentMode.Road);
+        await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/respond", lspToken, new { accept = true });
+        (await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/complete", buyerToken, new { })).EnsureSuccessStatusCode();
+
+        var rate = await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/rating", buyerToken,
+            new { rating = 5, comment = "On time and careful." });
+        Assert.Equal(HttpStatusCode.Created, rate.StatusCode);
+        var rating = (await rate.Content.ReadFromJsonAsync<RatingMirror>(JsonOptions))!;
+        Assert.Equal(5, rating.Rating);
+        Assert.True(rating.IsMine);
+        Assert.Equal("On time and careful.", rating.Comment);
+        Assert.Equal(provider.Id, rating.ProviderId);
+
+        // The booking now carries the caller's own rating, so the card can show it without a fetch.
+        var bookingAfter = await GetAuthenticatedAsync($"/api/v1/logistics/bookings/{booking.Id}", buyerToken);
+        var reflected = (await bookingAfter.Content.ReadFromJsonAsync<BookingMirror>(JsonOptions))!;
+        Assert.Equal((byte?)5, reflected.MyRating);
+
+        // And the provider's headline moved with it.
+        var detail = await GetAuthenticatedAsync($"/api/v1/logistics/providers/{provider.Id}", buyerToken);
+        var moved = (await detail.Content.ReadFromJsonAsync<ProviderDetailMirror>(JsonOptions))!;
+        Assert.Equal(5.00m, moved.Rating);
+        Assert.Equal(1, moved.RatingCount);
+    }
+
+    [Fact]
+    public async Task ARatingNeedsACompletedBookingTheRequesterAndANovelty()
+    {
+        var (buyerToken, sellerToken) = await SeedTradeAsync($"lsp_rate_rules_{Tag()}");
+        var orderId = await SeedOrderAsync(buyerToken, sellerToken);
+
+        var lspToken = await CreateLspUserAsync($"lsp_rate_rules_provider_{Tag()}");
+        var provider = await UpsertProviderAsync(lspToken, $"Rules Freight {Guid.NewGuid():N}",
+            coverage: ["NG"], modes: [ShipmentMode.Road], services: []);
+
+        var booking = await RequestBookingAsync(orderId, buyerToken, provider.Id, ShipmentMode.Road);
+
+        // Not before the work is done: an open or accepted booking is a promise, not a delivery.
+        var tooEarly = await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/rating", buyerToken, new { rating = 4 });
+        Assert.Equal(HttpStatusCode.Conflict, tooEarly.StatusCode);
+        Assert.Equal("BOOKING_NOT_COMPLETED", await ProblemCodeAsync(tooEarly));
+
+        await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/respond", lspToken, new { accept = true });
+        await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/complete", buyerToken, new { });
+
+        // The provider cannot rate the leg it carried.
+        var self = await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/rating", lspToken, new { rating = 5 });
+        Assert.Equal(HttpStatusCode.Forbidden, self.StatusCode);
+        Assert.Equal("NOT_REQUESTER", await ProblemCodeAsync(self));
+
+        var first = await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/rating", buyerToken, new { rating = 4 });
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+
+        // One per booking: a second attempt is a conflict, not a re-score.
+        var second = await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/rating", buyerToken, new { rating = 1 });
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        Assert.Equal("RATING_EXISTS", await ProblemCodeAsync(second));
+    }
+
+    [Fact]
+    public async Task ARatingOutsideOneToFiveIsRefused()
+    {
+        var (buyerToken, sellerToken) = await SeedTradeAsync($"lsp_rate_range_{Tag()}");
+        var orderId = await SeedOrderAsync(buyerToken, sellerToken);
+
+        var lspToken = await CreateLspUserAsync($"lsp_rate_range_provider_{Tag()}");
+        var provider = await UpsertProviderAsync(lspToken, $"Range Freight {Guid.NewGuid():N}",
+            coverage: ["NG"], modes: [ShipmentMode.Road], services: []);
+
+        var booking = await RequestBookingAsync(orderId, buyerToken, provider.Id, ShipmentMode.Road);
+        await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/respond", lspToken, new { accept = true });
+        await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/complete", buyerToken, new { });
+
+        // 0 is what a missing score deserialises to, so it is refused rather than read as a star.
+        foreach (var bad in new[] { 0, 6 })
+        {
+            var response = await PostAuthenticatedAsync(
+                $"/api/v1/logistics/bookings/{booking.Id}/rating", buyerToken, new { rating = bad });
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task ProviderRatingsAreListedAndHiddenWithTheProfile()
+    {
+        var (buyerToken, sellerToken) = await SeedTradeAsync($"lsp_rate_list_{Tag()}");
+        var orderId = await SeedOrderAsync(buyerToken, sellerToken);
+
+        var lspToken = await CreateLspUserAsync($"lsp_rate_list_provider_{Tag()}");
+        var name = $"Listed Freight {Guid.NewGuid():N}";
+        var provider = await UpsertProviderAsync(lspToken, name,
+            coverage: ["NG"], modes: [ShipmentMode.Road], services: []);
+
+        var booking = await RequestBookingAsync(orderId, buyerToken, provider.Id, ShipmentMode.Road);
+        await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/respond", lspToken, new { accept = true });
+        await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/complete", buyerToken, new { });
+        await PostAuthenticatedAsync(
+            $"/api/v1/logistics/bookings/{booking.Id}/rating", buyerToken,
+            new { rating = 3, comment = "Fine." });
+
+        var list = await GetAuthenticatedAsync($"/api/v1/logistics/providers/{provider.Id}/ratings", buyerToken);
+        list.EnsureSuccessStatusCode();
+        var page = (await list.Content.ReadFromJsonAsync<PagedMirror<RatingMirror>>(JsonOptions))!;
+        var row = Assert.Single(page.Items);
+        Assert.Equal(3, row.Rating);
+        Assert.Equal("Fine.", row.Comment);
+        Assert.True(row.IsMine);
+
+        // The owner reads the same history, but nothing is flagged as theirs.
+        var owner = await GetAuthenticatedAsync($"/api/v1/logistics/providers/{provider.Id}/ratings", lspToken);
+        var ownerPage = (await owner.Content.ReadFromJsonAsync<PagedMirror<RatingMirror>>(JsonOptions))!;
+        Assert.False(Assert.Single(ownerPage.Items).IsMine);
+
+        // A withdrawn provider's ratings vanish for strangers, exactly like the profile itself.
+        await UpsertProviderAsync(lspToken, name,
+            coverage: ["NG"], modes: [ShipmentMode.Road], services: [], isActive: false);
+        var stranger = await RegisterAndLoginAsync($"lsp_rate_stranger_{Tag()}");
+        var hidden = await GetAuthenticatedAsync($"/api/v1/logistics/providers/{provider.Id}/ratings", stranger);
+        Assert.Equal(HttpStatusCode.NotFound, hidden.StatusCode);
+        Assert.Equal("PROVIDER_NOT_FOUND", await ProblemCodeAsync(hidden));
+
+        // The owner still reads their own history.
+        var stillMine = await GetAuthenticatedAsync($"/api/v1/logistics/providers/{provider.Id}/ratings", lspToken);
+        Assert.Equal(HttpStatusCode.OK, stillMine.StatusCode);
+    }
+
     // ---- Seed helpers ----
 
     private async Task<(string BuyerToken, string SellerToken)> SeedTradeAsync(string tag)
@@ -654,6 +808,8 @@ public sealed class LogisticsDirectoryFlowTests : IClassFixture<TestingWebAppFac
         public List<LogisticsService> Services { get; init; } = [];
         public List<string> Coverage { get; init; } = [];
         public bool IsVerified { get; init; }
+        public decimal Rating { get; init; }
+        public int RatingCount { get; init; }
         public string? ContactEmail { get; init; }
         public bool IsActive { get; init; }
         public bool IsMine { get; init; }
@@ -674,6 +830,21 @@ public sealed class LogisticsDirectoryFlowTests : IClassFixture<TestingWebAppFac
         public DateTime? DecidedAtUtc { get; init; }
         public bool IsRequester { get; init; }
         public bool IsProvider { get; init; }
+        public byte? MyRating { get; init; }
+    }
+
+    public sealed class RatingMirror
+    {
+        public Guid Id { get; init; }
+        public Guid BookingId { get; init; }
+        public Guid ProviderId { get; init; }
+        public string ProviderName { get; init; } = "";
+        public Guid RatedByUserId { get; init; }
+        public string RatedByDisplayName { get; init; } = "";
+        public byte Rating { get; init; }
+        public string? Comment { get; init; }
+        public bool IsMine { get; init; }
+        public DateTime? CreatedAtUtc { get; init; }
     }
 
     public sealed class IdMirror

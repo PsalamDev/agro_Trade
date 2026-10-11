@@ -2,9 +2,15 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Card, ErrorAlert, TextArea } from './ui'
 import { ConfirmDialog } from './overlays'
+import { Stars, StarRatingInput } from './Stars'
 import { formatUtc } from '../lib/format'
 import { countryName } from '../lib/trade'
-import { cancelLogisticsBooking, completeLogisticsBooking, respondToLogisticsBooking } from '../lib/logistics'
+import {
+  cancelLogisticsBooking,
+  completeLogisticsBooking,
+  rateLogisticsBooking,
+  respondToLogisticsBooking,
+} from '../lib/logistics'
 import { problemFrom } from '../lib/api'
 import { LOGISTICS_BOOKING_STATUS, bookingStatusLabel, bookingStatusTone, modeLabel } from '../types/logistics'
 import type { LogisticsBookingDto } from '../types/logistics'
@@ -29,6 +35,12 @@ export function LogisticsBookingCard({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<{ code?: string; detail?: string } | null>(null)
 
+  // Rating is only ever about a completed booking, so it gets its own little form rather than being
+  // folded into the action dialog, which is about changing the booking's state.
+  const [ratingOpen, setRatingOpen] = useState(false)
+  const [ratingValue, setRatingValue] = useState(0)
+  const [ratingComment, setRatingComment] = useState('')
+
   const canRespond = booking.isProvider && booking.status === LOGISTICS_BOOKING_STATUS.Requested
   const canWithdraw = booking.isRequester && booking.status === LOGISTICS_BOOKING_STATUS.Requested
   const canComplete = booking.isRequester && booking.status === LOGISTICS_BOOKING_STATUS.Accepted
@@ -40,6 +52,25 @@ export function LogisticsBookingCard({
       await action()
       setDialog(null)
       setNotes('')
+      await onChanged()
+    } catch (err) {
+      setError(problemFrom(err))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function submitRating() {
+    setPending(true)
+    setError(null)
+    try {
+      await rateLogisticsBooking(booking.id, {
+        rating: ratingValue,
+        comment: ratingComment.trim() || null,
+      })
+      setRatingOpen(false)
+      setRatingValue(0)
+      setRatingComment('')
       await onChanged()
     } catch (err) {
       setError(problemFrom(err))
@@ -116,6 +147,54 @@ export function LogisticsBookingCard({
       {error ? (
         <div className="mt-3">
           <ErrorAlert detail={error.detail} />
+        </div>
+      ) : null}
+
+      {booking.isRequester && booking.status === LOGISTICS_BOOKING_STATUS.Completed ? (
+        <div className="mt-4 border-t border-stone-100 pt-4">
+          {booking.myRating ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm text-stone-600">
+              <span className="font-medium text-stone-700">You rated this provider</span>
+              <Stars value={booking.myRating} size="sm" />
+            </div>
+          ) : ratingOpen ? (
+            <div>
+              <p className="text-sm font-medium text-stone-700">Rate this provider</p>
+              <div className="mt-2">
+                <StarRatingInput value={ratingValue} onChange={setRatingValue} disabled={pending} />
+              </div>
+              <div className="mt-3">
+                <TextArea
+                  label="Comment (optional)"
+                  id={`rating-${booking.id}`}
+                  value={ratingComment}
+                  rows={2}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" disabled={pending || ratingValue < 1} onClick={() => void submitRating()}>
+                  Submit rating
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => {
+                    setRatingOpen(false)
+                    setRatingValue(0)
+                    setRatingComment('')
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button size="sm" variant="secondary" onClick={() => setRatingOpen(true)}>
+              Rate this provider
+            </Button>
+          )}
         </div>
       ) : null}
 

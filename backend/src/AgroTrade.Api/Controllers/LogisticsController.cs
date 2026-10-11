@@ -18,7 +18,8 @@ public class LogisticsController(
     ILogisticsDirectoryService logistics,
     IValidator<UpsertLogisticsProviderRequest> upsertProviderValidator,
     IValidator<CreateLogisticsBookingRequest> bookingValidator,
-    IValidator<RespondToLogisticsBookingRequest> respondValidator) : ControllerBase
+    IValidator<RespondToLogisticsBookingRequest> respondValidator,
+    IValidator<CreateLogisticsRatingRequest> ratingValidator) : ControllerBase
 {
     // ---- Directory ----
 
@@ -78,6 +79,21 @@ public class LogisticsController(
     public async Task<ActionResult<LogisticsProviderDetailDto>> GetProvider(Guid id, CancellationToken ct)
     {
         return Ok(await logistics.GetProviderAsync(id, User.GetUserId(), IsAdmin(), ct));
+    }
+
+    /// <summary>
+    /// A provider's ratings, newest first. Authenticated, and hidden with the profile: a withdrawn
+    /// provider's ratings are not readable by strangers.
+    /// </summary>
+    [HttpGet("logistics/providers/{id:guid}/ratings")]
+    [Authorize]
+    [ProducesResponseType(typeof(PagedResult<LogisticsRatingDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PagedResult<LogisticsRatingDto>>> ProviderRatings(
+        Guid id, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        return Ok(await logistics.ListProviderRatingsAsync(
+            id, User.GetUserId(), IsAdmin(), new LogisticsRatingQuery { Page = page, PageSize = pageSize }, ct));
     }
 
     // ---- Bookings ----
@@ -170,6 +186,27 @@ public class LogisticsController(
     public async Task<ActionResult<LogisticsBookingDto>> Complete(Guid id, CancellationToken ct)
     {
         return Ok(await logistics.CompleteAsync(id, User.GetUserId(), ct));
+    }
+
+    /// <summary>
+    /// Rates the provider against a completed booking. The requester only, once per booking; it
+    /// moves the provider's headline rating.
+    /// </summary>
+    [HttpPost("logistics/bookings/{id:guid}/rating")]
+    [Authorize]
+    [ProducesResponseType(typeof(LogisticsRatingDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<LogisticsRatingDto>> Rate(
+        Guid id, [FromBody] CreateLogisticsRatingRequest request, CancellationToken ct)
+    {
+        EnsureBody(request);
+        await ratingValidator.ValidateAndThrowAsync(request, ct);
+
+        var rating = await logistics.RateBookingAsync(id, User.GetUserId(), request, ct);
+
+        return Created($"/api/v1/logistics/bookings/{id}/rating", rating);
     }
 
     private bool IsAdmin() =>

@@ -146,5 +146,48 @@ public sealed record LogisticsBookingDto
     public bool IsRequester { get; init; }
     public bool IsProvider { get; init; }
 
+    /// <summary>
+    /// The caller's own rating for this booking, if they have left one. Carried here so the card can
+    /// show "you rated this" without fetching the provider's ratings.
+    /// </summary>
+    public byte? MyRating { get; init; }
+
+    public DateTime? CreatedAtUtc { get; init; }
+}
+
+/// <summary>Rates the provider against a completed booking. One rating per booking.</summary>
+public sealed record CreateLogisticsRatingRequest
+{
+    /// <summary>Stars, 1–5.</summary>
+    public byte Rating { get; init; }
+
+    public string? Comment { get; init; }
+}
+
+public sealed class LogisticsRatingQuery
+{
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+}
+
+/// <summary>A rating left for a provider, as shown on the provider's page and to its owner.</summary>
+public sealed record LogisticsRatingDto
+{
+    public Guid Id { get; init; }
+
+    public Guid BookingId { get; init; }
+
+    public Guid ProviderId { get; init; }
+    public string ProviderName { get; init; } = string.Empty;
+
+    public Guid RatedByUserId { get; init; }
+    public string RatedByDisplayName { get; init; } = string.Empty;
+
+    public byte Rating { get; init; }
+    public string? Comment { get; init; }
+
+    /// <summary>True when the caller wrote this rating, so the UI can mark it as their own.</summary>
+    public bool IsMine { get; init; }
+
     public DateTime? CreatedAtUtc { get; init; }
 }

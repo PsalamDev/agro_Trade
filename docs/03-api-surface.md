@@ -144,6 +144,7 @@ operator-onboarded, not self-registered — `LogisticsProvider` is not in `RoleN
 | GET | `/logistics/providers/mine` | LSP | The caller's own profile, or 404 `PROVIDER_NOT_FOUND` |
 | PUT | `/logistics/providers/mine` | LSP | Create or **replace** the caller's profile — whole-object, not a patch. Requires `companyName`, an alpha-2 `homeCountry`, ≥ 1 `modes`, ≥ 1 `coverage` country; optional contact fields and `isActive` |
 | GET | `/logistics/providers/{id}` | User | Full profile including contact details; `isMine` tells the UI whether to offer editing |
+| GET | `/logistics/providers/{id}/ratings` | User | A provider's ratings, newest first (`?page=&pageSize=`). Hidden with the profile: a withdrawn provider's ratings are a 404 for strangers, readable by its owner |
 | POST | `/orders/{orderId}/logistics-bookings` | Participant | `{ providerId, mode, notes? }` — either party to the order may ask. An order the caller has no part in is a 404, not a 403 |
 | GET | `/orders/{orderId}/logistics-bookings` | Participant | The order's bookings; both parties see the same list |
 | GET | `/logistics/bookings` | User | Everything the caller raised or was named in; `?status=` |
@@ -151,6 +152,7 @@ operator-onboarded, not self-registered — `LogisticsProvider` is not in `RoleN
 | POST | `/logistics/bookings/{id}/respond` | LSP | `{ accept, notes? }` — the named provider accepts or declines an open request |
 | POST | `/logistics/bookings/{id}/cancel` | Requester | Withdraw an un-answered request |
 | POST | `/logistics/bookings/{id}/complete` | Requester | Close an accepted booking as fulfilled |
+| POST | `/logistics/bookings/{id}/rating` | Requester | `{ rating (1–5), comment? }` — rates the provider once the booking is `Completed`. Moves the provider's headline rating |
 
 Booking rules and errors: only a **listed and active** provider can be booked
 (`PROVIDER_NOT_FOUND`, 404); a draft or cancelled order is closed to new bookings (`ORDER_CLOSED`,
@@ -159,6 +161,12 @@ Booking rules and errors: only a **listed and active** provider can be booked
 may withdraw or complete (`NOT_REQUESTER`, 403), and only an un-decided request can be withdrawn or
 answered and only an accepted one completed (`BOOKING_CLOSED` / `BOOKING_NOT_ACCEPTED`, 409).
 Validation failures (bad mode/service, missing coverage, an email that is not an email) are 400s.
+
+Rating rules and errors: only the **requester** may rate (`NOT_REQUESTER`, 403) and only a
+`Completed` booking (`BOOKING_NOT_COMPLETED`, 409); one rating per booking, so a second attempt is a
+`RATING_EXISTS` conflict. A rating outside 1–5 (including the `0` a missing score deserialises to) is
+a 400. All ratings — and the caller's own rating on a booking (`myRating`) — are read back through
+the profile and booking reads.
 
 ## Payments & Transactions
 

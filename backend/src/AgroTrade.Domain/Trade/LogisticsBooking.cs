@@ -58,4 +58,7 @@ public sealed class LogisticsBooking : IAuditableEntity
 
     public Order? Order { get; set; }
     public LogisticsProvider? Provider { get; set; }
+
+    /// <summary>The rating left for this booking's provider, if any. One per booking.</summary>
+    public LogisticsProviderRating? Rating { get; set; }
 }

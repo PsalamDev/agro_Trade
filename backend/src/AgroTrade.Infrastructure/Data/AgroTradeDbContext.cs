@@ -61,6 +61,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     public DbSet<LogisticsProvider> LogisticsProviders => Set<LogisticsProvider>();
     public DbSet<LogisticsProviderCountry> LogisticsProviderCountries => Set<LogisticsProviderCountry>();
     public DbSet<LogisticsBooking> LogisticsBookings => Set<LogisticsBooking>();
+    public DbSet<LogisticsProviderRating> LogisticsProviderRatings => Set<LogisticsProviderRating>();
     public DbSet<Domain.Intelligence.MarketData> MarketData => Set<Domain.Intelligence.MarketData>();
     public DbSet<Domain.Trust.Review> Reviews => Set<Domain.Trust.Review>();
     public DbSet<Domain.Trade.Dispute> Disputes => Set<Domain.Trade.Dispute>();
@@ -645,6 +646,30 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.HasOne<ApplicationUser>()
                 .WithMany()
                 .HasForeignKey(b => b.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<LogisticsProviderRating>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Comment).HasMaxLength(1000);
+            // One rating per booking: the booking is what earned the rating, so a second row would
+            // be a re-score rather than a second opinion.
+            e.HasIndex(r => r.LogisticsBookingId).IsUnique();
+            e.HasIndex(r => r.LogisticsProviderId);
+            e.HasOne(r => r.Booking)
+                .WithOne(b => b.Rating)
+                .HasForeignKey<LogisticsProviderRating>(r => r.LogisticsBookingId)
+                // Cascade: a rating has no meaning without the booking it scores.
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(r => r.Provider)
+                .WithMany(p => p.Ratings)
+                .HasForeignKey(r => r.LogisticsProviderId)
+                // Restrict: a provider's reputation is part of its record and must outlive it.
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(r => r.RatedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

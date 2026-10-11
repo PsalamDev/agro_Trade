@@ -177,6 +177,15 @@ references its provider by FK and never a `Shipment`, so it leaves the seller-on
 consignment model untouched. Three verified providers are seeded in development. This closes Phase
 4's exit criterion that an LSP can be found and linked to orders.
 
+**Slice 3b — LSP ratings (shipped).** The provider's `Rating`/`RatingCount` were seeded-only, which
+made the directory's ranking a fixed decoration. A `LogisticsProviderRating` gives them a write
+path: once a booking is `Completed`, its requester leaves one rating (1–5, optional comment) and the
+provider's headline moves with it (`(Rating × RatingCount + new) / (RatingCount + 1)`), so the
+seeded reputation blends with real scores rather than being wiped by the first one. Ratings are
+kept separate from `Reviews` — a review is about a business through an order, a rating about a
+provider through the leg it carried — and are read on the provider page and carried back on a
+booking as `myRating`, so the card can confirm "you rated this" without a second fetch.
+
 ---
 
 ## Phase 5 — Global trade infrastructure (spec §15, §19)

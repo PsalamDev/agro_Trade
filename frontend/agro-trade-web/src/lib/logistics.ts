@@ -2,10 +2,12 @@ import axios from 'axios'
 import { api, problemFrom } from './api'
 import type {
   CreateLogisticsBookingRequest,
+  CreateLogisticsRatingRequest,
   LogisticsBookingDto,
   LogisticsProviderCardDto,
   LogisticsProviderDetailDto,
   LogisticsProviderQuery,
+  LogisticsRatingDto,
   PagedResult,
   RespondToLogisticsBookingRequest,
   UpsertLogisticsProviderRequest,
@@ -105,4 +107,20 @@ export function cancelLogisticsBooking(id: string): Promise<LogisticsBookingDto>
 
 export function completeLogisticsBooking(id: string): Promise<LogisticsBookingDto> {
   return unwrap(api.post<LogisticsBookingDto>(`/logistics/bookings/${id}/complete`, {}))
+}
+
+// ---- Ratings ----
+
+export function rateLogisticsBooking(
+  id: string,
+  request: CreateLogisticsRatingRequest,
+): Promise<LogisticsRatingDto> {
+  return unwrap(api.post<LogisticsRatingDto>(`/logistics/bookings/${id}/rating`, request))
+}
+
+export function getLogisticsProviderRatings(
+  id: string,
+  params: { page?: number; pageSize?: number } = {},
+): Promise<PagedResult<LogisticsRatingDto>> {
+  return unwrap(api.get<PagedResult<LogisticsRatingDto>>(`/logistics/providers/${id}/ratings${query(params)}`))
 }

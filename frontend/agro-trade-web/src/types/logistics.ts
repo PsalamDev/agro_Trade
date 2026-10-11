@@ -126,6 +126,7 @@ export interface LogisticsBookingDto {
   decidedAtUtc: string | null
   isRequester: boolean
   isProvider: boolean
+  myRating: number | null
   createdAtUtc: string | null
 }
 
@@ -138,4 +139,24 @@ export interface CreateLogisticsBookingRequest {
 export interface RespondToLogisticsBookingRequest {
   accept: boolean
   notes?: string | null
+}
+
+// ---- Ratings ----
+
+export interface LogisticsRatingDto {
+  id: string
+  bookingId: string
+  providerId: string
+  providerName: string
+  ratedByUserId: string
+  ratedByDisplayName: string
+  rating: number
+  comment: string | null
+  isMine: boolean
+  createdAtUtc: string | null
+}
+
+export interface CreateLogisticsRatingRequest {
+  rating: number
+  comment?: string | null
 }

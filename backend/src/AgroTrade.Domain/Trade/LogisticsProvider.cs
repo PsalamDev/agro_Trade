@@ -74,6 +74,9 @@ public sealed class LogisticsProvider : IAuditableEntity
 
     public List<LogisticsBooking> Bookings { get; set; } = [];
 
+    /// <summary>Ratings left against completed bookings with this provider.</summary>
+    public List<LogisticsProviderRating> Ratings { get; set; } = [];
+
     [NotMapped]
     public IReadOnlyList<ShipmentMode> ModeList => ShipmentModeMask.FromMask(Modes);
 

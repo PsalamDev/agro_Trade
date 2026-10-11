@@ -65,4 +65,18 @@ public interface ILogisticsDirectoryService
     /// <summary>Marks an accepted booking as fulfilled. The requester only.</summary>
     Task<LogisticsBookingDto> CompleteAsync(
         Guid bookingId, Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Rates the provider against a completed booking. The booking's requester only, once per
+    /// booking, and it moves the provider's rolling average.
+    /// </summary>
+    Task<LogisticsRatingDto> RateBookingAsync(
+        Guid bookingId, Guid userId, CreateLogisticsRatingRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// A provider's ratings, newest first. Hidden like the profile itself: a withdrawn provider's
+    /// ratings are its own business until it is relisted.
+    /// </summary>
+    Task<PagedResult<LogisticsRatingDto>> ListProviderRatingsAsync(
+        Guid providerId, Guid userId, bool isAdmin, LogisticsRatingQuery query, CancellationToken ct = default);
 }

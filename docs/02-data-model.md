@@ -413,7 +413,7 @@ holding the `LogisticsProvider` role.
 | Services | int | **bitmask** over `[Flags] LogisticsService` |
 | IsActive | bit | owner-controlled visibility; an inactive provider leaves the directory |
 | IsVerified | bit | operator-set trust mark, independent of `IsActive` |
-| Rating / RatingCount | decimal(3,2) / int | seeded reputation; no write path yet |
+| Rating / RatingCount | decimal(3,2) / int | rolling reputation; seeded, then moved by each rating from a completed booking |
 | CreatedAtUtc / UpdatedAtUtc | datetime2? | |
 
 Unique index on `OwnerUserId` — one profile per user. Deliberately **not** a `BusinessType`: a
@@ -449,6 +449,28 @@ commercial step before it, and either party to the order may raise one.
 Unique index on `Reference`, plus `(OrderId)` and `(LogisticsProviderId, Status)`. A booking
 references its provider by FK — a directory entry's whole purpose is to be found again — and a
 deactivated provider is hidden by `IsActive` rather than deleted.
+
+### LogisticsProviderRatings (Phase 4 — LSP reputation)
+
+A rating a party leaves for a provider once the work is done. One rating per booking, written by the
+booking's **requester** after the booking is `Completed`; it is what moves the provider's
+`Rating`/`RatingCount` aggregate. Deliberately separate from `Reviews` — a review targets a trading
+business through an order, a rating targets a provider through the leg it carried.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| Id | guid | PK |
+| LogisticsBookingId | guid | FK LogisticsBookings (**cascade**) — **unique**, one rating per booking |
+| LogisticsProviderId | guid | FK LogisticsProviders (**restrict**) — denormalized from the booking for aggregate reads |
+| RatedByUserId | guid | FK Users (**restrict**) — the booking's requester |
+| Rating | tinyint | 1–5 |
+| Comment | nvarchar(1000)? | |
+| CreatedAtUtc / UpdatedAtUtc | datetime2? | |
+
+On write the provider's headline is recomputed as `(Rating × RatingCount + newRating) / (RatingCount + 1)`,
+rounded to two decimals — this lets the seeded reputation blend with real ratings rather than being
+wiped by the first one. A rating is immutable once written (a second attempt is a `RATING_EXISTS`
+conflict, not a re-score).
 
 ---
 
