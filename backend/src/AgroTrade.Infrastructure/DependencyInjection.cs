@@ -92,6 +92,7 @@ public static class DependencyInjection
         // Trade execution (Phase 2)
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IInventoryService, InventoryService>();
+        services.AddScoped<ICartService, CartService>();
         services.AddScoped<ITradeDocumentService, TradeDocumentService>();
 
         // Payments (task 2.4). The gateway is the only adapter, and it is registered rather

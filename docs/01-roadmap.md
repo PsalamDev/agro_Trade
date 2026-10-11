@@ -146,6 +146,17 @@ tracking. **Trade → Ship → Deliver** (with documents and payment).
 - A domestic buyer can purchase produce with local delivery; an LSP can be found and
   linked to orders.
 
+**Slice 1 — domestic buy-now + cart (shipped).** Buyers shop server-side carts that hold only
+product ids and quantities; every read resolves live listing terms, and checkout re-validates
+stock and fans the cart into one order per seller on the existing orders model (DAP/Road,
+`Placed`, `DeliveryFee`, `DestinationCountry` = seller origin) with the whole cart's stock
+reserved atomically. Listings opt in with `SellsDomestically` + `DomesticDeliveryFee` (seeded
+on the four Nigerian catalogue items). Buyer-side access is `Policies.Buyer`
+(Buyer/Importer/Distributor). Frontend: a header cart badge, a `/cart` page (grouped by
+seller, quantity steppers, delivery-address form, per-order success links) and a buy-now card
+on the product page. Logistics-provider directory/booking and domestic onboarding paths remain
+for later slices.
+
 ---
 
 ## Phase 5 — Global trade infrastructure (spec §15, §19)

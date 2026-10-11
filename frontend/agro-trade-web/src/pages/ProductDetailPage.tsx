@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { VerifiedBadge } from '../components/badges'
-import { Card, ErrorAlert, Spinner } from '../components/ui'
+import { Card, ErrorAlert, Spinner, Button } from '../components/ui'
 import { TabPanel, Tabs } from '../components/overlays'
-import { AwardIcon, CoinsIcon, PackageIcon } from '../components/icons'
-import { getProduct } from '../lib/trade'
+import { AwardIcon, CartIcon, CoinsIcon, PackageIcon } from '../components/icons'
+import { addToCart, getProduct } from '../lib/trade'
+import { useAuth } from '../lib/auth-context'
+import { useCart } from '../lib/cart-context'
+import { REGISTRABLE_ROLES } from '../types/auth'
 import { problemFrom } from '../lib/api'
 import { resolveProductImage } from '../lib/productImages'
 import { INCOTERMS, PRICE_UNITS, labelOf } from '../types/trade'
@@ -27,6 +30,12 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [specTab, setSpecTab] = useState('packaging')
+  const [quantity, setQuantity] = useState(1)
+  const [adding, setAdding] = useState(false)
+  const [addMessage, setAddMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  const { user } = useAuth()
+  const { refresh: refreshCart } = useCart()
+  const isBuyer = user?.roles.some((role) => (REGISTRABLE_ROLES as readonly string[]).includes(role)) ?? false
 
   useEffect(() => {
     if (!idOrSlug) return
@@ -66,6 +75,29 @@ export default function ProductDetailPage() {
           : 'terms',
     )
   }, [product])
+
+  // Default the quantity to the listing's MOQ (the checkout never enforces it, but it is the
+  // natural first order for a buyer). Re-arms only when the product changes.
+  useEffect(() => {
+    if (!product) return
+    const suggested = Math.floor(product.minimumOrderQuantity)
+    setQuantity(suggested > 1 ? suggested : 1)
+  }, [product])
+
+  async function handleAddToCart() {
+    if (!product) return
+    setAdding(true)
+    setAddMessage(null)
+    try {
+      await addToCart({ productId: product.id, quantity })
+      setAddMessage({ ok: true, text: 'Added to cart.' })
+      void refreshCart()
+    } catch (err) {
+      setAddMessage({ ok: false, text: problemFrom(err).detail })
+    } finally {
+      setAdding(false)
+    }
+  }
 
   return (
     <div className="min-h-screen">
@@ -248,6 +280,86 @@ export default function ProductDetailPage() {
                   </div>
                 </dl>
               </Card>
+
+              {product.sellsDomestically ? (
+                <Card className="border-brand-200 bg-brand-50/40">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-lg font-semibold">Buy now — domestic</h2>
+                    <span className="rounded-full bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white">
+                      Local delivery
+                    </span>
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-stone-500">Unit price</dt>
+                      <dd className="font-semibold">
+                        {product.currency}{' '}
+                        {Number(product.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                        / {labelOf(PRICE_UNITS, product.priceUnit).replace('Per ', '').toLowerCase()}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-stone-500">Delivery fee</dt>
+                      <dd className="font-semibold">
+                        {product.currency}{' '}
+                        {Number(product.domesticDeliveryFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="mt-3 text-xs text-stone-600">
+                    Flat per-line delivery included at checkout. Up to{' '}
+                    {Number(product.availableQuantity).toLocaleString()} available.
+                  </p>
+
+                  {!user ? (
+                    <Link
+                      to="/login"
+                      className="mt-4 block rounded-lg bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
+                    >
+                      Sign in to add to cart
+                    </Link>
+                  ) : !isBuyer ? (
+                    <div className="mt-4 rounded-lg bg-white/70 p-3 text-xs leading-relaxed text-stone-600">
+                      Buy-now is available to Buyer, Importer and Distributor accounts. Your account can
+                      still trade through RFQs.
+                    </div>
+                  ) : (
+                    <>
+                      <label className="mt-4 block">
+                        <span className="mb-1.5 block text-sm font-medium text-stone-700">Quantity</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={Math.floor(product.availableQuantity)}
+                          value={quantity}
+                          onChange={(e) => setQuantity(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                          className="w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm shadow-soft transition duration-200 ease-soft outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
+                        />
+                      </label>
+                      <Button
+                        className="mt-3 w-full justify-center"
+                        disabled={adding || quantity < 1 || quantity > Math.floor(product.availableQuantity)}
+                        onClick={() => void handleAddToCart()}
+                      >
+                        <CartIcon className="h-4 w-4" />
+                        {adding ? 'Adding…' : 'Add to cart'}
+                      </Button>
+                    </>
+                  )}
+                  {addMessage ? (
+                    <p
+                      className={`mt-3 text-sm font-medium ${addMessage.ok ? 'text-emerald-700' : 'text-red-700'}`}
+                    >
+                      {addMessage.ok ? `${addMessage.text} ` : addMessage.text}
+                      {addMessage.ok ? (
+                        <Link to="/cart" className="font-semibold text-brand-700 underline">
+                          View cart
+                        </Link>
+                      ) : null}
+                    </p>
+                  ) : null}
+                </Card>
+              ) : null}
 
               <Card className="bg-brand-50/60">
                 <h2 className="text-lg font-semibold">Interested in this supply?</h2>

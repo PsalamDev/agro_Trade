@@ -10,11 +10,11 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 | Versioning | `/api/v1/...` (URL segment); v2+ additive, breaking changes bump version |
 | Auth | `Authorization: Bearer <jwt>`; 401 unauth, 403 forbidden-for-role |
 | Role classes | **Public**, **User** (any authenticated), **Exporter/Seller** (Farmer/Supplier/AgroProcessor/Exporter/Distributor), **Importer/Buyer** (Buyer/Importer/Distributor), **LSP** (LogisticsProvider), **Admin** |
-| Policies | `Administrator`, `VerifiedSeller` (business Verified), `SellerOrAdmin`, `BuyerOrAdmin`; ownership enforced in services (not just roles) |
+| Policies | `Administrator`, `VerifiedSeller` (business Verified), `SellerOrAdmin`, `BuyerOrAdmin`, `Buyer` (Buyer/Importer/Distributor — cart, Phase 4); ownership enforced in services (not just roles) |
 | Pagination | `?page=1&pageSize=20` (max 100) → envelope `{ items, page, pageSize, total, totalPages }` |
 | Sorting | `?sortBy=<field>&sortDir=asc\|desc` (allowlist per resource) |
 | Filtering | Query params per resource; search = `q` |
-| Errors | ProblemDetails `{ type, title, status, code, message, fieldErrors? }`; `code` machine-readable (`VALIDATION_ERROR`, `NOT_FOUND`, `QUOTATION_CLOSED`, `INVENTORY_INSUFFICIENT`) |
+| Errors | ProblemDetails `{ type, title, status, code, message, fieldErrors? }`; `code` machine-readable (`VALIDATION_ERROR`, `NOT_FOUND`, `QUOTATION_CLOSED`, `INVENTORY_INSUFFICIENT`, `CART_EMPTY`, `PRODUCT_UNAVAILABLE`, `DELIVERY_COUNTRY_MISMATCH`) |
 | Idempotency | Caller-supplied `idempotencyKey` in the request **body** on POST `/orders/{id}/payments` and POST `/orders/{id}/payments/manual`; replay returns the original resource. Off-platform payments are additionally guarded by the bank's remittance reference, which is unique per order — so a genuine double-entry is caught whether or not a key was sent. |
 | Countries | ISO-3166 alpha-2 codes everywhere (`ng`, `KE`, `cn`) |
 | Currencies | ISO-4217 codes; price/quote/order amounts always carry a currency |
@@ -75,6 +75,11 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 | POST | `/products/{id}/locations` | Owner | Dispatch locations |
 | PATCH | `/admin/products/{id}/moderation` | Admin | Unpublish/suspend listing |
 
+Since Phase 4, product DTOs carry `sellsDomestically` and `domesticDeliveryFee` (the flat per-line
+domestic delivery charge, in the listing's currency). `CreateProductRequest`/`UpdateProductRequest`
+accept both. No new search filter — domestic availability is resolved per listing (seeded on the four
+Nigerian catalogue items).
+
 ## RFQs / Trade Requests (importer sourcing)
 
 | Method | Route | Auth | Description |
@@ -102,6 +107,29 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 | POST | `/orders/{id}/complete` | Buyer | Confirm arrival → Completed (enables reviews) |
 | GET | `/admin/orders` | Admin | Global list; `?status=&paymentStatus=&q=` — implemented task 2.7, see [Admin](#admin) |
 | PATCH | `/admin/orders/{id}/status` | Admin | Corrective moves — **not implemented**. The `OrderLifecycle` state machine from task 2.2 is currently the only authority on order status, and an admin override would be a second one. |
+
+## Cart & domestic buy-now (Phase 4 — Slice 1)
+
+Domestic-only: a seller marks a listing `sellsDomestically` with a flat `domesticDeliveryFee`
+(the seeder does this for the four Nigerian catalogue listings). Any Buyer/Importer/Distributor
+can add such listings to a cart that lives **server-side** — the client only ever holds product
+ids and quantities, and every read resolves the live listing terms (price, currency, delivery
+fee, stock, domestic availability). Checkout fans the cart out into one `Order` per seller on
+the existing orders model (DAP/Road, `Placed`), so there is no new order sub-state; MOQ is not
+enforced domestically.
+
+| Method | Route | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/carts/mine` | Buyer | The caller's cart with live pricing; an empty cart is `{ items: [], totalQuantity: 0 }` |
+| POST | `/carts/items` | Buyer | `{ productId, quantity? }` — adds, or increments an existing line. Product must exist (404 `PRODUCT_NOT_FOUND`) and be active/domestic and not the caller's own listing |
+| PUT | `/carts/items/{productId}` | Buyer | `{ quantity }` absolute (≥ 1); 404 `CART_ITEM_NOT_FOUND` if the line is absent; exceeds available (409 `QUANTITY_EXCEEDS_AVAILABLE`) or non-domestic (400) are refused |
+| DELETE | `/carts/items/{productId}` | Buyer | Remove the line; **idempotent** — a missing line is not an error |
+| POST | `/carts/checkout` | Buyer | `{ destination, notes? }` — re-validates every line, reserves stock across the whole cart atomically, splits into one `Order` per seller (`DestinationCountry` = seller origin, `ExpectedDeliveryUtc` = now + max lead, `DeliveryFee` = Σ line fees, each order refs one delivery address), empties the cart, returns the created order summaries |
+
+Checkout errors: `CART_EMPTY`, `PRODUCT_NOT_FOUND` (404), `PRODUCT_UNAVAILABLE` (the line's listing
+changed after it was added — taken down, deactivated, suspended, short of stock), `PRODUCT_NOT_DOMESTIC`,
+`ORDER_SELF_SALE`, `CURRENCY_MIXED`, `DELIVERY_COUNTRY_MISMATCH` (address country ≠ seller origin —
+"domestic" is fixed by this check), `QUANTITY_EXCEEDS_AVAILABLE`, `INSUFFICIENT_STOCK` (409).
 
 ## Payments & Transactions
 
@@ -303,7 +331,7 @@ now implemented, above.
 
 ## Not in scope until noted
 
-Domestic buy-now/cart endpoints (Phase 4), logistics-provider *directory/booking*
+Domestic logistics-provider *directory/booking*
 marketplace (Phase 4), escrow, AI, price-feed ingestion API (internal job), and
 customs-service integrations (Phase 5).
 

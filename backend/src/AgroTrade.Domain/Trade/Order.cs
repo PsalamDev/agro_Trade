@@ -39,6 +39,13 @@ public sealed class Order : IAuditableEntity
     public string Currency { get; set; } = "USD";
     public decimal Subtotal { get; set; }
     public decimal Discount { get; set; }
+    /// <summary>
+    /// Domestic delivery charge (Phase 4). Zero for export orders. Summed from the cart lines'
+    /// listing delivery fees at checkout and included in <see cref="Total"/>; invoices and
+    /// payment settlement already operate on Total, so the money flows exactly as it does for
+    /// any other order.
+    /// </summary>
+    public decimal DeliveryFee { get; set; }
     public decimal Total { get; set; }
     public Incoterms Incoterms { get; set; }
     public string? PortOfLoading { get; set; }

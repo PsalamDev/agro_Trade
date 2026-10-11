@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { api, problemFrom } from './api'
 import type {
+  AddToCartRequest,
   AdminAuditLogDto,
   AdminOrderRowDto,
   AdminOverviewDto,
@@ -11,6 +12,9 @@ import type {
   BusinessDocumentDto,
   BusinessSearchParams,
   BusinessSummaryDto,
+  CartDto,
+  CheckoutRequest,
+  CheckoutResultDto,
   CategoryDto,
   ConversationDto,
   CountryDto,
@@ -46,6 +50,7 @@ import type {
   ReviewVerificationRequest,
   RfqListParams,
   SendMessageRequest,
+  SetCartItemQuantityRequest,
   ShipmentDto,
   ShipmentPublicTrackingDto,
   ShipmentTrackingEventDto,
@@ -611,4 +616,31 @@ export function getMarketPrices(filters: MarketDataFilters = {}): Promise<PagedR
   return unwrap(
     api.get<PagedResult<MarketDataDto>>(`/marketdata/prices${query({ page: 1, pageSize: 500, ...filters })}`),
   )
+}
+
+// ---- Domestic cart & checkout (Phase 4) ----
+
+/** The caller's cart with live listing prices and delivery fees. Buyer roles only. */
+export function getMyCart(): Promise<CartDto> {
+  return unwrap(api.get<CartDto>('/carts/mine'))
+}
+
+/** Adds a listing to the cart; increments the line when it is already there. */
+export function addToCart(request: AddToCartRequest): Promise<CartDto> {
+  return unwrap(api.post<CartDto>('/carts/items', request))
+}
+
+/** Sets a line's quantity to an absolute value. */
+export function setCartItemQuantity(productId: string, request: SetCartItemQuantityRequest): Promise<CartDto> {
+  return unwrap(api.put<CartDto>(`/carts/items/${productId}`, request))
+}
+
+/** Removes a line from the cart. Idempotent. */
+export function removeCartItem(productId: string): Promise<CartDto> {
+  return unwrap(api.delete<CartDto>(`/carts/items/${productId}`))
+}
+
+/** Places the whole cart: one order per seller, delivery fee included, stock reserved atomically. */
+export function checkoutCart(request: CheckoutRequest): Promise<CheckoutResultDto> {
+  return unwrap(api.post<CheckoutResultDto>('/carts/checkout', request))
 }

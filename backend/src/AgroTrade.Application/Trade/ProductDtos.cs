@@ -27,6 +27,10 @@ public sealed class CreateProductRequest
 
     public decimal AvailableQuantity { get; init; }
     public decimal MinimumOrderQuantity { get; init; }
+    /// <summary>Whether the listing also sells domestically (Phase 4 — buy-now / cart).</summary>
+    public bool SellsDomestically { get; init; }
+    /// <summary>Flat per-line domestic delivery charge, in the listing's currency.</summary>
+    public decimal DomesticDeliveryFee { get; init; }
     public int? Incoterms { get; init; }
     public int? LeadTimeDays { get; init; }
     public List<string> PaymentTermsOffered { get; init; } = [];
@@ -56,6 +60,8 @@ public sealed class UpdateProductRequest
     public string? Currency { get; init; }
     public decimal? AvailableQuantity { get; init; }
     public decimal? MinimumOrderQuantity { get; init; }
+    public bool? SellsDomestically { get; init; }
+    public decimal? DomesticDeliveryFee { get; init; }
     public int? Incoterms { get; init; }
     public int? LeadTimeDays { get; init; }
     public List<string>? PaymentTermsOffered { get; init; }
@@ -88,6 +94,10 @@ public class ProductCardDto
     public int PriceUnit { get; init; }
     public string Currency { get; init; } = "USD";
     public decimal MinimumOrderQuantity { get; init; }
+    /// <summary>Whether the listing is bookable by a domestic buyer (Phase 4).</summary>
+    public bool SellsDomestically { get; init; }
+    /// <summary>Flat per-line domestic delivery charge, in the listing's currency.</summary>
+    public decimal DomesticDeliveryFee { get; init; }
     public decimal AvailableQuantity { get; init; }
     public int? Incoterms { get; init; }
     public int? LeadTimeDays { get; init; }

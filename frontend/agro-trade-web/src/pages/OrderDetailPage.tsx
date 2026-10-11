@@ -227,6 +227,12 @@ export default function OrderDetailPage() {
                       <dt className="text-sm text-stone-600">Discount</dt>
                       <dd className="text-sm font-medium">{money(order.currency, order.discount)}</dd>
                     </div>
+                    {order.deliveryFee > 0 ? (
+                      <div className="flex items-center justify-between">
+                        <dt className="text-sm text-stone-600">Delivery fee</dt>
+                        <dd className="text-sm font-medium">{money(order.currency, order.deliveryFee)}</dd>
+                      </div>
+                    ) : null}
                     <div className="flex items-center justify-between border-t border-stone-100 pt-2">
                       <dt className="font-semibold">Total</dt>
                       <dd className="font-display text-lg font-bold">{money(order.currency, order.total)}</dd>

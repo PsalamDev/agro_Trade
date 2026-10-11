@@ -502,6 +502,7 @@ public sealed class OrderService(AgroTradeDbContext db, IInventoryService invent
                 PaymentStatus = o.PaymentStatus,
                 Currency = o.Currency,
                 Total = o.Total,
+                DeliveryFee = o.DeliveryFee,
                 SellerTradingName = o.SellerBusiness!.TradingName,
                 Incoterms = o.Incoterms,
                 PortOfLoading = o.PortOfLoading,
@@ -571,6 +572,7 @@ public sealed class OrderService(AgroTradeDbContext db, IInventoryService invent
         Currency = order.Currency,
         Subtotal = order.Subtotal,
         Discount = order.Discount,
+        DeliveryFee = order.DeliveryFee,
         Total = order.Total,
         AmountPaid = order.Payments
             .Where(p => p.Status == PaymentStatus.Paid)

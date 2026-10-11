@@ -37,6 +37,10 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     public DbSet<ProductImage> ProductImages => Set<ProductImage>();
     public DbSet<Inventory> Inventories => Set<Inventory>();
 
+    // Domestic commerce (Phase 4)
+    public DbSet<Cart> Carts => Set<Cart>();
+    public DbSet<CartItem> CartItems => Set<CartItem>();
+
     // Trade requests
     public DbSet<TradeRequest> TradeRequests => Set<TradeRequest>();
     public DbSet<Quotation> Quotations => Set<Quotation>();
@@ -92,6 +96,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
         ConfigureCatalog(builder);
         ConfigureTradeRequests(builder);
         ConfigureOrders(builder);
+        ConfigureCarts(builder);
         ConfigureCommunication(builder);
     }
 
@@ -192,6 +197,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.Property(p => p.Currency).HasMaxLength(3).IsRequired();
             e.Property(p => p.AvailableQuantity).HasPrecision(18, 2);
             e.Property(p => p.MinimumOrderQuantity).HasPrecision(18, 2);
+            e.Property(p => p.DomesticDeliveryFee).HasPrecision(18, 2);
             e.Property(p => p.PaymentTermsOffered).HasColumnType("nvarchar(max)");
             e.Property(p => p.QualitySpecs).HasColumnType("nvarchar(max)");
             e.Property(p => p.PackagingOptions).HasColumnType("nvarchar(max)");
@@ -297,6 +303,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.Property(o => o.Currency).HasMaxLength(3).IsRequired();
             e.Property(o => o.Subtotal).HasPrecision(18, 2);
             e.Property(o => o.Discount).HasPrecision(18, 2);
+            e.Property(o => o.DeliveryFee).HasPrecision(18, 2);
             e.Property(o => o.Total).HasPrecision(18, 2);
             e.Property(o => o.PortOfLoading).HasMaxLength(120);
             e.Property(o => o.PortOfDischarge).HasMaxLength(120);
@@ -528,6 +535,40 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
                 .WithMany()
                 .HasForeignKey(t => t.PaymentId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+    }
+
+    private static void ConfigureCarts(ModelBuilder builder)
+    {
+        // One cart per user. The cart itself is created lazily on the first add, so reads can
+        // assume absence rather than creating an empty row for users who never buy anything.
+        builder.Entity<Cart>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => c.UserId).IsUnique();
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<CartItem>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.Quantity).HasPrecision(18, 2);
+            e.HasIndex(i => i.CartId);
+            e.HasIndex(i => i.ProductId);
+            e.HasOne(i => i.Cart)
+                .WithMany(c => c.Items)
+                .HasForeignKey(i => i.CartId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // A cart line is a working list, not history, so a hard-deleted listing takes its
+            // lines with it. Listings are soft-deleted in practice (IsDeleted), which leaves
+            // the rows in place and the cart read filters them out.
+            e.HasOne(i => i.Product)
+                .WithMany()
+                .HasForeignKey(i => i.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

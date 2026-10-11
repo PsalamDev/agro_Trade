@@ -20,7 +20,7 @@ ports, and trade documents are first-class entities.
 | JSON | Small flexible payloads (certifications, specs, settings) as `nvarchar(max)` JSON |
 | Concurrency | `RowVersion` on Order, Product, Inventory, Quotation |
 
-## Entity groups (31 tables)
+## Entity groups (33 tables)
 
 ```
 ┌─ IDENTITY & ACCESS ──────────────────────────────┐
@@ -33,7 +33,7 @@ ports, and trade documents are first-class entities.
 │  Categories · Products · ProductImages · ProductLocations · Inventory │
 ├─ COMMERCE ───────────────────────────────────────┤
 │  Orders · OrderItems · Payments · Transactions · Invoices · Receipts · │
-│  PaymentWebhookEvents                            │
+│  PaymentWebhookEvents · Carts · CartItems        │
 ├─ TRADE REQUESTS ─────────────────────────────────┤
 │  TradeRequests (RFQs) · Quotations · QuotationItems │
 ├─ COMMUNICATION ──────────────────────────────────┤
@@ -150,6 +150,8 @@ equipment) plus commodity children as needed (e.g. Cashew → Rain-fed / Grades)
 | Currency | varchar(3) | |
 | AvailableQuantity | decimal(18,2) | |
 | MinimumOrderQuantity | decimal(18,2) | MOQ (bulk trade) |
+| **SellsDomestically** | bit | **Phase 4:** listing is buy-now bookable domestically (default false); seeded true on the four Nigerian catalogue items |
+| **DomesticDeliveryFee** | decimal(18,2) | flat per-line domestic delivery charge, in `Currency` (Phase 4) |
 | **Incoterms** | int? | **enum: EXW, FCA, FAS, FOB, CFR, CIF, CPT, CIP, DAP, DPU, DDP** |
 | **LeadTimeDays** | int? | dispatch lead time |
 | PaymentTermsOffered | nvarchar(max)? | JSON, e.g. ["T/T 50/50", "L/C at sight"] |
@@ -166,8 +168,10 @@ Indexes: `(IsDeleted, ListingStatus, VerificationStatus)`, `(CategoryId)`,
 `(CreatedAtUtc DESC)`.
 
 > **Export vs domestic:** every listing is origin-country-coded and export-capable.
-> Destination reachability comes from `BusinessTradeCountries`. Domestic-only listings
-> (Phase 4) reuse the same table with domestic terms.
+> Destination reachability comes from `BusinessTradeCountries`. Domestic availability
+> (Phase 4) is a per-listing flag (`SellsDomestically`) with a flat `DomesticDeliveryFee`,
+> on the same table — export trade terms (incoterms, ports, MOQ) do not apply to the
+> domestic buy-now flow.
 
 ### ProductImages
 `Id, ProductId FK, Url, AltText, SortOrder, IsPrimary bit`.
@@ -193,7 +197,7 @@ Available = OnHand − Reserved. Reserve on order, decrement on confirm, release
 | SellerBusinessId | guid | FK Businesses |
 | Status | int | **OrderStatus** enum |
 | Currency | varchar(3) | agreed trade currency |
-| Subtotal / Discount / Total | decimal(18,2) | |
+| Subtotal / Discount / DeliveryFee / Total | decimal(18,2) | `DeliveryFee` = Σ cart-line delivery fees at domestic checkout (Phase 4); zero on export orders, included in `Total` |
 | **Incoterms** | int | negotiated |
 | **PortOfLoading / PortOfDischarge** | nvarchar(100) | |
 | **PaymentTerms** | int | **PaymentTerms** enum (T/T advance, T/T partial, L/C, CAD, on account, other) |
@@ -207,6 +211,24 @@ Available = OnHand − Reserved. Reserve on order, decrement on confirm, release
 ### OrderItems
 Snapshot: `Id, OrderId FK, ProductId? FK, ProductNameSnapshot, Quantity, Unit, UnitPrice,
 LineTotal, Currency`.
+
+### Carts / CartItems (Phase 4 — domestic buy-now)
+A cart is a buyer's shortlist, not an order: it holds product ids and quantities and **never**
+prices, so an old cart cannot misquote what an order charges. Every read resolves the live
+listing terms, and checkout re-validates stock and domestic availability before snapshotting
+the agreed terms onto fresh orders. One cart per buyer; adding a line that is already there
+increments it (enforced in service code, not a DB unique index).
+
+`Carts` — `Id PK, UserId FK Users (unique index), CreatedAtUtc?, UpdatedAtUtc?`.
+
+`CartItems` — `Id PK, CartId FK Carts (cascade delete), ProductId FK Products (cascade delete),
+Quantity decimal(18,2), CreatedAtUtc?, UpdatedAtUtc?`; indexes on `CartId` and `ProductId`.
+
+At checkout the cart is fanned out into one `Order` per seller on the existing orders model
+(DAP/Road, `Placed`, `DestinationCountry` = seller origin, `ExpectedDeliveryUtc` = now + max
+lead time, `DeliveryFee` = Σ line fees, the delivery address written to a single `Addresses`
+row referenced by `DestinationAddressId`), inventory is reserved across the whole cart
+atomically, and the cart is emptied.
 
 ### Payments
 `Id, OrderId FK, Reference (unique), Amount, Currency, Provider int (PaymentProvider),
@@ -492,6 +514,7 @@ hashing, lockout, email confirm, and refresh-token storage for free.
 | HS-code starter map | Common commodities → HS codes (cashew 0801, maize 1005, soybeans 1201, cocoa 1801…) |
 | Demo corridors | Verified exporters (Mombasa FOB cashew; Lagos CIF maize), verified importer (Ng/Lagos), LSP (sea freight) |
 | Demo products | ~10 export listings with trade terms, certifications, stock |
+| Domestic availability | Idempotent backfill (Phase 4): the four Nigerian catalogue listings get `SellsDomestically=true` with flat `DomesticDeliveryFee` — Palm Kernel 25, Palm Kernel Cake 20, Yellow Maize 30, Milled Rice 5% Broken 40 |
 | MarketData | 2–3 commodities × weeks of daily prices (Phase 3 charts) |
 
 ## Migration & schema management

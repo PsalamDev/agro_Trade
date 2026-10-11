@@ -504,6 +504,60 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.ToTable("BusinessVerifications");
                 });
 
+            modelBuilder.Entity("AgroTrade.Domain.Trade.Cart", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("Carts");
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.CartItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CartId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CartId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("CartItems");
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Trade.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -704,6 +758,10 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(3)
                         .HasColumnType("nvarchar(3)");
+
+                    b.Property<decimal>("DeliveryFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<Guid?>("DestinationAddressId")
                         .HasColumnType("uniqueidentifier");
@@ -1049,6 +1107,10 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal>("DomesticDeliveryFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<string>("HsCode")
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
@@ -1108,6 +1170,9 @@ namespace AgroTrade.Infrastructure.Data.Migrations
 
                     b.Property<Guid>("SellerBusinessId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("SellsDomestically")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -1998,6 +2063,34 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("AgroTrade.Domain.Trade.Cart", b =>
+                {
+                    b.HasOne("AgroTrade.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.CartItem", b =>
+                {
+                    b.HasOne("AgroTrade.Domain.Trade.Cart", "Cart")
+                        .WithMany("Items")
+                        .HasForeignKey("CartId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AgroTrade.Domain.Trade.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Cart");
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("AgroTrade.Domain.Trade.Inventory", b =>
                 {
                     b.HasOne("AgroTrade.Domain.Trade.Product", "Product")
@@ -2291,6 +2384,11 @@ namespace AgroTrade.Infrastructure.Data.Migrations
                     b.Navigation("TradeCountries");
 
                     b.Navigation("VerificationHistory");
+                });
+
+            modelBuilder.Entity("AgroTrade.Domain.Trade.Cart", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("AgroTrade.Domain.Trade.Order", b =>

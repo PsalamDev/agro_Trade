@@ -529,6 +529,7 @@ public sealed partial class DbSeeder(
 
         var added = 0;
         var stockRowsAdded = 0;
+        var domesticBackfilled = 0;
 
         foreach (var item in CompanyCatalog)
         {
@@ -558,6 +559,8 @@ public sealed partial class DbSeeder(
                     Currency = "USD",
                     AvailableQuantity = item.Available,
                     MinimumOrderQuantity = item.Moq,
+                    SellsDomestically = item.SellsDomestically,
+                    DomesticDeliveryFee = item.DomesticDeliveryFee,
                     Incoterms = item.Incoterm,
                     LeadTimeDays = item.LeadTimeDays,
                     PaymentTermsOffered = JsonLists.ToJsonList(item.PaymentTerms),
@@ -586,6 +589,15 @@ public sealed partial class DbSeeder(
                 {
                     product.QualitySpecs = JsonLists.ToJsonDict(new Dictionary<string, string>(item.Specs));
                 }
+
+                // Backfill the Phase 4 domestic flags too. Upgrades only — a seller who
+                // deliberately turned domestic selling off keeps it off through a restart.
+                if (item.SellsDomestically && !product.SellsDomestically)
+                {
+                    product.SellsDomestically = true;
+                    product.DomesticDeliveryFee = item.DomesticDeliveryFee;
+                    domesticBackfilled++;
+                }
             }
 
             // Every listing needs a stock row or orders against it fail with STOCK_NOT_SET.
@@ -603,16 +615,20 @@ public sealed partial class DbSeeder(
             }
         }
 
-        if (added + stockRowsAdded > 0)
+        if (added + stockRowsAdded + domesticBackfilled > 0)
         {
             await db.SaveChangesAsync(ct);
         }
 
-        logger.LogInformation("Company catalogue applied — {Added} new listing(s), {StockRows} new stock row(s), {Total} in catalogue.",
-            added, stockRowsAdded, CompanyCatalog.Count);
+        logger.LogInformation("Company catalogue applied — {Added} new listing(s), {StockRows} new stock row(s), {Domestic} domestic flag(s) backfilled, {Total} in catalogue.",
+            added, stockRowsAdded, domesticBackfilled, CompanyCatalog.Count);
     }
 
-    /// <summary>One row of the demo range. Prices are indicative USD per metric ton.</summary>
+    /// <summary>
+    /// One row of the demo range. Prices are indicative USD per metric ton. Items with a
+    /// delivery fee are bookable domestically (Phase 4 — buy-now / cart): the fee is the flat
+    /// charge per cart line, and the listing's own origin country becomes the delivery country.
+    /// </summary>
     private sealed record CatalogItem(
         string Name,
         string CategorySlug,
@@ -628,7 +644,9 @@ public sealed partial class DbSeeder(
         Dictionary<string, string> Specs,
         List<string> PaymentTerms,
         List<string> Packaging,
-        List<string> Certifications);
+        List<string> Certifications,
+        bool SellsDomestically = false,
+        decimal DomesticDeliveryFee = 0m);
 
     private static readonly IReadOnlyList<CatalogItem> CompanyCatalog =
     [
@@ -696,7 +714,8 @@ public sealed partial class DbSeeder(
             new() { ["Moisture"] = "8% max", ["Free fatty acid"] = "Below 5%", ["Oil content"] = "48-50%", ["Impurities"] = "1.5% max", ["Screening"] = "Sieved 8-12 mm" },
             ["T/T advance", "L/C at sight"],
             ["50 kg PP bag", "1 MT jumbo bag"],
-            ["Phytosanitary", "GlobalG.A.P."]),
+            ["Phytosanitary", "GlobalG.A.P."],
+            true, 25m),
 
         new("Palm Kernel Cake (PKC)", "palm-kernels", "2304", "NG", "Port Harcourt (PHC)",
             185m, 300m, 25m, Incoterms.Fob, 8,
@@ -705,7 +724,8 @@ public sealed partial class DbSeeder(
             new() { ["Crude protein"] = "15-18%", ["Moisture"] = "8% max", ["Crude fibre"] = "Below 18%", ["Pellet diameter"] = "6 mm", ["Aflatoxin"] = "Below 20 ppb" },
             ["T/T advance", "L/C at sight"],
             ["40 kg PP bag", "1 MT bulk bag"],
-            ["Phytosanitary", "Feed-mill acceptance test"]),
+            ["Phytosanitary", "Feed-mill acceptance test"],
+            true, 20m),
 
         // ---- Fishery: Nigeria + Ghana -> Asia ----
         new("Frozen Atlantic Mackerel (HLSO)", "frozen-fish", "0303", "NG", "Lagos (LOS)",
@@ -743,7 +763,8 @@ public sealed partial class DbSeeder(
             new() { ["Grade"] = "Grade 2", ["Moisture"] = "13.5% max", ["Test weight"] = "68 kg/hl", ["Foreign matter"] = "Below 3%", ["Storage"] = "Aerated flat store" },
             ["T/T advance", "T/T 50/50"],
             ["50 kg PP bag", "Bulk vessel option"],
-            ["Phytosanitary"]),
+            ["Phytosanitary"],
+            true, 30m),
 
         new("Milled Rice 5% Broken", "rice", "1004", "NG", "Lagos (LOS)",
             620m, 450m, 25m, Incoterms.Cif, 15,
@@ -752,7 +773,8 @@ public sealed partial class DbSeeder(
             new() { ["Broken"] = "5% max", ["Grain length"] = "6.2 mm average", ["Moisture"] = "13% max", ["Parboiled"] = "Yes", ["Packing"] = "50 kg woven PP bag" },
             ["L/C at sight", "T/T 50/50"],
             ["50 kg woven PP bag", "1 MT jumbo bag"],
-            ["NAFDAC", "Phytosanitary"]),
+            ["NAFDAC", "Phytosanitary"],
+            true, 40m),
     ];
 
     /// <summary>

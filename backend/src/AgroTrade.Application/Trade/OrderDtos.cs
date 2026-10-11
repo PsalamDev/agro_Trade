@@ -74,6 +74,7 @@ public sealed record OrderCardDto
     public PaymentStatus PaymentStatus { get; init; }
     public string Currency { get; init; } = string.Empty;
     public decimal Total { get; init; }
+    public decimal DeliveryFee { get; init; }
     public string SellerTradingName { get; init; } = string.Empty;
     public string BuyerDisplayName { get; init; } = string.Empty;
     public Incoterms Incoterms { get; init; }
@@ -110,6 +111,8 @@ public sealed record OrderDetailDto
     public string Currency { get; init; } = string.Empty;
     public decimal Subtotal { get; init; }
     public decimal Discount { get; init; }
+    /// <summary>Domestic delivery charge; zero on export orders (Phase 4).</summary>
+    public decimal DeliveryFee { get; init; }
     public decimal Total { get; init; }
     public decimal AmountPaid { get; init; }
     public decimal BalanceDue { get; init; }

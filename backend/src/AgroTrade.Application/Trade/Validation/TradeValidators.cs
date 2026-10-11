@@ -367,3 +367,56 @@ public sealed class SendMessageRequestValidator : AbstractValidator<SendMessageR
             .WithName(nameof(SendMessageRequest.ContextType));
     }
 }
+
+// ---- Domestic cart (Phase 4) ----
+
+public sealed class AddToCartRequestValidator : AbstractValidator<AddToCartRequest>
+{
+    public AddToCartRequestValidator()
+    {
+        // A quantity of zero or less is a removal, and there is an endpoint for that.
+        RuleFor(x => x.Quantity).GreaterThan(0)
+            .WithMessage("Cart quantity must be at least 1.");
+    }
+}
+
+public sealed class SetCartItemQuantityRequestValidator : AbstractValidator<SetCartItemQuantityRequest>
+{
+    public SetCartItemQuantityRequestValidator()
+    {
+        RuleFor(x => x.Quantity).GreaterThan(0)
+            .WithMessage("Cart quantity must be at least 1.");
+    }
+}
+
+public sealed class CheckoutAddressRequestValidator : AbstractValidator<CheckoutAddressRequest>
+{
+    public CheckoutAddressRequestValidator()
+    {
+        RuleFor(x => x.Line1).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Line2).MaximumLength(200);
+        RuleFor(x => x.City).NotEmpty().MaximumLength(120);
+        RuleFor(x => x.State).MaximumLength(120);
+        RuleFor(x => x.Country).NotEmpty().Length(2)
+            .WithMessage("Country must be an ISO-3166 alpha-2 code.");
+        RuleFor(x => x.PostalCode).MaximumLength(20);
+    }
+}
+
+public sealed class CheckoutRequestValidator : AbstractValidator<CheckoutRequest>
+{
+    public CheckoutRequestValidator()
+    {
+        // Nested address rules surface under "Destination.*" so the form can map them straight
+        // onto the address section, matching how the register flow surfaces its field errors.
+        RuleFor(x => x.Destination).NotEmpty();
+        RuleFor(x => x.Destination.Line1).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Destination.Line2).MaximumLength(200);
+        RuleFor(x => x.Destination.City).NotEmpty().MaximumLength(120);
+        RuleFor(x => x.Destination.State).MaximumLength(120);
+        RuleFor(x => x.Destination.Country).NotEmpty().Length(2)
+            .WithMessage("Country must be an ISO-3166 alpha-2 code.");
+        RuleFor(x => x.Destination.PostalCode).MaximumLength(20);
+        RuleFor(x => x.Notes).MaximumLength(2000);
+    }
+}

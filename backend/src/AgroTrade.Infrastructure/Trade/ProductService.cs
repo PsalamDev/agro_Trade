@@ -160,6 +160,8 @@ public sealed partial class ProductService(
             Currency = request.Currency.ToUpperInvariant(),
             AvailableQuantity = request.AvailableQuantity,
             MinimumOrderQuantity = request.MinimumOrderQuantity,
+            SellsDomestically = request.SellsDomestically,
+            DomesticDeliveryFee = request.DomesticDeliveryFee,
             Incoterms = request.Incoterms is null ? null : (Incoterms)request.Incoterms.Value,
             LeadTimeDays = request.LeadTimeDays,
             PaymentTermsOffered = JsonLists.ToJsonList(request.PaymentTermsOffered),
@@ -261,6 +263,8 @@ public sealed partial class ProductService(
                 new SetStockRequest { QuantityOnHand = request.AvailableQuantity.Value },
                 ct);
         }
+        if (request.SellsDomestically is not null) product.SellsDomestically = request.SellsDomestically.Value;
+        if (request.DomesticDeliveryFee is not null) product.DomesticDeliveryFee = request.DomesticDeliveryFee.Value;
 
         await db.SaveChangesAsync(ct);
         var updated = await FindProductAsync(id.ToString(), includeSeller: true, ct);
@@ -432,6 +436,8 @@ public sealed partial class ProductService(
             PriceUnit = (int)p.PriceUnit,
             Currency = p.Currency,
             MinimumOrderQuantity = p.MinimumOrderQuantity,
+            SellsDomestically = p.SellsDomestically,
+            DomesticDeliveryFee = p.DomesticDeliveryFee,
             AvailableQuantity = p.AvailableQuantity,
             Incoterms = p.Incoterms is null ? null : (int)p.Incoterms.Value,
             LeadTimeDays = p.LeadTimeDays,
@@ -463,6 +469,8 @@ public sealed partial class ProductService(
             PriceUnit = (int)product.PriceUnit,
             Currency = product.Currency,
             MinimumOrderQuantity = product.MinimumOrderQuantity,
+            SellsDomestically = product.SellsDomestically,
+            DomesticDeliveryFee = product.DomesticDeliveryFee,
             AvailableQuantity = product.AvailableQuantity,
             Incoterms = product.Incoterms is null ? null : (int)product.Incoterms.Value,
             LeadTimeDays = product.LeadTimeDays,

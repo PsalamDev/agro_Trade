@@ -34,6 +34,14 @@ public sealed class Product : IAuditableEntity
     public decimal AvailableQuantity { get; set; }
     /// <summary>Minimum order quantity (bulk trade).</summary>
     public decimal MinimumOrderQuantity { get; set; }
+    /// <summary>
+    /// Whether the listing also sells domestically (Phase 4 — buy-now / cart). A domestic
+    /// buyer is checked out against the seller's own country with a local delivery fee; export
+    /// trade terms (incoterms, ports, MOQ) do not apply to that flow.
+    /// </summary>
+    public bool SellsDomestically { get; set; }
+    /// <summary>Flat delivery charge per line for domestic checkout, in the listing's currency.</summary>
+    public decimal DomesticDeliveryFee { get; set; }
     public Incoterms? Incoterms { get; set; }
     public int? LeadTimeDays { get; set; }
     /// <summary>JSON string array, e.g. ["T/T 50/50", "L/C at sight"].</summary>

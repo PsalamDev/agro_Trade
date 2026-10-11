@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
+import { useCart } from '../lib/cart-context'
 import { NotificationsBell } from './NotificationsBell'
 import { Dropdown, MenuItem, Offcanvas, Tooltip } from './overlays'
-import { COMPANY_ROLE } from '../types/auth'
+import { COMPANY_ROLE, REGISTRABLE_ROLES } from '../types/auth'
 import {
   BuildingIcon,
+  CartIcon,
   ChevronDownIcon,
   FileTextIcon,
   GridIcon,
@@ -35,9 +37,11 @@ function initialsOf(name: string) {
 
 export function AppHeader() {
   const { user, logout } = useAuth()
+  const { totalQuantity } = useCart()
   const roles = user?.roles ?? []
   const isCompany = roles.includes(COMPANY_ROLE)
   const isAdmin = roles.includes('Administrator')
+  const isBuyer = roles.some((role) => (REGISTRABLE_ROLES as readonly string[]).includes(role))
   const [menuOpen, setMenuOpen] = useState(false)
 
   const tradingLinks = [
@@ -106,6 +110,20 @@ export function AppHeader() {
         <div className="flex shrink-0 items-center gap-1.5">
           {user ? (
             <>
+              {isBuyer ? (
+                <Link
+                  to="/cart"
+                  title="Shopping cart"
+                  className="relative grid h-9 w-9 place-items-center rounded-xl text-stone-500 transition duration-200 ease-soft hover:bg-stone-100 hover:text-stone-900"
+                >
+                  <CartIcon className="h-4.5 w-4.5" />
+                  {totalQuantity > 0 ? (
+                    <span className="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                      {totalQuantity > 9 ? '9+' : totalQuantity}
+                    </span>
+                  ) : null}
+                </Link>
+              ) : null}
               <NotificationsBell />
               <Link
                 to="/dashboard"

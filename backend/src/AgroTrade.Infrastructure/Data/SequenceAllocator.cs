@@ -100,6 +100,55 @@ public static class SequenceAllocator
         }
     }
 
+    /// <summary>
+    /// Allocates <paramref name="count"/> consecutive numbers in one lock, for a checkout that
+    /// fans one cart out into several orders (Phase 4). A single lock acquires the whole run, so
+    /// the numbers cannot be interleaved by another allocator; <paramref name="save"/> persists
+    /// every order plus the checkout's side effects together.
+    /// </summary>
+    public static async Task AllocateRangeAsync(
+        AgroTradeDbContext db,
+        string table,
+        string column,
+        string prefix,
+        int count,
+        Action<IReadOnlyList<string>> assign,
+        Func<CancellationToken, Task> save,
+        CancellationToken ct = default)
+    {
+        IDbContextTransaction transaction =
+            await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+        try
+        {
+#pragma warning disable EF1002
+            var existing = await db.Database
+                .SqlQueryRaw<string>(
+                    $"""
+                    SELECT [{column}] AS [Value]
+                    FROM [{table}] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [{column}] LIKE @prefix + '%'
+                    """,
+                    new SqlParameter("@prefix", prefix))
+                .ToListAsync(ct);
+#pragma warning restore EF1002
+
+            assign(NextRange(prefix, existing, count));
+            await save(ct);
+
+            await transaction.CommitAsync(ct);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(ct);
+            throw;
+        }
+        finally
+        {
+            await transaction.DisposeAsync();
+        }
+    }
+
     /// <summary>MAX(suffix) + 1 over the numbers already issued, zero-padded to six digits.</summary>
     private static string Next(string prefix, List<string> existing)
     {
@@ -111,5 +160,23 @@ public static class SequenceAllocator
                 .Max() + 1;
 
         return $"{prefix}{next:D6}";
+    }
+
+    /// <summary>
+    /// The next <paramref name="count"/> consecutive numbers starting at MAX(suffix) + 1,
+    /// so a fan-out checkout numbers its orders deterministically and in one gap-free block.
+    /// </summary>
+    private static List<string> NextRange(string prefix, List<string> existing, int count)
+    {
+        var first = existing.Count == 0
+            ? 1
+            : existing
+                .Select(n => int.TryParse(n.AsSpan(prefix.Length), out var v) ? v : 0)
+                .DefaultIfEmpty(0)
+                .Max() + 1;
+
+        return Enumerable.Range(first, count)
+            .Select(n => $"{prefix}{n:D6}")
+            .ToList();
     }
 }

@@ -317,6 +317,10 @@ export interface ProductCardDto {
   sellerBusinessId: string
   sellerTradingName: string
   isSellerVerifiedBadgeVisible: boolean
+  /** Whether the listing is bookable by a domestic buyer (Phase 4 — buy-now / cart). */
+  sellsDomestically: boolean
+  /** Flat per-line domestic delivery charge, in the listing's currency. */
+  domesticDeliveryFee: number
   primaryImageUrl: string | null
   categoryId: string
   createdAtUtc: string | null
@@ -351,6 +355,10 @@ export interface SellerCardDto {
 }
 
 export interface CreateProductRequest {
+  /** Whether the listing also sells domestically (Phase 4). */
+  sellsDomestically?: boolean
+  /** Flat per-line domestic delivery charge, in the listing's currency. */
+  domesticDeliveryFee?: number
   name: string
   categoryId: string
   hsCode?: string
@@ -380,6 +388,8 @@ export interface UpdateProductRequest {
   currency?: string
   availableQuantity?: number
   minimumOrderQuantity?: number
+  sellsDomestically?: boolean
+  domesticDeliveryFee?: number
   incoterms?: number
   leadTimeDays?: number
   listingStatus?: number
@@ -561,6 +571,8 @@ export interface OrderItemDto {
 }
 
 export interface OrderCardDto {
+  /** Domestic delivery charge; zero on export orders (Phase 4). */
+  deliveryFee: number
   id: string
   orderNumber: string
   status: number
@@ -600,6 +612,8 @@ export interface OrderDetailDto {
   currency: string
   subtotal: number
   discount: number
+  /** Domestic delivery charge; zero on export orders (Phase 4). */
+  deliveryFee: number
   total: number
   amountPaid: number
   balanceDue: number
@@ -1165,4 +1179,78 @@ export interface MarketDataFilters {
   from?: string
   to?: string
   sort?: 'reportedAtDesc' | 'reportedAtAsc' | 'priceDesc' | 'priceAsc'
+}
+
+// ---- Domestic cart & checkout (Phase 4 — buy-now) ----
+
+/**
+ * One cart line, resolved server-side with the listing's live terms. IsAvailable flips to
+ * false when the listing changed after it was added (taken down, short of stock, no longer
+ * domestic); the cart page flags those lines and checkout refuses them.
+ */
+export interface CartItemDto {
+  productId: string
+  productName: string
+  price: number
+  priceUnit: number
+  currency: string
+  quantity: number
+  /** Price × quantity for this line. */
+  lineTotal: number
+  /** The listing's flat domestic delivery charge for this line. */
+  deliveryFee: number
+  availableQuantity: number
+  sellerBusinessId: string
+  sellerTradingName: string
+  primaryImageUrl: string | null
+  isAvailable: boolean
+}
+
+export interface CartDto {
+  items: CartItemDto[]
+  /** Sum of line quantities — the figure the header badge shows. */
+  totalQuantity: number
+}
+
+export interface AddToCartRequest {
+  productId: string
+  quantity?: number
+}
+
+/** Sets a line's quantity to an absolute value (never cumulative). */
+export interface SetCartItemQuantityRequest {
+  quantity: number
+}
+
+export interface CheckoutAddressRequest {
+  line1: string
+  line2?: string
+  city: string
+  state?: string
+  /** ISO-3166 alpha-2. Must match the sellers' countries — "domestic" is fixed by this. */
+  country: string
+  postalCode?: string
+}
+
+export interface CheckoutRequest {
+  destination: CheckoutAddressRequest
+  notes?: string
+}
+
+/** One order created by a checkout — one per seller. */
+export interface CheckoutOrderDto {
+  orderId: string
+  orderNumber: string
+  sellerBusinessId: string
+  sellerTradingName: string
+  currency: string
+  subtotal: number
+  deliveryFee: number
+  total: number
+  itemCount: number
+  expectedDeliveryUtc: string | null
+}
+
+export interface CheckoutResultDto {
+  orders: CheckoutOrderDto[]
 }

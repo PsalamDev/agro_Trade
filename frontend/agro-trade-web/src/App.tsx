@@ -35,8 +35,10 @@ import AdminUsersPage from './pages/AdminUsersPage'
 import AdminAuditLogPage from './pages/AdminAuditLogPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RequireRole } from './components/RequireRole'
+import CartPage from './pages/CartPage'
 
 const ADMIN_ROLES = ['Administrator']
+const BUYER_ROLES = ['Buyer', 'Importer', 'Distributor']
 
 export default function App() {
   return (
@@ -121,6 +123,14 @@ export default function App() {
             <ProtectedRoute>
               <MyRfqsPage />
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cart"
+          element={
+            <RequireRole roles={BUYER_ROLES}>
+              <CartPage />
+            </RequireRole>
           }
         />
         <Route
