@@ -5,9 +5,11 @@ import {
   CoinsIcon,
   FileTextIcon,
   GridIcon,
+  InboxIcon,
   PackageIcon,
   SettingsIcon,
   ShieldCheckIcon,
+  TagIcon,
   TruckIcon,
   UsersIcon,
 } from './icons'
@@ -40,6 +42,18 @@ const DESTINATIONS = [
     label: 'Document review',
     body: 'Verify the paperwork behind each order.',
     icon: <FileTextIcon className="h-4 w-4" />,
+  },
+  {
+    to: '/admin/products',
+    label: 'Products',
+    body: 'Every listing, and what the platform has hidden.',
+    icon: <TagIcon className="h-4 w-4" />,
+  },
+  {
+    to: '/admin/rfqs',
+    label: 'RFQs',
+    body: 'Buyer demand, and how much of it has been answered.',
+    icon: <InboxIcon className="h-4 w-4" />,
   },
   {
     to: '/admin/orders',

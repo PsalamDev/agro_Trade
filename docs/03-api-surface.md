@@ -298,8 +298,8 @@ market report pages remain planned content work, not API surface.
 
 ## Admin
 
-Implemented in tasks 2.3, 2.7 and the Phase 4 admin-operations slice. Every route below is live;
-there is no remaining planned administrative surface.
+Implemented in tasks 2.3, 2.7 and the Phase 4 admin-operations slice. Every route below is live and
+every queue has an admin screen; there is no remaining planned administrative surface.
 
 | Method | Route | Description |
 | --- | --- | --- |
@@ -312,9 +312,9 @@ there is no remaining planned administrative surface.
 | POST | `/admin/businesses/{id}/verification/review` | Approve/reject with notes; sets the verified badge. Writes an audit entry. |
 | GET | `/admin/documents` | Document review queue. `?status=&docType=&q=` |
 | POST | `/admin/documents/{id}/review` | Approve/reject with notes. Writes an audit entry. |
-| GET | `/admin/products` | Product moderation queue — listings across every seller, filterable by status/category |
-| PATCH | `/admin/products/{id}/moderation` | Unpublish/suspend a listing |
-| GET | `/admin/rfqs` | All RFQs + volume filters |
+| GET | `/admin/products` | Product moderation queue — listings across every seller. `?listingStatus=&moderationStatus=&q=&categoryId=`. The two statuses are independent — `listingStatus` is the seller's choice, `moderationStatus` the platform's — and `isVisibleInMarketplace` is derived from both, so a client renders it rather than re-deriving it |
+| PATCH | `/admin/products/{id}/moderation` | Suspend (`action=0`) or reinstate (`action=1`) a listing. Suspension requires a `reason`; re-suspending a suspended listing is a 409, and reinstating deliberately does not publish a draft. Writes an audit entry |
+| GET | `/admin/rfqs` | All RFQs + volume filters. `?status=&q=&unanswered=` — `unanswered` is a property of the RFQ (no quotation at all), not of any one supplier |
 | GET | `/admin/transactions` | The transaction ledger across every order. `?q=&type=&currency=&orderId=&from=&to=` |
 | GET | `/admin/reports/{kind}` | One analytics report. `kind` is `corridors`, `rfq`, `verification-funnel` or `commodities`; `?from=&to=` is an inclusive window. An unknown kind or an inverted window is a 400. |
 | GET | `/admin/settings` | The operator-editable settings, each with its catalogue default. |

@@ -5,7 +5,9 @@ import type {
   AdminAuditLogDto,
   AdminOrderRowDto,
   AdminOverviewDto,
+  AdminProductRowDto,
   AdminReportDto,
+  AdminRfqRowDto,
   AdminSettingDto,
   AdminSettingsUpdateRequest,
   AdminShipmentDto,
@@ -35,6 +37,7 @@ import type {
   MarketDataDto,
   MarketDataFilters,
   MessageDto,
+  ModerateProductRequest,
   NotificationDto,
   OrderCardDto,
   OrderDetailDto,
@@ -607,6 +610,50 @@ export function adminSearchShipments(params: {
   pageSize?: number
 } = {}): Promise<PagedResult<AdminShipmentDto>> {
   return unwrap(api.get<PagedResult<AdminShipmentDto>>(`/admin/shipments${query({ ...params })}`))
+}
+
+/**
+ * The product moderation queue.
+ *
+ * `listingStatus` is the seller's own state (Draft/Active/Inactive); `moderationStatus` is the
+ * platform's. They are separate on purpose, so this queue can ask "what has an admin hidden?"
+ * without conflating it with what a seller chose.
+ */
+export function adminSearchProducts(params: {
+  listingStatus?: number
+  moderationStatus?: number
+  q?: string
+  categoryId?: string
+  page?: number
+  pageSize?: number
+} = {}): Promise<PagedResult<AdminProductRowDto>> {
+  return unwrap(api.get<PagedResult<AdminProductRowDto>>(`/admin/products${query({ ...params })}`))
+}
+
+/**
+ * Suspends or reinstates a listing.
+ *
+ * Suspension requires a reason — it takes a working seller's revenue away, and a moderation record
+ * nobody can explain is indistinguishable from an arbitrary one. Reinstating is the resolution and
+ * takes no reason. It ends the suspension only: whether the seller then has the listing live is the
+ * seller's own decision.
+ */
+export function adminModerateProduct(
+  id: string,
+  request: ModerateProductRequest,
+): Promise<AdminProductRowDto> {
+  return unwrap(api.patch<AdminProductRowDto>(`/admin/products/${id}/moderation`, request))
+}
+
+/** The RFQ queue. `unanswered` means the RFQ has no quotation at all yet — demand nobody answered. */
+export function adminSearchRfqs(params: {
+  status?: number
+  q?: string
+  unanswered?: boolean
+  page?: number
+  pageSize?: number
+} = {}): Promise<PagedResult<AdminRfqRowDto>> {
+  return unwrap(api.get<PagedResult<AdminRfqRowDto>>(`/admin/rfqs${query({ ...params })}`))
 }
 
 /**

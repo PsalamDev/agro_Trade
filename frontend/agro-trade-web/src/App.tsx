@@ -29,6 +29,8 @@ import TrackShipmentPage from './pages/TrackShipmentPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import AdminVerificationPage from './pages/AdminVerificationPage'
 import AdminDocumentsPage from './pages/AdminDocumentsPage'
+import AdminProductsPage from './pages/AdminProductsPage'
+import AdminRfqsPage from './pages/AdminRfqsPage'
 import AdminOrdersPage from './pages/AdminOrdersPage'
 import AdminShipmentsPage from './pages/AdminShipmentsPage'
 import AdminUsersPage from './pages/AdminUsersPage'
@@ -249,6 +251,22 @@ export default function App() {
           element={
             <RequireRole roles={ADMIN_ROLES}>
               <AdminDocumentsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/products"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminProductsPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/rfqs"
+          element={
+            <RequireRole roles={ADMIN_ROLES}>
+              <AdminRfqsPage />
             </RequireRole>
           }
         />

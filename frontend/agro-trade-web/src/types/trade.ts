@@ -26,6 +26,13 @@ export const PRICE_UNIT = { PerKilogram: 0, PerTon: 1, PerBag: 2, PerCarton: 3, 
 export const LISTING_STATUSES = ['Draft', 'Active', 'Inactive'] as const
 export const LISTING_STATUS = { Draft: 0, Active: 1, Inactive: 2 } as const
 
+/** The platform's judgement of a listing, kept separate from the seller's own listing status. */
+export const MODERATION_STATUSES = ['Cleared', 'Suspended'] as const
+export const MODERATION_STATUS = { Cleared: 0, Suspended: 1 } as const
+
+/** What an administrator may do to a listing. Matches the server's `ProductModerationAction`. */
+export const PRODUCT_MODERATION_ACTION = { Suspend: 0, Reinstate: 1 } as const
+
 export const RFQ_STATUSES = ['Open', 'Quoting', 'Negotiating', 'Accepted', 'Converted to order', 'Expired', 'Closed', 'Cancelled'] as const
 export const RFQ_STATUS = { Open: 0, Quoting: 1, Negotiating: 2, Accepted: 3, ConvertedToOrder: 4, Expired: 5, Closed: 6, Cancelled: 7 } as const
 
@@ -1175,6 +1182,64 @@ export interface AdminShipmentDto {
   hasGuestTracking: boolean
   milestoneCount: number
   estimatedArrivalUtc: string | null
+  createdAtUtc: string | null
+}
+
+/**
+ * One listing in the moderation queue.
+ *
+ * Two independent states travel together: `listingStatus` is the seller's own visibility choice,
+ * `moderationStatus` is the platform's. `isVisibleInMarketplace` is derived from both and is the
+ * field to render — a client that re-derives it will eventually disagree with the marketplace about
+ * what a buyer can actually see.
+ */
+export interface AdminProductRowDto {
+  id: string
+  name: string
+  slug: string
+  categoryName: string | null
+  sellerBusinessId: string
+  sellerTradingName: string | null
+  originCountry: string
+  currency: string
+  price: number
+  priceUnit: number
+  availableQuantity: number
+  /** The seller's own visibility: Draft/Active/Inactive. */
+  listingStatus: number
+  /** The platform's judgement: Cleared/Suspended. */
+  moderationStatus: number
+  moderationReason: string | null
+  suspendedAtUtc: string | null
+  suspendedByUserId: string | null
+  isVisibleInMarketplace: boolean
+  createdAtUtc: string | null
+}
+
+export interface ModerateProductRequest {
+  action: number
+  /** Required to suspend; the text the seller is shown, and what the audit trail keeps. */
+  reason?: string
+}
+
+/** One RFQ in the operator's directory. */
+export interface AdminRfqRowDto {
+  id: string
+  rfqNumber: string
+  title: string
+  status: number
+  preferredCurrency: string
+  budgetMax: number | null
+  quantity: number
+  unit: number
+  categoryName: string | null
+  destinationCountry: string | null
+  destinationPortOrCity: string | null
+  buyerUserId: string
+  buyerDisplayName: string | null
+  /** Offers received. Zero means nobody has answered this RFQ. */
+  quotationCount: number
+  expiresAtUtc: string
   createdAtUtc: string | null
 }
 
