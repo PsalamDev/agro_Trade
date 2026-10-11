@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth-context'
 import { useCart } from '../lib/cart-context'
 import { NotificationsBell } from './NotificationsBell'
 import { Dropdown, MenuItem, Offcanvas, Tooltip } from './overlays'
-import { COMPANY_ROLE, REGISTRABLE_ROLES } from '../types/auth'
+import { BUYER_ROLES, COMPANY_ROLE } from '../types/auth'
 import {
   BuildingIcon,
   CartIcon,
@@ -42,7 +42,7 @@ export function AppHeader() {
   const roles = user?.roles ?? []
   const isCompany = roles.includes(COMPANY_ROLE)
   const isAdmin = roles.includes('Administrator')
-  const isBuyer = roles.some((role) => (REGISTRABLE_ROLES as readonly string[]).includes(role))
+  const isBuyer = roles.some((role) => BUYER_ROLES.includes(role))
   const isLsp = roles.includes('LogisticsProvider')
   const [menuOpen, setMenuOpen] = useState(false)
 

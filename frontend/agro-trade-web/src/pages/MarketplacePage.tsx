@@ -17,7 +17,7 @@ import { getCategoryTree, searchProducts } from '../lib/trade'
 import { Accordion } from '../components/overlays'
 import { problemFrom } from '../lib/api'
 import type { CategoryDto, ProductCardDto } from '../types/trade'
-import { CoinsIcon, FilterIcon, SearchIcon, ShieldCheckIcon, XIcon } from '../components/icons'
+import { CoinsIcon, FilterIcon, MapPinIcon, SearchIcon, ShieldCheckIcon, XIcon } from '../components/icons'
 
 export default function MarketplacePage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -32,6 +32,7 @@ export default function MarketplacePage() {
   const originCountry = searchParams.get('originCountry') ?? ''
   const exportsToCountry = searchParams.get('exportsToCountry') ?? ''
   const verifiedOnly = searchParams.get('verifiedOnly') === '1'
+  const domesticOnly = searchParams.get('domesticOnly') === '1'
   const minPrice = searchParams.get('minPrice') ?? ''
   const maxPrice = searchParams.get('maxPrice') ?? ''
 
@@ -49,6 +50,7 @@ export default function MarketplacePage() {
       originCountry: originCountry || undefined,
       exportsToCountry: exportsToCountry || undefined,
       verifiedOnly: verifiedOnly || undefined,
+      domesticOnly: domesticOnly || undefined,
       minPrice: minPrice ? Number(minPrice) : undefined,
       maxPrice: maxPrice ? Number(maxPrice) : undefined,
       pageSize: 24,
@@ -68,7 +70,7 @@ export default function MarketplacePage() {
     return () => {
       cancelled = true
     }
-  }, [q, categoryId, originCountry, exportsToCountry, verifiedOnly, minPrice, maxPrice])
+  }, [q, categoryId, originCountry, exportsToCountry, verifiedOnly, domesticOnly, minPrice, maxPrice])
 
   const leafCategories = useMemo(
     () => categories.flatMap(({ children }) => children.map((child) => ({ ...child, parentName: child.name }))),
@@ -76,7 +78,7 @@ export default function MarketplacePage() {
   )
 
   const hasFilters = Boolean(
-    q || categoryId || originCountry || exportsToCountry || verifiedOnly || minPrice || maxPrice,
+    q || categoryId || originCountry || exportsToCountry || verifiedOnly || domesticOnly || minPrice || maxPrice,
   )
 
   const activeFilterCount = [
@@ -86,6 +88,7 @@ export default function MarketplacePage() {
     minPrice,
     maxPrice,
     verifiedOnly ? '1' : '',
+    domesticOnly ? '1' : '',
   ].filter(Boolean).length
 
   function updateParam(key: string, value: string) {
@@ -122,6 +125,17 @@ export default function MarketplacePage() {
             ) : undefined
           }
         />
+
+        {domesticOnly ? (
+          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800">
+            <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0" />
+            <p>
+              <span className="font-semibold">Buy locally.</span>{' '}
+              These listings ship domestically with a flat delivery fee — add them to your cart and
+              check out with a local delivery address.
+            </p>
+          </div>
+        ) : null}
 
         <form
           onSubmit={handleSubmit}
@@ -218,6 +232,16 @@ export default function MarketplacePage() {
                         />
                         <ShieldCheckIcon className="h-4 w-4 text-stone-400" />
                         Verified sellers only
+                      </label>
+                      <label className="flex h-[42px] cursor-pointer items-center gap-2.5 self-end rounded-xl border border-stone-300 bg-stone-50 px-3.5 text-sm font-medium text-stone-700 transition hover:bg-stone-100">
+                        <input
+                          type="checkbox"
+                          checked={domesticOnly}
+                          onChange={(e) => updateParam('domesticOnly', e.target.checked ? '1' : '')}
+                          className="h-4 w-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500"
+                        />
+                        <MapPinIcon className="h-4 w-4 text-stone-400" />
+                        Buy locally only
                       </label>
                     </div>
                   ),

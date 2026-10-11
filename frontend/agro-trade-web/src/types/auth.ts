@@ -50,5 +50,11 @@ export interface ProblemDetails {
 /** Roles a user may choose at registration (mirror of RoleNames.Registrable, buyer/importer only). */
 export const REGISTRABLE_ROLES = ['Buyer', 'Importer', 'Distributor'] as const
 
+/** Buyer-side roles — publish RFQs and place orders (mirror of RoleNames.BuyerRoles). */
+export const BUYER_ROLES: string[] = ['Buyer', 'Importer', 'Distributor']
+
+/** The role a domestic (buy-local) registrant is granted. */
+export const DOMESTIC_BUYER_ROLE = 'Buyer' as const
+
 /** The single supplier role — held only by the Achievers Global Consult account. */
 export const COMPANY_ROLE = 'Company'

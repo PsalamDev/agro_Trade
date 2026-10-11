@@ -5,14 +5,34 @@ import { useAuth } from '../lib/auth-context'
 import CountrySelect from '../components/CountrySelect'
 import { ErrorAlert, Field, SelectField, SubmitButton } from '../components/ui'
 import { AppHeader } from '../components/AppHeader'
-import { LockIcon, MailIcon, UserIcon } from '../components/icons'
+import { DOMESTIC_BUYER_ROLE } from '../types/auth'
+import { GlobeIcon, LockIcon, MailIcon, MapPinIcon, UserIcon } from '../components/icons'
 
 const CURRENCIES = ['NGN', 'KES', 'GHS', 'ZAR', 'EGP', 'USD', 'EUR', 'GBP', 'CNY', 'AED']
+
+const INTENTS = [
+  {
+    id: 'domestic',
+    icon: MapPinIcon,
+    title: 'Buy locally',
+    body: 'Shop produce with domestic delivery — check out straight from the cart, no business verification needed.',
+  },
+  {
+    id: 'international',
+    icon: GlobeIcon,
+    title: 'Trade internationally',
+    body: 'Import, distribute or bulk-source across borders. You set up your verified business profile after signup.',
+  },
+] as const
+
+type Intent = (typeof INTENTS)[number]['id']
 
 export default function RegisterPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
 
+  const [intent, setIntent] = useState<Intent>('domestic')
+  const [internationalRole, setInternationalRole] = useState('Importer')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -30,14 +50,19 @@ export default function RegisterPage() {
     setPending(true)
     setError(null)
     try {
+      const roles = intent === 'domestic' ? [DOMESTIC_BUYER_ROLE] : [internationalRole]
       await register({
         email,
         password,
         displayName,
         homeCountry: homeCountry || undefined,
         defaultCurrency,
+        roles,
       })
-      navigate('/dashboard', { replace: true })
+      // Each intent lands on its own onboarding: domestic buyers go straight to the
+      // buy-locally marketplace, international traders to the dashboard (business
+      // verification is prompted there).
+      navigate(intent === 'domestic' ? '/marketplace?domesticOnly=1' : '/dashboard', { replace: true })
     } catch (err) {
       setError(err as { title?: string; detail?: string; fieldErrors?: Record<string, string[]> })
     } finally {
@@ -58,9 +83,38 @@ export default function RegisterPage() {
               Create your trading account
             </h1>
             <p className="mt-1.5 text-sm text-stone-500">
-              Join as a buyer / importer — publish RFQs and source verified imports. Supplier
-              listings are managed by the platform.
+              Choose how you’ll trade — the account, roles and next steps adapt to your path.
             </p>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="How will you trade?">
+              {INTENTS.map(({ id, icon: Icon, title, body }) => {
+                const selected = intent === id
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setIntent(id)}
+                    className={`flex h-full flex-col rounded-2xl border p-4 text-left transition duration-200 ease-soft ${
+                      selected
+                        ? 'border-brand-500 bg-brand-50/60 shadow-soft ring-4 ring-brand-500/10'
+                        : 'border-stone-200 bg-white hover:border-brand-200 hover:bg-stone-50'
+                    }`}
+                  >
+                    <span
+                      className={`grid h-9 w-9 place-items-center rounded-xl ${
+                        selected ? 'bg-brand-600 text-white' : 'bg-stone-100 text-stone-500'
+                      }`}
+                    >
+                      <Icon className="h-4.5 w-4.5" />
+                    </span>
+                    <span className="font-display mt-3 text-sm font-semibold text-stone-900">{title}</span>
+                    <span className="mt-1 text-xs leading-relaxed text-stone-500">{body}</span>
+                  </button>
+                )
+              })}
+            </div>
 
             <form onSubmit={handleSubmit} className="mt-7 space-y-4">
               <ErrorAlert title={error?.title} detail={error?.detail} fieldErrors={error?.fieldErrors} />
@@ -96,6 +150,17 @@ export default function RegisterPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
 
+              {intent === 'international' ? (
+                <SelectField
+                  label="Your role"
+                  id="register-role"
+                  options={['Importer', 'Distributor']}
+                  values={['Importer', 'Distributor']}
+                  value={internationalRole}
+                  onChange={(e) => setInternationalRole(e.target.value)}
+                />
+              ) : null}
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <CountrySelect
                   label="Home country"
@@ -115,7 +180,7 @@ export default function RegisterPage() {
               </div>
 
               <SubmitButton type="submit" pending={pending}>
-                Create account
+                {intent === 'domestic' ? 'Create account & start shopping' : 'Create trading account'}
               </SubmitButton>
             </form>
 

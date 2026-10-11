@@ -6,10 +6,8 @@ import { EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { getMyRfqs } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
-import { COMPANY_ROLE } from '../types/auth'
+import { BUYER_ROLES, COMPANY_ROLE } from '../types/auth'
 import type { TradeRequestCardDto } from '../types/trade'
-
-const BUYER_ROLES = ['Buyer', 'Importer', 'Distributor']
 
 export default function MyRfqsPage() {
   const { user } = useAuth()

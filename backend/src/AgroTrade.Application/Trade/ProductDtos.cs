@@ -145,6 +145,8 @@ public sealed class ProductSearchQuery
     public decimal? MinPrice { get; init; }
     public decimal? MaxPrice { get; init; }
     public bool VerifiedOnly { get; init; }
+    /// <summary>Domestic only: restrict to listings opted into local buy-now (Phase 4).</summary>
+    public bool DomesticOnly { get; init; }
     public Guid? SellerBusinessId { get; init; }
     public string? SortBy { get; init; }
     public string? SortDir { get; init; }

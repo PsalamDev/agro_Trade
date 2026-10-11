@@ -27,7 +27,7 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 
 | Method | Route | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/auth/register` | Public | Create user + roles (Exporter/Importer/Seller/Farmer/…) → email confirm |
+| POST | `/auth/register` | Public | Create user + roles. `roles` selects the onboarding path — domestic `Buyer` (buy locally, no verification) or international `Importer`/`Distributor` (business verification follows). Filtered to `RoleNames.Registrable`; defaults to `Buyer` → email confirm |
 | POST | `/auth/login` | Public | `accessToken`, `refreshToken`, user summary + roles |
 | POST | `/auth/refresh` | Public | Rotate refresh token (reuse detection) |
 | POST | `/auth/logout` | User | Revoke refresh token |
@@ -65,7 +65,7 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 
 | Method | Route | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/products` | Public | Search: `q, categoryId, hsCode, originCountry, exportsToCountry, incoterms, currency, minPrice, maxPrice, verifiedOnly, page, pageSize, sortBy` |
+| GET | `/products` | Public | Search: `q, categoryId, hsCode, originCountry, exportsToCountry, incoterms, currency, minPrice, maxPrice, verifiedOnly, domesticOnly, page, pageSize, sortBy` |
 | GET | `/products/{idOrSlug}` | Public | Detail incl. trade-terms panel (incoterms, lead time, port of loading, packaging, certifications) |
 | POST | `/products` | Seller | Create draft listing (origin country, HS code, trade terms) |
 | PUT | `/products/{id}` | Owner | Update; Draft/Active only |
@@ -77,8 +77,9 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 
 Since Phase 4, product DTOs carry `sellsDomestically` and `domesticDeliveryFee` (the flat per-line
 domestic delivery charge, in the listing's currency). `CreateProductRequest`/`UpdateProductRequest`
-accept both. No new search filter — domestic availability is resolved per listing (seeded on the four
-Nigerian catalogue items).
+accept both. The marketplace search accepts `domesticOnly=true` to restrict results to the buy-now
+listings that ship locally (the domestic onboarding path's default view); domestic availability is
+otherwise resolved per listing (seeded on the four Nigerian catalogue items).
 
 ## RFQs / Trade Requests (importer sourcing)
 

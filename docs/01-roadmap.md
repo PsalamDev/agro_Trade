@@ -195,8 +195,18 @@ value requires insurance, so neither half can stand alone. Separately, the docum
 **destination-requirements helper** is now built — a pure function over an origin/destination pair
 that returns the trade documents a corridor is likely to need (mandatory vs suggested, each with a
 one-line reason) plus a corridor note, served anonymously at `GET /marketdata/destination-requirements`
-and surfaced as a lookup card on the market-intelligence page. Domestic onboarding paths remain for a
-later slice.
+and surfaced as a lookup card on the market-intelligence page.
+
+**Slice 5 — domestic onboarding path (shipped).** Signup now asks how a user will trade and routes
+them down one of two paths. A **domestic** registrant is granted `Buyer` and lands on the marketplace
+filtered to buy-now listings via a new `domesticOnly` filter on `GET /products`, so a local buyer
+registers and shops without the exporter/importer business-verification apparatus. An **international**
+registrant picks `Importer`/`Distributor` and lands on the dashboard, where the business profile and
+verification prompts live. The dashboard carries a **Buy locally** entry point and the cart for buyer
+roles, and its framing adapts for a domestic-only account. Along the way the client's ad-hoc
+"registrable == buyer" proxy was replaced by a single `BUYER_ROLES` mirror of `RoleNames.BuyerRoles`,
+so the cart badge, buy-now card and permission checks all read the real buyer roles. This completes
+Phase 4.
 
 ---
 

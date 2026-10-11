@@ -5,22 +5,23 @@ import { useAuth } from '../lib/auth-context'
 import CountrySelect from '../components/CountrySelect'
 import { Button, Card, ErrorAlert, Field, PageHeader, SelectField, SubmitButton } from '../components/ui'
 import { AppHeader } from '../components/AppHeader'
-import { COMPANY_ROLE } from '../types/auth'
+import { BUYER_ROLES, COMPANY_ROLE, DOMESTIC_BUYER_ROLE } from '../types/auth'
 import {
   BellIcon,
   BuildingIcon,
+  CartIcon,
   CheckCircleIcon,
   CoinsIcon,
   FileTextIcon,
   GlobeIcon,
   GridIcon,
+  MapPinIcon,
   MessageIcon,
   PackageIcon,
   PencilIcon,
   SearchIcon,
 } from '../components/icons'
 
-const BUYER_ROLES = ['Buyer', 'Importer', 'Distributor']
 const CURRENCIES = ['NGN', 'KES', 'GHS', 'ZAR', 'EGP', 'USD', 'EUR', 'GBP', 'CNY', 'AED']
 
 const quickActions = [
@@ -31,6 +32,15 @@ const quickActions = [
     body: 'Browse verified export listings, filter by origin, destination, and price.',
     to: '/marketplace',
     cta: 'Explore supply',
+  },
+  {
+    title: 'Buy locally',
+    phase: 'Phase 4',
+    icon: MapPinIcon,
+    body: 'Produce that ships domestically with a flat delivery fee — add to your cart and check out with a local address.',
+    to: '/marketplace?domesticOnly=1',
+    cta: 'Start shopping',
+    onlyForBuyers: true,
   },
   {
     title: 'RFQ directory',
@@ -70,6 +80,10 @@ export default function DashboardPage() {
 
   if (!user) return null
 
+  const roles = user.roles
+  const isBuyer = roles.some((r) => BUYER_ROLES.includes(r))
+  const isDomesticOnly = roles.length === 1 && roles[0] === DOMESTIC_BUYER_ROLE
+
   async function handleSave(event: FormEvent) {
     event.preventDefault()
     setPending(true)
@@ -104,7 +118,11 @@ export default function DashboardPage() {
         <PageHeader
           eyebrow="Dashboard"
           title={`Welcome back, ${user.displayName}`}
-          subtitle="Your cross-border trading workspace takes shape in Phase 1."
+          subtitle={
+            isDomesticOnly
+              ? 'Your domestic shopping workspace — nearby produce with local delivery.'
+              : 'Your cross-border trading workspace takes shape in Phase 1.'
+          }
           action={
             <Button
               variant={editing ? 'ghost' : 'secondary'}
@@ -191,7 +209,9 @@ export default function DashboardPage() {
         <section className="mt-12">
           <h2 className="font-display text-lg font-semibold">Trading workspace</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {quickActions.map(({ title, phase, icon: Icon, body, to, cta }) =>
+            {quickActions
+              .filter((action) => !action.onlyForBuyers || isBuyer)
+              .map(({ title, phase, icon: Icon, body, to, cta }) =>
               to ? (
                 <Link
                   key={title}
@@ -248,7 +268,16 @@ export default function DashboardPage() {
                   New listing
                 </Link>
               ) : null}
-              {user.roles.some((r) => BUYER_ROLES.includes(r)) ? (
+              {isBuyer ? (
+                <Link
+                  to="/cart"
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 shadow-soft transition duration-200 ease-soft hover:bg-stone-50"
+                >
+                  <CartIcon className="h-4 w-4" />
+                  Shopping cart
+                </Link>
+              ) : null}
+              {isBuyer ? (
                 <Link
                   to="/rfqs/new"
                   className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 shadow-soft transition duration-200 ease-soft hover:bg-stone-50"

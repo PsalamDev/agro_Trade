@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 import { getMyCart } from './trade'
 import { useAuth } from './auth-context'
-import { REGISTRABLE_ROLES } from '../types/auth'
+import { BUYER_ROLES } from '../types/auth'
 
 export interface CartContextValue {
   /** Sum of line quantities — the figure the header badge shows. */
@@ -14,7 +14,7 @@ export interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null)
 
 function isBuyerRoles(roles: string[] | undefined): boolean {
-  return !!roles?.some((role) => (REGISTRABLE_ROLES as readonly string[]).includes(role))
+  return !!roles?.some((role) => BUYER_ROLES.includes(role))
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {

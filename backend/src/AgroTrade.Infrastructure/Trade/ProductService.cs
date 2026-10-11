@@ -36,6 +36,10 @@ public sealed partial class ProductService(
         {
             baseQuery = baseQuery.Where(p => p.VerificationStatus == VerificationStatus.Verified);
         }
+        if (query.DomesticOnly)
+        {
+            baseQuery = baseQuery.Where(p => p.SellsDomestically);
+        }
         if (query.CategoryId is not null)
         {
             baseQuery = baseQuery.Where(p => p.CategoryId == query.CategoryId.Value);

@@ -8,7 +8,7 @@ import { AwardIcon, CartIcon, CoinsIcon, PackageIcon } from '../components/icons
 import { addToCart, getProduct } from '../lib/trade'
 import { useAuth } from '../lib/auth-context'
 import { useCart } from '../lib/cart-context'
-import { REGISTRABLE_ROLES } from '../types/auth'
+import { BUYER_ROLES } from '../types/auth'
 import { problemFrom } from '../lib/api'
 import { resolveProductImage } from '../lib/productImages'
 import { INCOTERMS, PRICE_UNITS, labelOf } from '../types/trade'
@@ -35,7 +35,7 @@ export default function ProductDetailPage() {
   const [addMessage, setAddMessage] = useState<{ ok: boolean; text: string } | null>(null)
   const { user } = useAuth()
   const { refresh: refreshCart } = useCart()
-  const isBuyer = user?.roles.some((role) => (REGISTRABLE_ROLES as readonly string[]).includes(role)) ?? false
+  const isBuyer = user?.roles.some((role) => BUYER_ROLES.includes(role)) ?? false
 
   useEffect(() => {
     if (!idOrSlug) return

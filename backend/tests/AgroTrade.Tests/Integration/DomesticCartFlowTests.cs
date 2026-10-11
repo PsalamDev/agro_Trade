@@ -425,6 +425,30 @@ public sealed class DomesticCartFlowTests : IClassFixture<TestingWebAppFactory>
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
     }
 
+    // ---- Marketplace domestic filter (Slice 5) ----
+
+    [Fact]
+    public async Task DomesticOnlySearchHidesExportListings()
+    {
+        var sellerToken = await VerifyBusinessAsync(
+            await CreateCompanyUserAsync($"mkt_{Guid.NewGuid():N}"));
+        var (domesticId, _) = await CreateDomesticProductAsync(
+            sellerToken, "Filter Domestic Grain", price: 100m, deliveryFee: 10m);
+        var (exportId, _) = await CreateProductAsync(
+            sellerToken, "Filter Export Grain", price: 200m, sellsDomestically: false);
+
+        // The default marketplace is unchanged — both listings are visible.
+        var all = await SearchAsync(domesticOnly: false);
+        Assert.Contains(all.Items, i => i.Id == domesticId);
+        Assert.Contains(all.Items, i => i.Id == exportId);
+
+        // The domestic onboarding path sees only the buy-now listings, each carrying its flag.
+        var local = await SearchAsync(domesticOnly: true);
+        var card = Assert.Single(local.Items, i => i.Id == domesticId);
+        Assert.True(card.SellsDomestically);
+        Assert.DoesNotContain(local.Items, i => i.Id == exportId);
+    }
+
     // ---- Seeding ----
 
     /// <summary>One verified seller with one domestic listing, plus a buyer with a token.</summary>
@@ -666,6 +690,14 @@ public sealed class DomesticCartFlowTests : IClassFixture<TestingWebAppFactory>
         return (await response.Content.ReadFromJsonAsync<ProductMirror>())!;
     }
 
+    private async Task<SearchResultMirror> SearchAsync(bool domesticOnly)
+    {
+        var response = await _client.GetAsync(
+            $"/api/v1/products?pageSize=50&domesticOnly={(domesticOnly ? "true" : "false")}");
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<SearchResultMirror>())!;
+    }
+
     private Task<string> AdminTokenAsync() =>
         LoginAsync(TestingWebAppFactory.AdminEmail, TestingWebAppFactory.AdminPassword);
 
@@ -718,6 +750,19 @@ public sealed class DomesticCartFlowTests : IClassFixture<TestingWebAppFactory>
         public Guid Id { get; init; }
         public string Name { get; init; } = "";
         public decimal AvailableQuantity { get; init; }
+    }
+
+    public sealed class SearchResultMirror
+    {
+        public List<ProductCardMirror> Items { get; init; } = [];
+        public int Total { get; init; }
+    }
+
+    public sealed class ProductCardMirror
+    {
+        public Guid Id { get; init; }
+        public string Name { get; init; } = "";
+        public bool SellsDomestically { get; init; }
     }
 
     public sealed class CategoryMirror

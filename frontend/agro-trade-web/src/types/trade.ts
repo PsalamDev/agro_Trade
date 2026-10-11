@@ -406,6 +406,7 @@ export interface ProductSearchParams {
   minPrice?: number
   maxPrice?: number
   verifiedOnly?: boolean
+  domesticOnly?: boolean
   sellerBusinessId?: string
   sortBy?: string
   sortDir?: string

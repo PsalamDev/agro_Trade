@@ -8,7 +8,7 @@ namespace AgroTrade.Api.Controllers;
 
 /// <summary>
 /// Export listings: seller CRUD with draft/active lifecycle, image upload, and the
-/// marketplace search with origin/destination/commodity/verified filters
+/// marketplace search with origin/destination/commodity/verified/domestic filters
 /// (plan §03 — Products).
 /// </summary>
 [ApiController]
@@ -24,7 +24,7 @@ public class ProductsController(
     public async Task<ActionResult<PagedResult<ProductCardDto>>> Search(
         [FromQuery] string? q, Guid? categoryId, string? hsCode, string? originCountry,
         string? exportsToCountry, int? incoterms, string? currency, decimal? minPrice,
-        decimal? maxPrice, bool verifiedOnly, Guid? sellerBusinessId, string? sortBy,
+        decimal? maxPrice, bool verifiedOnly, bool domesticOnly, Guid? sellerBusinessId, string? sortBy,
         string? sortDir, int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
         return Ok(await productService.SearchAsync(new ProductSearchQuery
@@ -39,6 +39,7 @@ public class ProductsController(
             MinPrice = minPrice,
             MaxPrice = maxPrice,
             VerifiedOnly = verifiedOnly,
+            DomesticOnly = domesticOnly,
             SellerBusinessId = sellerBusinessId,
             SortBy = sortBy,
             SortDir = sortDir,

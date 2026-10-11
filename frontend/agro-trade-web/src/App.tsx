@@ -35,6 +35,7 @@ import AdminUsersPage from './pages/AdminUsersPage'
 import AdminAuditLogPage from './pages/AdminAuditLogPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RequireRole } from './components/RequireRole'
+import { BUYER_ROLES } from './types/auth'
 import CartPage from './pages/CartPage'
 import LogisticsDirectoryPage from './pages/LogisticsDirectoryPage'
 import LogisticsProviderPage from './pages/LogisticsProviderPage'
@@ -42,7 +43,6 @@ import LogisticsBookingsPage from './pages/LogisticsBookingsPage'
 import LogisticsProfilePage from './pages/LogisticsProfilePage'
 
 const ADMIN_ROLES = ['Administrator']
-const BUYER_ROLES = ['Buyer', 'Importer', 'Distributor']
 const LSP_ROLES = ['LogisticsProvider']
 
 export default function App() {
