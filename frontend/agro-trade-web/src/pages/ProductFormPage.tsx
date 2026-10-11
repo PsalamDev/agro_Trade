@@ -40,6 +40,8 @@ export default function ProductFormPage() {
   const [qualitySpecs, setQualitySpecs] = useState<Record<string, string>>({})
   const [packagingOptions, setPackagingOptions] = useState<string[]>([])
   const [certifications, setCertifications] = useState<string[]>([])
+  const [sellsDomestically, setSellsDomestically] = useState(false)
+  const [domesticDeliveryFee, setDomesticDeliveryFee] = useState('')
   const [listingStatus, setListingStatus] = useState(String(LISTING_STATUS.Active))
   const [businessId, setBusinessId] = useState('')
   const [images, setImages] = useState<ProductImageDto[]>([])
@@ -102,6 +104,8 @@ export default function ProductFormPage() {
         setPackagingOptions(product.packagingOptions)
         setCertifications(product.certifications)
         setListingStatus(String(product.listingStatus))
+        setSellsDomestically(product.sellsDomestically)
+        setDomesticDeliveryFee(product.domesticDeliveryFee ? String(product.domesticDeliveryFee) : '')
         setImages(product.images)
         setIsOwner(owned)
         setLoaded(true)
@@ -204,6 +208,8 @@ export default function ProductFormPage() {
         packagingOptions,
         certifications,
         listingStatus: Number(listingStatus),
+        sellsDomestically,
+        domesticDeliveryFee: sellsDomestically ? Number(domesticDeliveryFee) : undefined,
       }
       const saved = isEdit && id ? await updateProduct(id, payload) : await createProduct(payload, businessId || undefined)
       navigate(`/products/${saved.slug || saved.id}`, { replace: true })
@@ -240,7 +246,7 @@ export default function ProductFormPage() {
         <Link to={isEdit ? `/products/${id}` : '/my/products'} className="text-sm font-medium text-brand-700 hover:underline">
           ← Back
         </Link>
-        <h1 className="mt-3 text-2xl font-bold tracking-tight">{isEdit ? 'Edit listing' : 'New export listing'}</h1>
+        <h1 className="mt-3 text-2xl font-bold tracking-tight">{isEdit ? 'Edit listing' : 'New listing'}</h1>
         <p className="mt-1 text-sm text-stone-500">
           Listings published as Active require a verified business. Unverified sellers will see an error until then.
         </p>
@@ -296,6 +302,44 @@ export default function ProductFormPage() {
               <Field label="Minimum order quantity *" id="prod-moq" type="number" min="0" step="any" required value={minimumOrderQuantity} onChange={(e) => setMinimumOrderQuantity(e.target.value)} />
               <Field label="Lead time (days)" id="prod-lead" type="number" min="0" value={leadTimeDays} onChange={(e) => setLeadTimeDays(e.target.value)} />
               <SelectField label="Listing status" id="prod-status" options={LISTING_STATUSES} value={listingStatus} onChange={(e) => setListingStatus(e.target.value)} />
+            </div>
+          </Card>
+
+          <Card>
+            <h2 className="text-lg font-semibold">Domestic buy-now (Phase 4)</h2>
+            <p className="mt-1 text-sm text-stone-500">
+              Offer this listing to local buyers through the cart, with a doorstep delivery charge.
+            </p>
+            <div className="mt-4 space-y-4">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={sellsDomestically}
+                  onChange={(e) => setSellsDomestically(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-stone-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span>
+                  <span className="font-medium">Sell domestically</span>
+                  <span className="block text-stone-500">
+                    Local buyers can add this listing to a cart and check out for delivery within{' '}
+                    {originCountry || 'the origin country'}.
+                  </span>
+                </span>
+              </label>
+              {sellsDomestically ? (
+                <Field
+                  label="Domestic delivery fee"
+                  id="prod-domestic-fee"
+                  type="number"
+                  min="0"
+                  step="any"
+                  required
+                  value={domesticDeliveryFee}
+                  onChange={(e) => setDomesticDeliveryFee(e.target.value)}
+                  hint={`One charge per cart line, in ${currency || 'the listing currency'}.`}
+                  placeholder="e.g. 25"
+                />
+              ) : null}
             </div>
           </Card>
 

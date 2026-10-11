@@ -101,7 +101,7 @@ Nigerian catalogue items).
 | --- | --- | --- | --- |
 | POST | `/orders` | Buyer | Create from `acceptedQuotationId` (preferred) or direct item entry; **Idempotency-Key required**; sets incoterms, ports, payment terms, currency, transport mode |
 | GET | `/orders` | User | `?as=buyer\|seller&status=&currency=&page=` |
-| GET | `/orders/{id}` | Participant | Detail incl. items, trade terms, payments |
+| GET | `/orders/{id}` | Participant | Detail incl. items, trade terms, payments, and — on domestic orders — the snapshotted delivery address (`deliveryLine1`…`deliveryPostalCode`, country `destinationCountry`) |
 | POST | `/orders/{id}/cancel` | Buyer/Seller | While Pending/Confirmed; releases inventory |
 | PATCH | `/orders/{id}/status` | Seller | Confirmed → Processing → InTransit → Delivered |
 | POST | `/orders/{id}/complete` | Buyer | Confirm arrival → Completed (enables reviews) |
@@ -110,8 +110,8 @@ Nigerian catalogue items).
 
 ## Cart & domestic buy-now (Phase 4 — Slice 1)
 
-Domestic-only: a seller marks a listing `sellsDomestically` with a flat `domesticDeliveryFee`
-(the seeder does this for the four Nigerian catalogue listings). Any Buyer/Importer/Distributor
+Domestic-only: a seller sets `sellsDomestically` (with a flat `domesticDeliveryFee`) on the listing
+form; the seeder does this for the four Nigerian catalogue listings. Any Buyer/Importer/Distributor
 can add such listings to a cart that lives **server-side** — the client only ever holds product
 ids and quantities, and every read resolves the live listing terms (price, currency, delivery
 fee, stock, domestic availability). Checkout fans the cart out into one `Order` per seller on
@@ -124,7 +124,7 @@ enforced domestically.
 | POST | `/carts/items` | Buyer | `{ productId, quantity? }` — adds, or increments an existing line. Product must exist (404 `PRODUCT_NOT_FOUND`) and be active/domestic and not the caller's own listing |
 | PUT | `/carts/items/{productId}` | Buyer | `{ quantity }` absolute (≥ 1); 404 `CART_ITEM_NOT_FOUND` if the line is absent; exceeds available (409 `QUANTITY_EXCEEDS_AVAILABLE`) or non-domestic (400) are refused |
 | DELETE | `/carts/items/{productId}` | Buyer | Remove the line; **idempotent** — a missing line is not an error |
-| POST | `/carts/checkout` | Buyer | `{ destination, notes? }` — re-validates every line, reserves stock across the whole cart atomically, splits into one `Order` per seller (`DestinationCountry` = seller origin, `ExpectedDeliveryUtc` = now + max lead, `DeliveryFee` = Σ line fees, each order refs one delivery address), empties the cart, returns the created order summaries |
+| POST | `/carts/checkout` | Buyer | `{ destination, notes? }` — re-validates every line, reserves stock across the whole cart atomically, splits into one `Order` per seller (`DestinationCountry` = seller origin, `ExpectedDeliveryUtc` = now + max lead, `DeliveryFee` = Σ line fees, each order **snapshots** the delivery address as `deliveryLine1`…`deliveryPostalCode` with the country in `DestinationCountry` — it writes no address-book row and leaves `DestinationAddressId` null), empties the cart, returns the created order summaries |
 
 Checkout errors: `CART_EMPTY`, `PRODUCT_NOT_FOUND` (404), `PRODUCT_UNAVAILABLE` (the line's listing
 changed after it was added — taken down, deactivated, suspended, short of stock), `PRODUCT_NOT_DOMESTIC`,

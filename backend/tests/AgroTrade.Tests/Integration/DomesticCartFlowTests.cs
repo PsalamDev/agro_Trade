@@ -212,6 +212,8 @@ public sealed class DomesticCartFlowTests : IClassFixture<TestingWebAppFactory>
         Assert.Equal(Incoterms.Dap, detailA.Incoterms);
         Assert.Equal(ShipmentMode.Road, detailA.TransportMode);
         Assert.Equal("NG", detailA.DestinationCountry);
+        Assert.Equal("1 Ikorodu Road", detailA.DeliveryLine1);
+        Assert.Equal("Lagos", detailA.DeliveryCity);
         Assert.Equal(PaymentTerms.TtAdvance, detailA.PaymentTerms);
         Assert.Equal(535m, detailA.Total);
         Assert.Equal(35m, detailA.DeliveryFee);
@@ -225,6 +227,54 @@ public sealed class DomesticCartFlowTests : IClassFixture<TestingWebAppFactory>
         });
         Assert.Equal(HttpStatusCode.BadRequest, placedTwice.StatusCode);
         Assert.Contains("CART_EMPTY", await placedTwice.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task CheckoutSnapshotsTheDeliveryAddressOntoTheOrder()
+    {
+        // The buyer registers with a prefix we control so the user row can be found again.
+        var buyerPrefix = $"cart_snap_buyer_{Guid.NewGuid():N}";
+        var sellerToken = await VerifyBusinessAsync(await CreateCompanyUserAsync($"cart_snap_seller_{Guid.NewGuid():N}"));
+        var (productId, _) = await CreateDomesticProductAsync(sellerToken, "Snap Grain", price: 120m, deliveryFee: 15m);
+        var buyerToken = await RegisterAndLoginAsync(buyerPrefix);
+
+        await AddAsync(buyerToken, productId, quantity: 2);
+        var response = await PostAuthenticatedAsync("/api/v1/carts/checkout", buyerToken, new
+        {
+            destination = new
+            {
+                line1 = "42 Snap Street",
+                line2 = "Suite 7",
+                city = "Ibadan",
+                state = "Oyo",
+                country = "NG",
+                postalCode = "200001",
+            },
+            notes = "Ring the bell.",
+        });
+        response.EnsureSuccessStatusCode();
+        var result = (await response.Content.ReadFromJsonAsync<CheckoutResultMirror>())!;
+        var order = Assert.Single(result.Orders);
+
+        // The full address comes back on the order detail ...
+        var detail = await GetOrderAsync(order.OrderId, buyerToken);
+        Assert.Equal("42 Snap Street", detail.DeliveryLine1);
+        Assert.Equal("Suite 7", detail.DeliveryLine2);
+        Assert.Equal("Ibadan", detail.DeliveryCity);
+        Assert.Equal("Oyo", detail.DeliveryState);
+        Assert.Equal("200001", detail.DeliveryPostalCode);
+        Assert.Equal("NG", detail.DestinationCountry);
+
+        // ... and it lives on the order as a snapshot, not as an address-book row or a mutable
+        // FK that could change or vanish when the buyer later edits their address book.
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Data.AgroTradeDbContext>();
+        var buyer = await db.Users.SingleAsync(u => u.Email == $"{buyerPrefix}@cart.tests.agrotrade.local");
+        Assert.Equal(0, await db.Addresses.CountAsync(a => a.OwnerUserId == buyer.Id));
+        var onDisk = await db.Orders.AsNoTracking().SingleAsync(o => o.Id == order.OrderId);
+        Assert.Null(onDisk.DestinationAddressId);
+        Assert.Equal("42 Snap Street", onDisk.DeliveryLine1);
+        Assert.Equal("Ibadan", onDisk.DeliveryCity);
     }
 
     [Fact]
@@ -725,6 +775,11 @@ public sealed class DomesticCartFlowTests : IClassFixture<TestingWebAppFactory>
         public Incoterms Incoterms { get; init; }
         public ShipmentMode? TransportMode { get; init; }
         public string? DestinationCountry { get; init; }
+        public string? DeliveryLine1 { get; init; }
+        public string? DeliveryLine2 { get; init; }
+        public string? DeliveryCity { get; init; }
+        public string? DeliveryState { get; init; }
+        public string? DeliveryPostalCode { get; init; }
         public PaymentTerms PaymentTerms { get; init; }
         public decimal Subtotal { get; init; }
         public decimal DeliveryFee { get; init; }

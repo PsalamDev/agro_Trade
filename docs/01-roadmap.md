@@ -157,6 +157,13 @@ seller, quantity steppers, delivery-address form, per-order success links) and a
 on the product page. Logistics-provider directory/booking and domestic onboarding paths remain
 for later slices.
 
+**Slice 1 hardening (shipped).** The seller listing form now exposes `SellsDomestically` and the
+flat domestic delivery fee (and *My listings* badges domestic items), so a real seller — not only
+the seeder — can opt a listing into buy-now. At checkout the delivery address is **snapshotted onto
+the order** (`DeliveryLine1`…`DeliveryPostalCode`, country in `DestinationCountry`) rather than
+written as a hidden address-book row, and it is surfaced on the order page; order cards also show
+`Domestic · {country}` and the delivery fee, so both parties can see where the goods go.
+
 ---
 
 ## Phase 5 — Global trade infrastructure (spec §15, §19)

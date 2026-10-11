@@ -188,9 +188,11 @@ public sealed class CartService(AgroTradeDbContext db, IInventoryService invento
             }
         }
 
-        var address = new Address
+        // The destination is snapshotted onto every order, not written as an address-book row:
+        // an order is the record of where goods were to go, and must not change (or vanish)
+        // when the buyer later edits their address book.
+        var destination = new
         {
-            OwnerUserId = userId,
             Line1 = request.Destination.Line1.Trim(),
             Line2 = request.Destination.Line2?.Trim(),
             City = request.Destination.City.Trim(),
@@ -198,7 +200,6 @@ public sealed class CartService(AgroTradeDbContext db, IInventoryService invento
             Country = request.Destination.Country.Trim().ToUpperInvariant(),
             PostalCode = request.Destination.PostalCode?.Trim(),
         };
-        db.Addresses.Add(address);
 
         var now = DateTime.UtcNow;
         var orders = new List<Order>();
@@ -221,9 +222,15 @@ public sealed class CartService(AgroTradeDbContext db, IInventoryService invento
                 // delivery; the export incoterms on the listing (FOB/CIF…) do not apply locally.
                 Incoterms = Incoterms.Dap,
                 PaymentTerms = PaymentTerms.TtAdvance,
-                DestinationCountry = lines[0].Product!.OriginCountry,
+                DestinationCountry = destination.Country,
                 TransportMode = ShipmentMode.Road,
-                DestinationAddressId = address.Id,
+                // The delivery address is snapshotted on the order (see `destination` above);
+                // domestic orders therefore leave DestinationAddressId null on purpose.
+                DeliveryLine1 = destination.Line1,
+                DeliveryLine2 = destination.Line2,
+                DeliveryCity = destination.City,
+                DeliveryState = destination.State,
+                DeliveryPostalCode = destination.PostalCode,
                 ExpectedDeliveryUtc = now.AddDays(leadDays),
                 PlacedAtUtc = now,
                 Notes = BuildNotes(request.Notes),

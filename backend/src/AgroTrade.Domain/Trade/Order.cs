@@ -56,6 +56,19 @@ public sealed class Order : IAuditableEntity
     public ShipmentMode? TransportMode { get; set; }
     public Guid? DestinationAddressId { get; set; }
 
+    /// <summary>
+    /// Street-level delivery address snapshotted at domestic checkout (Phase 4). Held on the
+    /// order rather than reached through <see cref="DestinationAddressId"/> so that the record
+    /// of where goods were to be delivered cannot mutate or disappear when the buyer later
+    /// edits their address book. Export orders continue to reference a saved address by FK and
+    /// leave these null. <see cref="DestinationCountry"/> carries the snapshot's country.
+    /// </summary>
+    public string? DeliveryLine1 { get; set; }
+    public string? DeliveryLine2 { get; set; }
+    public string? DeliveryCity { get; set; }
+    public string? DeliveryState { get; set; }
+    public string? DeliveryPostalCode { get; set; }
+
     /// <summary>Agreed delivery date, from the RFQ deadline or the seller's lead time.</summary>
     public DateTime? ExpectedDeliveryUtc { get; set; }
     public DateTime? PlacedAtUtc { get; set; }

@@ -175,6 +175,30 @@ export default function OrderDetailPage() {
                   <FieldRow label="Updated" value={formatDate(order.updatedAtUtc)} />
                 </dl>
 
+                {order.deliveryLine1 ? (
+                  <div className="mt-6">
+                    <h2 className="text-lg font-semibold">Delivery address</h2>
+                    <address className="mt-2 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm leading-relaxed text-stone-700 not-italic">
+                      {order.deliveryLine1}
+                      {order.deliveryLine2 ? (
+                        <>
+                          <br />
+                          {order.deliveryLine2}
+                        </>
+                      ) : null}
+                      <br />
+                      {[order.deliveryCity, order.deliveryState].filter(Boolean).join(', ')}
+                      {order.deliveryPostalCode ? ` ${order.deliveryPostalCode}` : ''}
+                      {order.destinationCountry ? (
+                        <>
+                          <br />
+                          {order.destinationCountry}
+                        </>
+                      ) : null}
+                    </address>
+                  </div>
+                ) : null}
+
                 {order.notes ? (
                   <div className="mt-6">
                     <h2 className="text-lg font-semibold">Notes</h2>

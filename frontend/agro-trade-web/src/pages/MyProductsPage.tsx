@@ -59,7 +59,7 @@ export default function MyProductsPage() {
         <PageHeader
           eyebrow="Company"
           title="My listings"
-          subtitle="Manage the platform's export supply."
+          subtitle="Manage the platform's supply."
           action={
             isCompany ? (
               <Link
@@ -113,7 +113,7 @@ export default function MyProductsPage() {
           <div className="mt-6">
             <EmptyState
               title="No listings yet"
-              body="Create your first export listing — it will stay Draft until your business is verified."
+              body="Create your first listing — it will stay Draft until your business is verified."
             />
           </div>
         ) : (
@@ -139,6 +139,11 @@ export default function MyProductsPage() {
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
+                      {product.sellsDomestically ? (
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-emerald-700 ring-1 ring-emerald-200 uppercase">
+                          Domestic
+                        </span>
+                      ) : null}
                       <ListingPill status={product.listingStatus} />
                       <VerifiedBadge visible={product.isSellerVerifiedBadgeVisible} />
                     </div>

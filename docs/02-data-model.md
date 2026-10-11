@@ -202,7 +202,10 @@ Available = OnHand − Reserved. Reserve on order, decrement on confirm, release
 | **PortOfLoading / PortOfDischarge** | nvarchar(100) | |
 | **PaymentTerms** | int | **PaymentTerms** enum (T/T advance, T/T partial, L/C, CAD, on account, other) |
 | PaymentStatus | int | **PaymentStatus** |
-| DestinationAddressId | guid? | FK Addresses |
+| DestinationAddressId | guid? | FK Addresses — **export orders only**; domestic orders leave it null and snapshot the address instead (below) |
+| DeliveryLine1 / DeliveryLine2 | nvarchar(200)? | delivery address snapshotted at domestic checkout (Phase 4); null on export orders |
+| DeliveryCity / DeliveryState | nvarchar(120)? | part of the same delivery-address snapshot |
+| DeliveryPostalCode | nvarchar(20)? | part of the same delivery-address snapshot |
 | TransportMode | int? | ShipmentMode enum |
 | Notes | nvarchar(max)? | |
 | PlacedAtUtc / UpdatedAtUtc | | |
@@ -226,8 +229,10 @@ Quantity decimal(18,2), CreatedAtUtc?, UpdatedAtUtc?`; indexes on `CartId` and `
 
 At checkout the cart is fanned out into one `Order` per seller on the existing orders model
 (DAP/Road, `Placed`, `DestinationCountry` = seller origin, `ExpectedDeliveryUtc` = now + max
-lead time, `DeliveryFee` = Σ line fees, the delivery address written to a single `Addresses`
-row referenced by `DestinationAddressId`), inventory is reserved across the whole cart
+lead time, `DeliveryFee` = Σ line fees, the delivery address **snapshotted onto each order** as
+`DeliveryLine1`…`DeliveryPostalCode` with the country in `DestinationCountry` — never written as
+an `Addresses` row, so a later address-book edit cannot change or orphan the record of where goods
+were to go), inventory is reserved across the whole cart
 atomically, and the cart is emptied.
 
 ### Payments

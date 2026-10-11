@@ -55,6 +55,9 @@ function OrderRow({ order, view }: { order: OrderCardDto; view: 'buyer' | 'selle
             <dd className="mt-0.5 font-display text-base font-bold text-stone-900">
               {money(order.currency, order.total)}
             </dd>
+            {order.deliveryFee > 0 ? (
+              <dd className="mt-0.5 text-xs text-stone-500">incl. {money(order.currency, order.deliveryFee)} delivery</dd>
+            ) : null}
           </div>
           <div>
             <dt className="text-xs font-medium tracking-wide text-stone-500 uppercase">Incoterm</dt>
@@ -65,7 +68,9 @@ function OrderRow({ order, view }: { order: OrderCardDto; view: 'buyer' | 'selle
           <div>
             <dt className="text-xs font-medium tracking-wide text-stone-500 uppercase">Route</dt>
             <dd className="mt-0.5 truncate text-sm font-medium">
-              {order.portOfLoading ?? '—'} → {order.portOfDischarge ?? '—'}
+              {order.deliveryFee > 0
+                ? `Domestic${order.destinationCountry ? ` · ${order.destinationCountry}` : ''}`
+                : `${order.portOfLoading ?? '—'} → ${order.portOfDischarge ?? '—'}`}
             </dd>
           </div>
           <div>

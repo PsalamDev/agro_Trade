@@ -80,6 +80,8 @@ public sealed record OrderCardDto
     public Incoterms Incoterms { get; init; }
     public string? PortOfLoading { get; init; }
     public string? PortOfDischarge { get; init; }
+    /// <summary>Destination country; set on domestic buy-now orders (Phase 4).</summary>
+    public string? DestinationCountry { get; init; }
     public int ItemCount { get; init; }
     public DateTime? ExpectedDeliveryUtc { get; init; }
     public DateTime? PlacedAtUtc { get; init; }
@@ -124,6 +126,17 @@ public sealed record OrderDetailDto
     public string? DestinationCountry { get; init; }
     public ShipmentMode? TransportMode { get; init; }
     public Guid? DestinationAddressId { get; init; }
+
+    /// <summary>
+    /// Delivery address snapshotted at domestic checkout (Phase 4); null on export orders, which
+    /// reference a saved address via <see cref="DestinationAddressId"/> instead. The country
+    /// travels in <see cref="DestinationCountry"/>.
+    /// </summary>
+    public string? DeliveryLine1 { get; init; }
+    public string? DeliveryLine2 { get; init; }
+    public string? DeliveryCity { get; init; }
+    public string? DeliveryState { get; init; }
+    public string? DeliveryPostalCode { get; init; }
 
     public DateTime? ExpectedDeliveryUtc { get; init; }
     public DateTime? PlacedAtUtc { get; init; }

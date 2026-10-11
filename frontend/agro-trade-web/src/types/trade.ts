@@ -584,6 +584,8 @@ export interface OrderCardDto {
   incoterms: number
   portOfLoading: string | null
   portOfDischarge: string | null
+  /** Destination country; set on domestic buy-now orders (Phase 4). */
+  destinationCountry: string | null
   itemCount: number
   expectedDeliveryUtc: string | null
   placedAtUtc: string | null
@@ -624,6 +626,12 @@ export interface OrderDetailDto {
   destinationCountry: string | null
   transportMode: number | null
   destinationAddressId: string | null
+  /** Delivery address snapshotted at domestic checkout (Phase 4); null on export orders. */
+  deliveryLine1: string | null
+  deliveryLine2: string | null
+  deliveryCity: string | null
+  deliveryState: string | null
+  deliveryPostalCode: string | null
   expectedDeliveryUtc: string | null
   placedAtUtc: string | null
   completedAtUtc: string | null

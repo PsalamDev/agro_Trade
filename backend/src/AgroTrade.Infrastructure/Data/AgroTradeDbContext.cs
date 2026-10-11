@@ -308,6 +308,11 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.Property(o => o.PortOfLoading).HasMaxLength(120);
             e.Property(o => o.PortOfDischarge).HasMaxLength(120);
             e.Property(o => o.DestinationCountry).HasMaxLength(2);
+            e.Property(o => o.DeliveryLine1).HasMaxLength(200);
+            e.Property(o => o.DeliveryLine2).HasMaxLength(200);
+            e.Property(o => o.DeliveryCity).HasMaxLength(120);
+            e.Property(o => o.DeliveryState).HasMaxLength(120);
+            e.Property(o => o.DeliveryPostalCode).HasMaxLength(20);
             e.Property(o => o.Notes).HasMaxLength(2000);
             e.Property(o => o.RowVersion).IsRowVersion();
             e.HasIndex(o => o.OrderNumber).IsUnique();
