@@ -94,6 +94,9 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.HasKey(t => t.Id);
             e.Property(t => t.TokenHash).HasMaxLength(128).IsRequired();
             e.Property(t => t.ReplacedByTokenHash).HasMaxLength(128);
+            // Rotation is read-then-write; the version makes a concurrent second rotation fail
+            // rather than mint a second live successor for one token.
+            e.Property(t => t.RowVersion).IsRowVersion();
             e.HasIndex(t => t.TokenHash).IsUnique();
             e.HasIndex(t => new { t.UserId, t.RevokedAtUtc, t.ExpiresAtUtc });
             e.HasOne<ApplicationUser>()
@@ -460,6 +463,9 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.HasIndex(p => new { p.OrderId, p.Status });
             e.Property(p => p.ProviderRef).HasMaxLength(100);
             e.Property(p => p.IdempotencyKey).HasMaxLength(100);
+            // Concurrent webhooks for one charge must not silently overwrite each other; the
+            // version makes the later writer lose so it can re-evaluate instead of clobbering.
+            e.Property(p => p.RowVersion).IsRowVersion();
             // A gateway names only its own charge id, so this is the column a webhook is
             // matched on. Filtered because a manual transfer has no gateway to name one.
             e.HasIndex(p => new { p.Provider, p.ProviderRef })

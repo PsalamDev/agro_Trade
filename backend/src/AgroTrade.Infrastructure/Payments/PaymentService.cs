@@ -227,7 +227,7 @@ public sealed class PaymentService(
         // platform is expecting, and an order that still reads as having no payment activity
         // misreports what is happening to it.
         await RollUpOrderAsync(order.Id, ct);
-        await db.SaveChangesAsync(ct);
+        await SaveAsync(ct);
 
         logger.LogInformation(
             "Payment {Reference} raised against order {OrderId} for {Amount} {Currency} (providerRef {ProviderRef})",
@@ -401,7 +401,7 @@ public sealed class PaymentService(
         // reversed, and a notification telling someone what they just did is noise.
         await NotifyAsync(payment, rolled, was: PaymentStatus.None, skipUserId: userId, ct);
 
-        await db.SaveChangesAsync(ct);
+        await SaveAsync(ct);
 
         logger.LogInformation(
             "Manual payment {Reference} recorded against order {OrderId} for {Amount} {Currency} (remittance {RemittanceReference})",
@@ -512,13 +512,35 @@ public sealed class PaymentService(
                 + $"(order {(order is null ? payment.OrderId.ToString() : order.OrderNumber)})",
             reason);
 
-        await db.SaveChangesAsync(ct);
+        await SaveAsync(ct);
 
         logger.LogInformation(
             "Refunded {Amount} {Currency} on payment {Reference} (order {OrderId})",
             amount, payment.Currency, payment.Reference, payment.OrderId);
 
         return await ToDtoAsync(payment, ct: ct);
+    }
+
+    /// <summary>
+    /// Saves, translating a lost rowversion race into a clean 409.
+    /// </summary>
+    /// <remarks>
+    /// Two admins refunding the same payment, or a webhook settling while a refund is in flight,
+    /// must surface as a conflict the caller can retry — not a 500. The webhook path has its own
+    /// retry loop; this is for the request-driven paths that have nothing to re-evaluate against.
+    /// </remarks>
+    private async Task SaveAsync(CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw ApiException.Conflict(
+                "PAYMENT_CHANGED",
+                "This payment was updated by someone else at the same time. Reload it and try again.");
+        }
     }
 
     /// <summary>
@@ -736,7 +758,39 @@ public sealed class PaymentService(
         return await ApplyAsync(record, payload, ct);
     }
 
+    /// <summary>
+    /// Applies a webhook event, retrying when a concurrent event changes the payment or its order
+    /// between the read and the write.
+    /// </summary>
+    /// <remarks>
+    /// The payment carries a rowversion, so when two events for one charge are applied at once the
+    /// second save loses instead of overwriting the first — without this the later of the two could
+    /// flip a settled payment to Failed while the ledger still held its settlement. Losing the save
+    /// is not an error here: this event's own row is already durable, and everything the apply
+    /// touches — the ledger entry, the receipt, the order rollup — is idempotent, so re-evaluating
+    /// from committed state is safe. Re-reads the event too, because the failed save rolled back the
+    /// outcome written onto it.
+    /// </remarks>
     private async Task<WebhookAck> ApplyAsync(
+        PaymentWebhookEvent record, SandboxWebhookPayload payload, CancellationToken ct)
+    {
+        const int maxAttempts = 3;
+
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await ApplyOnceAsync(record, payload, ct);
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < maxAttempts)
+            {
+                db.ChangeTracker.Clear();
+                record = await db.PaymentWebhookEvents.FirstAsync(w => w.Id == record.Id, ct);
+            }
+        }
+    }
+
+    private async Task<WebhookAck> ApplyOnceAsync(
         PaymentWebhookEvent record, SandboxWebhookPayload payload, CancellationToken ct)
     {
         var payment = await db.Payments

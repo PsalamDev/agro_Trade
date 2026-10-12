@@ -77,6 +77,15 @@ public sealed class Payment : IAuditableEntity
 
     public string? Notes { get; set; }
 
+    /// <summary>
+    /// Optimistic concurrency token. Two gateway events for one charge can arrive at the same
+    /// instant, and without a version check the later save simply overwrites the earlier one —
+    /// flipping a settled payment to Failed while the ledger still holds its settlement. The
+    /// version makes the second write lose instead, so the loser can re-evaluate against
+    /// committed state.
+    /// </summary>
+    public byte[]? RowVersion { get; set; }
+
     public DateTime? CreatedAtUtc { get; set; }
     public DateTime? UpdatedAtUtc { get; set; }
 

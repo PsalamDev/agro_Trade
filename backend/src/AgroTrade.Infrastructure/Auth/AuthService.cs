@@ -167,10 +167,31 @@ public sealed class AuthService(
 
         EnsureActive(user);
 
-        var pair = await CreateTokenPairAsync(user, persist: true, ct);
+        // Stage the successor and the retirement of the presented token, then commit the pair in
+        // one SaveChanges. RefreshToken carries a rowversion, so if a second request rotated the
+        // same token between this read and that write, the UPDATE matches no row and the whole
+        // save — successor insert included — rolls back. One rotation therefore yields exactly one
+        // live successor; previously both requests could mint one.
+        var pair = await CreateTokenPairAsync(user, persist: false, ct);
         stored.RevokedAtUtc = DateTime.UtcNow;
         stored.ReplacedByTokenHash = pair.RefreshTokenHash;
-        await db.SaveChangesAsync(ct);
+
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Two refreshes raced on one token. The other won and committed its successor; this
+            // one did not. Presenting a rotated token twice is exactly the replay signal the
+            // family revoke exists for, so drop the successor this request staged and revoke the
+            // family rather than leave two live tokens behind a single rotation.
+            db.ChangeTracker.Clear();
+            await RevokeAllForUserAsync(stored.UserId, ct);
+            throw ApiException.Unauthorized(
+                "REFRESH_TOKEN_REUSED",
+                "Refresh token was already used; all sessions revoked.");
+        }
 
         return pair.Response;
     }
@@ -182,7 +203,16 @@ public sealed class AuthService(
         if (stored is not null && stored.RevokedAtUtc is null)
         {
             stored.RevokedAtUtc = DateTime.UtcNow;
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // A concurrent refresh or logout already retired this token, which is the state
+                // logging out wanted anyway. Nothing left to do.
+                db.ChangeTracker.Clear();
+            }
         }
     }
 
@@ -293,11 +323,21 @@ public sealed class AuthService(
         return (response, hash);
     }
 
+    /// <summary>
+    /// Revokes every live refresh token for a user.
+    /// </summary>
+    /// <remarks>
+    /// A set-based UPDATE rather than a load-and-mutate loop. This runs on the reuse path, where
+    /// the rows being revoked are exactly the ones a racing request is touching; a tracked save
+    /// would throw a concurrency error of its own and mask the reuse it is meant to record. The
+    /// direct update is idempotent and cannot lose that race.
+    /// </remarks>
     private async Task RevokeAllForUserAsync(Guid userId, CancellationToken ct)
     {
-        var active = db.RefreshTokens.Where(t => t.UserId == userId && t.RevokedAtUtc == null);
-        await active.ForEachAsync(t => t.RevokedAtUtc = DateTime.UtcNow, ct);
-        await db.SaveChangesAsync(ct);
+        var now = DateTime.UtcNow;
+        await db.RefreshTokens
+            .Where(t => t.UserId == userId && t.RevokedAtUtc == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAtUtc, now), ct);
     }
 
     private Task<ApplicationUser?> LoadUserAsync(Guid userId) =>

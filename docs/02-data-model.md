@@ -18,7 +18,7 @@ ports, and trade documents are first-class entities.
 | Audit | `CreatedAtUtc`, `UpdatedAtUtc` (+ `CreatedById`/`UpdatedById` where relevant) |
 | Indexes | One per FK; composite search indexes per table |
 | JSON | Small flexible payloads (certifications, specs, settings) as `nvarchar(max)` JSON |
-| Concurrency | `RowVersion` on Order, Product, Inventory, Quotation |
+| Concurrency | `RowVersion` on the read-then-write aggregates: Order, Quotation, Inventory, Shipment, Payment, RefreshToken |
 
 ## Entity groups (33 tables)
 

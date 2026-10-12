@@ -99,6 +99,7 @@ Api → Application → Domain
 | Logging | Serilog request logging with correlation id header; **no PII in logs** (mask emails/phones) |
 | Audit | `AuditLog` table via `SaveChanges` interceptor for admin/financial/verification actions (spec §18) |
 | Idempotency | `Idempotency-Key` → dedupe table for POST `/orders` and `/payments` (Phase 3) |
+| Concurrency | Optimistic `RowVersion` on the read-then-write aggregates (Order, Quotation, Inventory, Shipment, Payment, RefreshToken). A lost race is a `409` on request paths and a re-read-and-re-evaluate on the webhook path; gap-free RFQ/order/payment numbers take a serialisable `UPDLOCK, HOLDLOCK` range lock (`SequenceAllocator`) |
 | Rate limiting | `AspNetCore RateLimiter` on `/auth/*` and `/messages` (per-token sliding window) |
 | CORS | Allowlisted origins from config |
 | Storage | `IFileStorage.UploadAsync/GetSignedUrlAsync/DeleteAsync`; local disk in dev, Cloudinary/S3 in cloud |

@@ -601,6 +601,34 @@ public sealed class PaymentFlowTests : IClassFixture<TestingWebAppFactory>
         Assert.Equal(HttpStatusCode.NotFound, outsiderRead.StatusCode);
     }
 
+    [Fact]
+    public async Task ConcurrentUpdatesToOnePayment_CannotOverwriteEachOther()
+    {
+        var (buyerToken, _) = await SeedTradeAsync("rowver");
+        var orderId = await SeedOrderAsync(buyerToken);
+        var payment = await InitiateAsync(orderId, buyerToken);
+
+        using var scopeA = _factory.Services.CreateScope();
+        using var scopeB = _factory.Services.CreateScope();
+        var dbA = scopeA.ServiceProvider
+            .GetRequiredService<AgroTrade.Infrastructure.Data.AgroTradeDbContext>();
+        var dbB = scopeB.ServiceProvider
+            .GetRequiredService<AgroTrade.Infrastructure.Data.AgroTradeDbContext>();
+
+        // Two writers read the same payment at the same version — the situation two gateway events
+        // arriving together create. Without the rowversion the second write silently clobbers the
+        // first, which for status is how a settled payment could flip to Failed while the ledger
+        // kept its settlement.
+        var payA = await dbA.Payments.SingleAsync(p => p.Id == payment.Id);
+        var payB = await dbB.Payments.SingleAsync(p => p.Id == payment.Id);
+
+        payA.Notes = "first writer";
+        await dbA.SaveChangesAsync();
+
+        payB.Notes = "second writer";
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => dbB.SaveChangesAsync());
+    }
+
     // ---- Seeding ----
 
     private async Task<(string BuyerToken, string SellerToken)> SeedTradeAsync(string tag)

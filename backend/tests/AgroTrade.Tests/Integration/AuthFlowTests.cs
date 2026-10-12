@@ -2,6 +2,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AgroTrade.Domain.Identity;
+using AgroTrade.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AgroTrade.Tests.Integration;
 
@@ -108,6 +112,63 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
         var afterLogout = await _client.PostAsJsonAsync("/api/v1/auth/refresh", new { refreshToken = fresh.RefreshToken });
         Assert.Equal(HttpStatusCode.Unauthorized, afterLogout.StatusCode);
     }
+
+    [Fact]
+    public async Task ConcurrentRotations_CannotBothMintALiveSuccessor()
+    {
+        var email = $"race_{Guid.NewGuid():N}@tests.agrotrade.local";
+        var register = await _client.PostAsJsonAsync("/api/v1/auth/register", new
+        {
+            email,
+            password = "StrongPass123",
+            displayName = "Race User",
+            homeCountry = "NG",
+            defaultCurrency = "USD",
+            roles = new[] { "Importer" },
+        });
+        Assert.Equal(HttpStatusCode.Created, register.StatusCode);
+        var auth = await register.Content.ReadFromJsonAsync<AuthResponseDto>();
+        var userId = auth!.User.Id;
+
+        using var scopeA = _factory.Services.CreateScope();
+        using var scopeB = _factory.Services.CreateScope();
+        var dbA = scopeA.ServiceProvider.GetRequiredService<AgroTradeDbContext>();
+        var dbB = scopeB.ServiceProvider.GetRequiredService<AgroTradeDbContext>();
+
+        // Both requests read the same token at its original version, exactly as two simultaneous
+        // refreshes would. Either may win the write; only one may rotate it.
+        var tokenA = await dbA.RefreshTokens.SingleAsync(t => t.UserId == userId);
+        var tokenB = await dbB.RefreshTokens.SingleAsync(t => t.UserId == userId);
+
+        tokenA.RevokedAtUtc = DateTime.UtcNow;
+        tokenA.ReplacedByTokenHash = $"successor-a-{Guid.NewGuid():N}";
+        dbA.RefreshTokens.Add(NewToken(userId, tokenA.ReplacedByTokenHash!));
+        await dbA.SaveChangesAsync();
+
+        tokenB.RevokedAtUtc = DateTime.UtcNow;
+        tokenB.ReplacedByTokenHash = $"successor-b-{Guid.NewGuid():N}";
+        dbB.RefreshTokens.Add(NewToken(userId, tokenB.ReplacedByTokenHash!));
+
+        // The stale second rotation loses; its successor insert rolls back with its failed update.
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => dbB.SaveChangesAsync());
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verify = verifyScope.ServiceProvider.GetRequiredService<AgroTradeDbContext>();
+        var live = await verify.RefreshTokens
+            .Where(t => t.UserId == userId && t.RevokedAtUtc == null)
+            .ToListAsync();
+
+        Assert.Single(live);
+    }
+
+    private static RefreshToken NewToken(Guid userId, string hash) => new()
+    {
+        Id = Guid.NewGuid(),
+        UserId = userId,
+        TokenHash = hash,
+        ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+        CreatedAtUtc = DateTime.UtcNow,
+    };
 
     [Fact]
     public async Task ValidationFailure_ReturnsProblemDetailsWithFieldErrors()

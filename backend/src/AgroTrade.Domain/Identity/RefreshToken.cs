@@ -18,4 +18,12 @@ public sealed class RefreshToken
 
     /// <summary>Hash of the successor token after rotation (null until replaced).</summary>
     public string? ReplacedByTokenHash { get; set; }
+
+    /// <summary>
+    /// Optimistic concurrency token. Rotation reads the row, then writes it revoked with a
+    /// successor; two simultaneous refreshes would otherwise both pass the "not revoked" check and
+    /// both mint a live successor. The database-generated version makes the second write lose and
+    /// roll back, so one rotation yields exactly one successor.
+    /// </summary>
+    public byte[]? RowVersion { get; set; }
 }
