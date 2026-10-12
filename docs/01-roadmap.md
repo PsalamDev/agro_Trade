@@ -229,6 +229,12 @@ Phase 4.
     pruned — deliberately keeping revoked-but-live rows so a replayed token is still detectable.
     Intervals and a master switch live under `BackgroundJobs` in configuration; the test host
     runs with the switch off and drives each pass directly.
+  - **Redis caching delivered** — a cache-aside `ICache` over `IDistributedCache`: Redis when
+    `ConnectionStrings:Redis` is configured, an in-process memory cache otherwise, so the app still
+    builds and runs with no Redis server present. Reads and writes are best-effort and bounded: an
+    unreachable cache is a fast miss, never a failed or stalled request, and after a failure the
+    cache is skipped for a cooldown rather than retried on every request. First applied to the
+    public category tree, evicted on every admin category write.
 - Mobile via the same versioned API.
 
 **Exit criteria**

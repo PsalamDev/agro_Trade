@@ -43,10 +43,11 @@ Api → Application → Domain
   inventory can't go negative). No EF packages, no HTTP.
 - **Application**: services orchestrate workflows (e.g. `SubmitQuotationService`,
   `OrderPlacementService`), DTOs, `FluentValidation` validators, service interfaces
-  (`IFileStorage`, `IPaymentGateway`, `IEmailSender`, `ITimeProvider`).
+  (`IFileStorage`, `ICache`, `IPaymentGateway`, `IEmailSender`, `ITimeProvider`).
 - **Infrastructure**: `AgroTradeDbContext` (EF Core 10), Identity middleware,
-  migrations, storage adapter (local disk ↔ Cloudinary/S3), SMTP/MailKit, SignalR hubs,
-  background jobs (Quartz hosted services), audit-log interceptor (SaveChanges).
+  migrations, storage adapter (local disk ↔ Cloudinary/S3), cache-aside store
+  (`IDistributedCache`: in-process memory ↔ Redis), SMTP/MailKit, SignalR hubs,
+  background jobs (framework hosted services), audit-log interceptor (SaveChanges).
 - **Api**: thin controllers → Application services. `Program.cs` owns DI, middleware
   order (CORS → rate-limit → auth → authorization → endpoints), Swagger config.
 
@@ -61,6 +62,7 @@ Api → Application → Domain
 | Docs | `Swashbuckle.AspNetCore` (+ `.Annotations`) |
 | Logging | `Serilog.AspNetCore`, `Serilog.Sinks.Console`, `Serilog.Sinks.File` |
 | Storage | Cloudinary `CloudinaryDotNet` or AWS `AWSSDK.S3` (behind `IFileStorage`) |
+| Cache | `Microsoft.Extensions.Caching.StackExchangeRedis` (behind `ICache`; in-process memory when no Redis is configured) |
 | Email | `MailKit` |
 | Jobs | Hosted services (`BackgroundService`) from the framework — no Quartz dependency (see §6) |
 | Tests | `xunit`, `Microsoft.AspNetCore.Mvc.Testing`, `Testcontainers.MsSql` (optional heavy) |

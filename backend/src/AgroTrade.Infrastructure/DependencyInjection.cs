@@ -6,6 +6,7 @@ using AgroTrade.Application.Trade;
 using AgroTrade.Infrastructure.Admin;
 using AgroTrade.Infrastructure.Auth;
 using AgroTrade.Infrastructure.BackgroundJobs;
+using AgroTrade.Infrastructure.Caching;
 using AgroTrade.Infrastructure.Communication;
 using AgroTrade.Infrastructure.Data;
 using AgroTrade.Infrastructure.Email;
@@ -81,6 +82,10 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IEmailSender, ConsoleEmailSender>();
         services.AddScoped<DbSeeder>();
+
+        // Read-through cache (Phase 5 — "Redis caching"). Redis when ConnectionStrings:Redis is set,
+        // an in-process distributed memory cache otherwise; see AddCaching.
+        services.AddCaching(configuration);
 
         // Background maintenance workers (Phase 5 — "background workers"). Each runs a scoped,
         // idempotent sweep on an interval. BackgroundJobs:Enabled=false (used by the test host)

@@ -1,17 +1,33 @@
 using AgroTrade.Application.Common;
 using AgroTrade.Application.Trade;
 using AgroTrade.Domain.Trade;
+using AgroTrade.Infrastructure.Caching;
 using AgroTrade.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AgroTrade.Infrastructure.Trade;
 
 /// <summary>
 /// Category tree + HS-code starter map + admin category CRUD (plan §03).
 /// </summary>
-public sealed class CatalogService(AgroTradeDbContext db) : ICatalogService
+public sealed class CatalogService(
+    AgroTradeDbContext db,
+    ICache cache,
+    IOptions<CacheOptions> cacheOptions) : ICatalogService
 {
+    // The tree is identical for every caller and changes only when an administrator edits a
+    // category, so it is one shared cache key, evicted on each of those writes.
+    private const string CategoryTreeKey = "catalog:category-tree";
+
     public async Task<IReadOnlyList<CategoryDto>> GetCategoryTreeAsync(CancellationToken ct = default)
+        => await cache.GetOrCreateAsync(
+            CategoryTreeKey,
+            LoadCategoryTreeAsync,
+            TimeSpan.FromSeconds(Math.Max(1, cacheOptions.Value.DefaultTtlSeconds)),
+            ct);
+
+    private async Task<IReadOnlyList<CategoryDto>> LoadCategoryTreeAsync(CancellationToken ct)
     {
         var categories = await db.Categories
             .AsNoTracking()
@@ -49,6 +65,7 @@ public sealed class CatalogService(AgroTradeDbContext db) : ICatalogService
         };
         db.Categories.Add(category);
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(CategoryTreeKey, ct);
         return ToDto(category);
     }
 
@@ -73,6 +90,7 @@ public sealed class CatalogService(AgroTradeDbContext db) : ICatalogService
         }
 
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(CategoryTreeKey, ct);
         return ToDto(category);
     }
 
@@ -92,6 +110,7 @@ public sealed class CatalogService(AgroTradeDbContext db) : ICatalogService
 
         db.Categories.Remove(category);
         await db.SaveChangesAsync(ct);
+        await cache.RemoveAsync(CategoryTreeKey, ct);
     }
 
     private static List<CategoryDto> BuildTree(List<Category> all, Guid? parentId) =>
