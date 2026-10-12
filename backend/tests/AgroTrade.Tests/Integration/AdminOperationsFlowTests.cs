@@ -542,6 +542,34 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     }
 
     [Fact]
+    public async Task BuyerIdFilter_MatchesAccountsWithANumberAndExcludesTheRest()
+    {
+        var email = $"ops_buyerfilter_{Guid.NewGuid():N}@admin.tests.agrotrade.local";
+        var register = await RegisterRawAsync(email, roles: [RoleNames.Importer]);
+        Assert.Equal(HttpStatusCode.Created, register.StatusCode);
+        var buyerId = (await register.Content.ReadFromJsonAsync<AuthEnvelope>())!.User.BuyerId;
+        Assert.NotNull(buyerId);
+
+        var adminToken = await AdminTokenAsync();
+
+        // With the filter on, the buyer is found and every row carries a number.
+        var withNumber = await GetAsync(
+            $"/api/v1/admin/users?hasBuyerId=true&q={Uri.EscapeDataString(email)}", adminToken);
+        withNumber.EnsureSuccessStatusCode();
+        var withPage = await withNumber.Content.ReadFromJsonAsync<PagedMirror<UserRowMirror>>();
+        var row = Assert.Single(withPage!.Items, u => u.Email == email);
+        Assert.Equal(buyerId, row.BuyerId);
+        Assert.All(withPage.Items, u => Assert.NotNull(u.BuyerId));
+
+        // With it off, the same buyer is not a match: the two sides are complements.
+        var withoutNumber = await GetAsync(
+            $"/api/v1/admin/users?hasBuyerId=false&q={Uri.EscapeDataString(email)}", adminToken);
+        withoutNumber.EnsureSuccessStatusCode();
+        var withoutPage = await withoutNumber.Content.ReadFromJsonAsync<PagedMirror<UserRowMirror>>();
+        Assert.Equal(0, withoutPage!.Total);
+    }
+
+    [Fact]
     public async Task Suspension_RequiresAReason()
     {
         var email = $"ops_noreason_{Guid.NewGuid():N}@admin.tests.agrotrade.local";

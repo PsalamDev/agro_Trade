@@ -664,6 +664,15 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
                 .Any(ur => ur.UserId == u.Id && db.Roles.Any(r => r.Id == ur.RoleId && r.Name == role)));
         }
 
+        if (query.HasBuyerId.HasValue)
+        {
+            // Matched on the account number rather than on a role: it is the one thing every
+            // buyer-side account carries, whatever combination of Buyer/Importer/Distributor it holds.
+            filtered = query.HasBuyerId.Value
+                ? filtered.Where(u => u.BuyerId != null)
+                : filtered.Where(u => u.BuyerId == null);
+        }
+
         var total = await filtered.CountAsync(ct);
         var rows = await filtered
             // Newest registration first, with rows of *unknown* age explicitly last.

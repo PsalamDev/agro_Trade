@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { AdminNav } from '../components/AdminNav'
 import { Modal } from '../components/overlays'
@@ -29,8 +30,10 @@ const ROLE_FILTERS = [
 ]
 
 export default function AdminUsersPage() {
+  const [searchParams] = useSearchParams()
   const [role, setRole] = useState('')
-  const [term, setTerm] = useState('')
+  // Seeded from ?q= so a hand-off from the dashboard's buyer panel opens the queue already filtered.
+  const [term, setTerm] = useState(() => searchParams.get('q') ?? '')
   const [page, setPage] = useState(1)
   const [result, setResult] = useState<PagedResult<AdminUserDto> | null>(null)
   const [error, setError] = useState<{ detail?: string } | null>(null)

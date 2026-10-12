@@ -609,6 +609,7 @@ export function adminSearchUsers(params: {
   role?: string
   emailConfirmed?: boolean
   lockedOut?: boolean
+  hasBuyerId?: boolean
   page?: number
   pageSize?: number
 } = {}): Promise<PagedResult<AdminUserDto>> {

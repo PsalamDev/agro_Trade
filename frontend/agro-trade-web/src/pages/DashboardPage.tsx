@@ -106,11 +106,6 @@ export default function DashboardPage() {
   }
 
   const profileFacts = [
-    // Only buyers carry an account number; other accounts (the platform's own) show nothing rather
-    // than an empty field that reads as a missing value.
-    ...(user.buyerId
-      ? [{ label: 'Buyer ID', value: user.buyerId, icon: <UserIcon className="h-4 w-4" /> }]
-      : []),
     { label: 'Email', value: user.email, icon: <MessageIcon className="h-4 w-4" /> },
     { label: 'Roles', value: user.roles.join(', '), icon: <CheckCircleIcon className="h-4 w-4" /> },
     { label: 'Home country', value: user.homeCountry ?? '—', icon: <GlobeIcon className="h-4 w-4" /> },
@@ -142,6 +137,8 @@ export default function DashboardPage() {
             </Button>
           }
         />
+
+        {user.buyerId ? <BuyerIdCard buyerId={user.buyerId} /> : null}
 
         <div className="mt-6">
           {editing ? (
@@ -304,5 +301,59 @@ export default function DashboardPage() {
         </section>
       </main>
     </div>
+  )
+}
+
+/**
+ * The buyer's account number, on its own card rather than as one fact among several.
+ *
+ * <p>
+ * It is the identifier a buyer quotes to the supplier and reads out to support, so it is the one
+ * value on this page worth being able to find and copy at a glance. Clipboard access can be refused
+ * — permissions, or a non-secure context — and the number is on screen either way, so a failed copy
+ * has nothing to recover from and is left silent rather than raised as an error.
+ * </p>
+ */
+function BuyerIdCard({ buyerId }: { buyerId: string }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(buyerId)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // The number is visible and selectable, so it can still be copied by hand.
+    }
+  }
+
+  return (
+    <Card className="mt-6 border-brand-200 bg-brand-50/40">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-100 text-brand-700">
+            <UserIcon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-medium tracking-wide text-brand-700 uppercase">Buyer ID</p>
+            <p className="font-display truncate text-lg font-semibold tracking-tight text-stone-900">
+              {buyerId}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-200 bg-white px-3 text-sm font-semibold text-brand-700 shadow-soft transition hover:bg-brand-50"
+        >
+          {copied ? <CheckCircleIcon className="h-4 w-4" /> : null}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <p className="mt-3 text-xs text-stone-600">
+        Your permanent account number. Quote it when you contact support; it is what the supplier
+        references against your orders, and it never changes.
+      </p>
+    </Card>
   )
 }

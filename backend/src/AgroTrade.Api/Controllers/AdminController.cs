@@ -89,7 +89,8 @@ public class AdminController(
     [ProducesResponseType(typeof(PagedResult<AdminUserDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<PagedResult<AdminUserDto>>> Users(
         [FromQuery] string? q, [FromQuery] string? role, [FromQuery] bool? emailConfirmed,
-        [FromQuery] bool? lockedOut, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] bool? lockedOut, [FromQuery] bool? hasBuyerId,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
         return Ok(await admin.SearchUsersAsync(new AdminUserSearchQuery
@@ -98,6 +99,7 @@ public class AdminController(
             Role = role,
             EmailConfirmed = emailConfirmed,
             LockedOut = lockedOut,
+            HasBuyerId = hasBuyerId,
             Page = page,
             PageSize = pageSize,
         }, ct));

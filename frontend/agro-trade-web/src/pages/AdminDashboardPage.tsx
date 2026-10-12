@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import type { FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { AdminNav } from '../components/AdminNav'
 import { Card, EmptyState, ErrorAlert, PageHeader, Spinner, Stat } from '../components/ui'
@@ -9,17 +10,20 @@ import {
   CoinsIcon,
   GlobeIcon,
   PackageIcon,
+  SearchIcon,
   TruckIcon,
   UsersIcon,
 } from '../components/icons'
-import { getAdminOverview } from '../lib/trade'
+import { adminSearchUsers, getAdminOverview } from '../lib/trade'
 import { problemFrom } from '../lib/api'
-import { count, money } from '../lib/format'
+import { count, formatUtc, money } from '../lib/format'
 import type {
   AdminCommodityStatDto,
   AdminCorridorStatDto,
   AdminFunnelStageDto,
   AdminOverviewDto,
+  AdminUserDto,
+  PagedResult,
 } from '../types/trade'
 
 /**
@@ -389,6 +393,9 @@ export default function AdminDashboardPage() {
               />
             </div>
 
+            {/* Buyer accounts. */}
+            <BuyerAccounts />
+
             {/* Demand. */}
             <Card className="mt-6">
               <h2 className="font-display text-base font-semibold text-stone-800">Buyer demand</h2>
@@ -533,5 +540,131 @@ export default function AdminDashboardPage() {
         ) : null}
       </main>
     </div>
+  )
+}
+
+/**
+ * Buyer accounts: how many there are, who registered most recently, and a way into the full queue.
+ *
+ * <p>
+ * "Buyer" is counted by the account number rather than by role. A buyer-side account may hold Buyer,
+ * Importer or Distributor, so one role name would match a subset, and counting the three separately
+ * would double-count anyone holding more than one. Every buyer-side account carries a number, so its
+ * presence is the one test that covers them all exactly once.
+ * </p>
+ *
+ * <p>
+ * The search box hands off to the user queue rather than paginating here: the queue already owns the
+ * filters, the suspension controls and the audit trail for an account this panel can only tease.
+ * </p>
+ */
+function BuyerAccounts() {
+  const navigate = useNavigate()
+  const [page, setPage] = useState<PagedResult<AdminUserDto> | null>(null)
+  const [error, setError] = useState<{ detail?: string } | null>(null)
+  const [term, setTerm] = useState('')
+
+  useEffect(() => {
+    let active = true
+    adminSearchUsers({ hasBuyerId: true, page: 1, pageSize: 5 })
+      .then((result) => {
+        if (active) setPage(result)
+      })
+      .catch((err) => {
+        if (active) setError(problemFrom(err))
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  function find(event: FormEvent) {
+    event.preventDefault()
+    const trimmed = term.trim()
+    navigate(trimmed ? `/admin/users?q=${encodeURIComponent(trimmed)}` : '/admin/users')
+  }
+
+  return (
+    <Card className="mt-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-base font-semibold text-stone-800">Buyer accounts</h2>
+          <p className="mt-0.5 max-w-2xl text-xs text-stone-500">
+            Accounts registered on the buying side, each holding a buyer ID. Newest first.
+          </p>
+        </div>
+        {page ? (
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-brand-50 px-2.5 py-1 text-sm font-semibold text-brand-700">
+            <UsersIcon className="h-4 w-4" />
+            {count(page.total)} {page.total === 1 ? 'buyer' : 'buyers'}
+          </span>
+        ) : null}
+      </div>
+
+      <form onSubmit={find} className="mt-4 flex flex-wrap items-end gap-3">
+        <label className="flex-1 sm:max-w-sm">
+          <span className="mb-1.5 block text-xs font-medium text-stone-700">Find a buyer</span>
+          <input
+            type="search"
+            value={term}
+            onChange={(event) => setTerm(event.target.value)}
+            placeholder="BUY-ID-AG-000001, or a name"
+            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm shadow-soft transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
+          />
+        </label>
+        <button
+          type="submit"
+          className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-brand transition hover:bg-brand-700"
+        >
+          <SearchIcon className="h-4 w-4" />
+          Search
+        </button>
+      </form>
+
+      {error ? (
+        <p className="mt-4 text-sm text-red-700">
+          {error.detail ?? 'Could not load buyer accounts.'}
+        </p>
+      ) : page === null ? (
+        <p className="mt-4 text-sm text-stone-400">Loading buyer accounts…</p>
+      ) : page.items.length === 0 ? (
+        <p className="mt-4 text-sm text-stone-400">No buyer accounts yet.</p>
+      ) : (
+        <ul className="mt-4 divide-y divide-stone-100">
+          {page.items.map((buyer) => (
+            <li
+              key={buyer.id}
+              className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-stone-800">
+                  {buyer.displayName ?? buyer.email}
+                </p>
+                <p className="truncate text-xs text-stone-500">{buyer.email}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {buyer.buyerId ? (
+                  <Link
+                    to={`/admin/users?q=${encodeURIComponent(buyer.buyerId)}`}
+                    className="font-mono text-xs font-semibold text-brand-700 hover:underline"
+                  >
+                    {buyer.buyerId}
+                  </Link>
+                ) : null}
+                <span className="text-xs text-stone-400">
+                  {buyer.createdAtUtc ? formatUtc(buyer.createdAtUtc) : '—'}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-4">
+        <Link to="/admin/users" className="text-sm font-medium text-brand-700 hover:underline">
+          Open the full user queue →
+        </Link>
+      </div>
+    </Card>
   )
 }

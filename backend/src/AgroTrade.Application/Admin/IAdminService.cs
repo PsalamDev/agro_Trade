@@ -148,6 +148,18 @@ public sealed class AdminUserSearchQuery
 
     public bool? EmailConfirmed { get; init; }
     public bool? LockedOut { get; init; }
+
+    /// <summary>
+    /// Restrict to accounts that have (true) or lack (false) a buyer account number.
+    /// </summary>
+    /// <remarks>
+    /// The dashboard's buyer panel needs an exact count of buyer accounts, and a role filter cannot
+    /// give it: a buyer-side account may hold any of Buyer, Importer or Distributor, so one role name
+    /// matches a subset, while counting the three separately double-counts a user who holds more than
+    /// one. The presence of the number is the one thing every buyer-side account shares.
+    /// </remarks>
+    public bool? HasBuyerId { get; init; }
+
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
 }
