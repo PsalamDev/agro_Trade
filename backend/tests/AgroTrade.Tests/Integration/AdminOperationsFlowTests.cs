@@ -628,6 +628,130 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
         Assert.Equal("Documented reason.", entry.Details);
     }
 
+    // ---- Product publishing ----
+
+    [Fact]
+    public async Task CreateProduct_PublishesForANamedBusiness_AndIsAudited()
+    {
+        var sellerToken = await VerifyBusinessAsync(
+            await CreateCompanyUserAsync($"ops_adminprod_seller_{Guid.NewGuid():N}"));
+        var businessId = await SupplierBusinessIdAsync(sellerToken);
+        var category = await PickCategoryAsync();
+        var adminToken = await AdminTokenAsync();
+        var name = Cap($"Admin listing {Guid.NewGuid():N}");
+
+        var response = await PostAsync(
+            $"/api/v1/admin/products?businessId={businessId}", adminToken, new
+            {
+                name,
+                categoryId = category.Id,
+                originCountry = "NG",
+                price = 3100m,
+                currency = "USD",
+                availableQuantity = 25m,
+                minimumOrderQuantity = 5m,
+                listingStatus = (int)ListingStatus.Active,
+            });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<ProductMirror>();
+        Assert.NotNull(created);
+        Assert.Equal(name, created!.Name);
+        Assert.Equal(businessId, created.SellerBusinessId);
+        Assert.Equal((int)ListingStatus.Active, created.ListingStatus);
+
+        // It lands in the moderation queue the admin works from...
+        var queue = await GetAsync($"/api/v1/admin/products?q={Uri.EscapeDataString(name)}", adminToken);
+        queue.EnsureSuccessStatusCode();
+        var queuePage = await queue.Content.ReadFromJsonAsync<PagedMirror<ProductMirror>>();
+        Assert.Contains(queuePage!.Items, p => p.Id == created.Id);
+
+        // ...and the publish is recorded against the administrator.
+        var audit = await AuditAsync(adminToken, "product.created");
+        var entry = Assert.Single(audit.Items, a => a.EntityId == created.Id);
+        Assert.Equal("Product", entry.EntityType);
+    }
+
+    [Fact]
+    public async Task CreateProduct_AppliesTheVerifiedRuleForActiveListings()
+    {
+        // A real business that is still awaiting review: valid to publish a draft for, not to go live.
+        var sellerToken = await CreateCompanyUserAsync($"ops_adminprod_unverified_{Guid.NewGuid():N}");
+        var businessId = await SubmitBusinessForVerificationAsync(sellerToken);
+        var category = await PickCategoryAsync();
+        var adminToken = await AdminTokenAsync();
+
+        var draft = await PostAsync(
+            $"/api/v1/admin/products?businessId={businessId}", adminToken, new
+            {
+                name = Cap($"Draft listing {Guid.NewGuid():N}"),
+                categoryId = category.Id,
+                originCountry = "NG",
+                price = 1m,
+                currency = "USD",
+                availableQuantity = 1m,
+                minimumOrderQuantity = 1m,
+                listingStatus = (int)ListingStatus.Draft,
+            });
+        Assert.Equal(HttpStatusCode.Created, draft.StatusCode);
+
+        var active = await PostAsync(
+            $"/api/v1/admin/products?businessId={businessId}", adminToken, new
+            {
+                name = Cap($"Active listing {Guid.NewGuid():N}"),
+                categoryId = category.Id,
+                originCountry = "NG",
+                price = 1m,
+                currency = "USD",
+                availableQuantity = 1m,
+                minimumOrderQuantity = 1m,
+                listingStatus = (int)ListingStatus.Active,
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, active.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateProduct_RejectsNonAdministrators()
+    {
+        var buyerToken = await RegisterAndLoginAsync($"ops_adminprod_forbid_{Guid.NewGuid():N}");
+        var category = await PickCategoryAsync();
+
+        // The policy refuses before the body or business is considered.
+        var response = await PostAsync(
+            $"/api/v1/admin/products?businessId={Guid.NewGuid()}", buyerToken, new
+            {
+                name = "should never exist",
+                categoryId = category.Id,
+                originCountry = "NG",
+                price = 1m,
+                currency = "USD",
+                availableQuantity = 1m,
+                minimumOrderQuantity = 1m,
+            });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateProduct_WithoutABusiness_IsBadRequest()
+    {
+        var adminToken = await AdminTokenAsync();
+        var category = await PickCategoryAsync();
+
+        var response = await PostAsync("/api/v1/admin/products", adminToken, new
+        {
+            name = "no target business",
+            categoryId = category.Id,
+            originCountry = "NG",
+            price = 1m,
+            currency = "USD",
+            availableQuantity = 1m,
+            minimumOrderQuantity = 1m,
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     // ---- Reads ----
 
     private async Task<PagedMirror<TransactionMirror>> TransactionsAsync(
@@ -1123,6 +1247,15 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     {
         public Guid Id { get; init; }
         public string OrderNumber { get; init; } = "";
+    }
+
+    public sealed class ProductMirror
+    {
+        public Guid Id { get; init; }
+        public string Name { get; init; } = "";
+        public Guid SellerBusinessId { get; init; }
+        public int ListingStatus { get; init; }
+        public int ModerationStatus { get; init; }
     }
 
     public sealed class CategoryMirror

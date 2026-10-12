@@ -22,9 +22,11 @@ public class AdminController(
     IBusinessService businessService,
     ITradeDocumentService documentService,
     IPaymentService payments,
+    IProductService products,
     IValidator<ReviewVerificationRequest> reviewValidator,
     IValidator<ReviewDocumentRequest> documentReviewValidator,
     IValidator<ModerateProductRequest> moderationValidator,
+    IValidator<CreateProductRequest> productCreateValidator,
     IValidator<AdminUserStatusRequest> userStatusValidator) : ControllerBase
 {
     /// <summary>
@@ -241,6 +243,32 @@ public class AdminController(
             Page = page,
             PageSize = pageSize,
         }, ct));
+    }
+
+    /// <summary>
+    /// Publishes a listing for a business the administrator names.
+    /// </summary>
+    /// <remarks>
+    /// The seller route (<c>POST /api/v1/products</c>) is restricted to the platform's single
+    /// supplier account, and an administrator owns no business of their own, so the target business
+    /// is taken as an explicit parameter rather than inferred from the caller. The listing then obeys
+    /// the same rules a seller's would: an Active listing still needs a verified business. The action
+    /// is written to the audit trail.
+    /// </remarks>
+    [HttpPost("products")]
+    [ProducesResponseType(typeof(ProductDetailDto), StatusCodes.Status201Created)]
+    public async Task<ActionResult<ProductDetailDto>> CreateProduct(
+        [FromQuery] Guid businessId, [FromBody] CreateProductRequest request, CancellationToken ct)
+    {
+        if (businessId == Guid.Empty)
+        {
+            throw ApiException.BadRequest("BUSINESS_REQUIRED", "Name the business the listing is for.");
+        }
+
+        EnsureBody(request);
+        await productCreateValidator.ValidateAndThrowAsync(request, ct);
+        return StatusCode(StatusCodes.Status201Created,
+            await products.CreateForBusinessAsync(businessId, User.GetUserId(), request, ct));
     }
 
     [HttpPatch("products/{id:guid}/moderation")]

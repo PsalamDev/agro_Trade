@@ -75,6 +75,7 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 | PUT | `/products/{id}/inventory` | Owner | Reconcile stock (`RowVersion` guarded) |
 | POST | `/products/{id}/locations` | Owner | Dispatch locations |
 | PATCH | `/admin/products/{id}/moderation` | Admin | Unpublish/suspend listing |
+| POST | `/admin/products?businessId=` | Admin | Publish a listing for a named business (the seller route stays supplier-only) |
 
 Since Phase 4, product DTOs carry `sellsDomestically` and `domesticDeliveryFee` (the flat per-line
 domestic delivery charge, in the listing's currency). `CreateProductRequest`/`UpdateProductRequest`
@@ -317,6 +318,7 @@ is no remaining planned administrative surface.
 | POST | `/admin/documents/{id}/review` | Approve/reject with notes. Writes an audit entry. |
 | GET | `/admin/products` | Product moderation queue — listings across every seller. `?listingStatus=&moderationStatus=&q=&categoryId=`. The two statuses are independent — `listingStatus` is the seller's choice, `moderationStatus` the platform's — and `isVisibleInMarketplace` is derived from both, so a client renders it rather than re-deriving it |
 | PATCH | `/admin/products/{id}/moderation` | Suspend (`action=0`) or reinstate (`action=1`) a listing. Suspension requires a `reason`; re-suspending a suspended listing is a 409, and reinstating deliberately does not publish a draft. Writes an audit entry |
+| POST | `/admin/products` | Publish a listing for a business the admin names. `?businessId=` is required — an admin owns no business, so the target is explicit rather than inferred — and the body is the same `CreateProductRequest` as the seller route. An Active listing still needs a verified business. Writes an audit entry |
 | GET | `/admin/rfqs` | All RFQs + volume filters. `?status=&q=&unanswered=` — `unanswered` is a property of the RFQ (no quotation at all), not of any one supplier |
 | GET | `/admin/transactions` | The transaction ledger across every order. `?q=&type=&currency=&orderId=&from=&to=` |
 | GET | `/admin/transactions/export` | The same ledger as a **CSV download** under the same `?q=&type=&currency=&orderId=&from=&to=` filters and ordering, with no page cap. The amount column is signed and has no thousands separator, so the file can be summed straight from the spreadsheet. |

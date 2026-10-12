@@ -5,7 +5,7 @@ import { AdminNav } from '../components/AdminNav'
 import { ListingPill } from '../components/badges'
 import { Modal } from '../components/overlays'
 import { Button, Card, EmptyState, ErrorAlert, PageHeader, Spinner, TextArea } from '../components/ui'
-import { TagIcon } from '../components/icons'
+import { PlusIcon, TagIcon } from '../components/icons'
 import { adminModerateProduct, adminSearchProducts } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import { count, formatUtc, money } from '../lib/format'
@@ -109,6 +109,15 @@ export default function AdminProductsPage() {
           eyebrow="Administration"
           title="Products"
           subtitle="Every listing on the platform, with the seller's visibility choice and the platform's own moderation state side by side. Suspending a listing hides it from the marketplace without touching the seller's decision; reinstating ends the suspension and lets a listing that was Active return on its own."
+          action={
+            <Link
+              to="/products/new"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white shadow-brand transition duration-200 ease-soft hover:bg-brand-700"
+            >
+              <PlusIcon className="h-4 w-4" />
+              New listing
+            </Link>
+          }
         />
 
         <div className="mt-5">

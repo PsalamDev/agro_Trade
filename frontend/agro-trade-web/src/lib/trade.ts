@@ -695,6 +695,20 @@ export function adminModerateProduct(
   return unwrap(api.patch<AdminProductRowDto>(`/admin/products/${id}/moderation`, request))
 }
 
+/**
+ * Publishes a listing for a business the administrator names.
+ *
+ * The seller route is restricted to the platform's single supplier account, and an admin account
+ * owns no business, so the target business is passed explicitly. The listing then obeys the usual
+ * rules — an Active listing needs a verified business — and the action is audited.
+ */
+export function adminCreateProduct(
+  request: CreateProductRequest,
+  businessId: string,
+): Promise<ProductDetailDto> {
+  return unwrap(api.post<ProductDetailDto>(`/admin/products${query({ businessId })}`, request))
+}
+
 /** The RFQ queue. `unanswered` means the RFQ has no quotation at all yet — demand nobody answered. */
 export function adminSearchRfqs(params: {
   status?: number

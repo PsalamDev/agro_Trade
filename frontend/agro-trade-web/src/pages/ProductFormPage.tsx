@@ -4,10 +4,10 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import CountrySelect from '../components/CountrySelect'
 import { Card, EmptyState, ErrorAlert, Field, KeyValueEditor, SelectField, SubmitButton, TagInput, TextArea } from '../components/ui'
-import { createProduct, deleteProductImage, getBusiness, getCategoryTree, getMyBusinesses, getProduct, updateProduct, uploadProductImage } from '../lib/trade'
+import { adminCreateProduct, adminSearchBusinesses, createProduct, deleteProductImage, getBusiness, getCategoryTree, getMyBusinesses, getProduct, updateProduct, uploadProductImage } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
-import { COMPANY_ROLE } from '../types/auth'
+import { ADMIN_ROLE, COMPANY_ROLE } from '../types/auth'
 import { INCOTERMS, LISTING_STATUS, LISTING_STATUSES, PRICE_UNITS, labelOf } from '../types/trade'
 import type { BusinessSummaryDto, CategoryDto, ProductImageDto } from '../types/trade'
 
@@ -17,6 +17,7 @@ export default function ProductFormPage() {
   const navigate = useNavigate()
   const isEdit = Boolean(id)
   const isCompany = (user?.roles ?? []).includes(COMPANY_ROLE)
+  const isAdmin = (user?.roles ?? []).includes(ADMIN_ROLE)
 
   const [categories, setCategories] = useState<CategoryDto[]>([])
   const [businesses, setBusinesses] = useState<BusinessSummaryDto[]>([])
@@ -59,15 +60,26 @@ export default function ProductFormPage() {
 
   useEffect(() => {
     let cancelled = false
-    getMyBusinesses()
+
+    // An administrator owns no business, so the seller's "my businesses" list is empty for them.
+    // The admin path publishes for any business, so the picker is fed from the admin queue instead.
+    const load = isAdmin
+      ? adminSearchBusinesses({ pageSize: 100 }).then((page) => page.items)
+      : getMyBusinesses()
+
+    load
       .then((list) => {
-        if (!cancelled) setBusinesses(list)
+        if (cancelled) return
+        setBusinesses(list)
+        // The admin path needs a target business; default to the first so the form is submittable.
+        if (isAdmin) setBusinessId((current) => current || list[0]?.id || '')
       })
       .catch(() => undefined)
+
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
     if (!id) {
@@ -187,6 +199,10 @@ export default function ProductFormPage() {
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    if (isAdmin && !isEdit && !businessId) {
+      setError({ detail: 'Choose the business this listing is published for.' })
+      return
+    }
     setPending(true)
     setError(null)
     try {
@@ -211,8 +227,15 @@ export default function ProductFormPage() {
         sellsDomestically,
         domesticDeliveryFee: sellsDomestically ? Number(domesticDeliveryFee) : undefined,
       }
-      const saved = isEdit && id ? await updateProduct(id, payload) : await createProduct(payload, businessId || undefined)
-      navigate(`/products/${saved.slug || saved.id}`, { replace: true })
+      const saved =
+        isEdit && id
+          ? await updateProduct(id, payload)
+          : isAdmin
+            ? await adminCreateProduct(payload, businessId)
+            : await createProduct(payload, businessId || undefined)
+      // An admin-created draft has no public page — only the listing's own business owner can open
+      // an inactive listing — so send the admin back to the queue rather than to a not-found.
+      navigate(isAdmin && !isEdit ? '/admin/products' : `/products/${saved.slug || saved.id}`, { replace: true })
     } catch (err) {
       setError(problemFrom(err))
     } finally {
@@ -220,7 +243,7 @@ export default function ProductFormPage() {
     }
   }
 
-  if (!isEdit && !isCompany) {
+  if (!isEdit && !isCompany && !isAdmin) {
     return (
       <div className="min-h-screen">
         <AppHeader />
@@ -243,12 +266,17 @@ export default function ProductFormPage() {
     <div className="min-h-screen">
       <AppHeader />
       <main className="mx-auto max-w-3xl px-4 py-10">
-        <Link to={isEdit ? `/products/${id}` : '/my/products'} className="text-sm font-medium text-brand-700 hover:underline">
+        <Link
+          to={isEdit ? `/products/${id}` : isAdmin ? '/admin/products' : '/my/products'}
+          className="text-sm font-medium text-brand-700 hover:underline"
+        >
           ← Back
         </Link>
         <h1 className="mt-3 text-2xl font-bold tracking-tight">{isEdit ? 'Edit listing' : 'New listing'}</h1>
         <p className="mt-1 text-sm text-stone-500">
-          Listings published as Active require a verified business. Unverified sellers will see an error until then.
+          {isAdmin
+            ? 'Publishing on behalf of the selected business. The listing follows the same rules as the supplier’s own: an Active listing needs a verified business.'
+            : 'Listings published as Active require a verified business. Unverified sellers will see an error until then.'}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">

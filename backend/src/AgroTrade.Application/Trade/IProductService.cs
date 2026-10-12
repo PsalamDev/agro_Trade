@@ -14,6 +14,19 @@ public interface IProductService
 
     Task<ProductDetailDto> CreateAsync(Guid ownerUserId, string? businessIdOrName, CreateProductRequest request, CancellationToken ct = default);
 
+    /// <summary>
+    /// Creates a listing on behalf of a business the caller does not own.
+    /// </summary>
+    /// <remarks>
+    /// The administrative path. The seller route resolves the business from the caller's own
+    /// account; here the business is named explicitly, because the acting administrator owns no
+    /// business of their own. The same creation rules apply (an Active listing needs a verified
+    /// business, the stock row is seeded), and the action is audited against
+    /// <paramref name="actorUserId"/>.
+    /// </remarks>
+    Task<ProductDetailDto> CreateForBusinessAsync(
+        Guid businessId, Guid actorUserId, CreateProductRequest request, CancellationToken ct = default);
+
     Task<ProductDetailDto> UpdateAsync(Guid id, Guid ownerUserId, UpdateProductRequest request, CancellationToken ct = default);
 
     Task DeleteAsync(Guid id, Guid ownerUserId, CancellationToken ct = default);

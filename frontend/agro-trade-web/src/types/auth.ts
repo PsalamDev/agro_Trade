@@ -60,3 +60,6 @@ export const DOMESTIC_BUYER_ROLE = 'Buyer' as const
 
 /** The single supplier role — held only by the Achievers Global Consult account. */
 export const COMPANY_ROLE = 'Company'
+
+/** Platform administrator. May publish a listing for any business via the admin path. */
+export const ADMIN_ROLE = 'Administrator'

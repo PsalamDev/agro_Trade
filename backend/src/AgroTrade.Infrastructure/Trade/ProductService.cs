@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using AgroTrade.Application.Admin;
 using AgroTrade.Application.Common;
 using AgroTrade.Application.Trade;
 using AgroTrade.Domain.Enums;
@@ -16,7 +17,8 @@ namespace AgroTrade.Infrastructure.Trade;
 public sealed partial class ProductService(
     AgroTradeDbContext db,
     IFileStorage fileStorage,
-    IInventoryService inventory) : IProductService
+    IInventoryService inventory,
+    IAuditLogWriter audit) : IProductService
 {
     public async Task<PagedResult<ProductCardDto>> SearchAsync(ProductSearchQuery query, CancellationToken ct = default)
     {
@@ -144,6 +146,28 @@ public sealed partial class ProductService(
         var business = await ResolveSellerBusinessAsync(ownerUserId, businessIdOrName, ct)
             ?? throw ApiException.BadRequest("NO_BUSINESS", "Register and complete a business profile first.");
 
+        return await CreateCoreAsync(business, request, auditActorUserId: null, ct);
+    }
+
+    public async Task<ProductDetailDto> CreateForBusinessAsync(
+        Guid businessId, Guid actorUserId, CreateProductRequest request, CancellationToken ct = default)
+    {
+        var business = await db.Businesses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == businessId && !b.IsDeleted, ct)
+            ?? throw ApiException.NotFound("BUSINESS_NOT_FOUND", "Business not found.");
+
+        return await CreateCoreAsync(business, request, auditActorUserId: actorUserId, ct);
+    }
+
+    /// <summary>
+    /// Shared listing creation. Both entry points - the supplier's own path and an administrator
+    /// acting for a business - build the same product and stock rows, so the rules (a verified
+    /// business for Active, the mirrored stock row) live in exactly one place.
+    /// </summary>
+    private async Task<ProductDetailDto> CreateCoreAsync(
+        Business business, CreateProductRequest request, Guid? auditActorUserId, CancellationToken ct)
+    {
         var wantsActive = request.ListingStatus == (int)ListingStatus.Active;
         if (wantsActive && business.VerificationStatus != VerificationStatus.Verified)
         {
@@ -187,6 +211,20 @@ public sealed partial class ProductService(
             QuantityOnHand = request.AvailableQuantity,
             QuantityReserved = 0,
         });
+
+        if (auditActorUserId is not null)
+        {
+            // An administrator is publishing for a business they do not run. The audit row is added
+            // to the same context and flushed by the SaveChanges below, so the listing and the
+            // record of who created it commit or fail together.
+            audit.Record(
+                auditActorUserId.Value,
+                "product.created",
+                "Product",
+                product.Id,
+                $"Created listing \"{product.Name}\" for {business.TradingName}",
+                wantsActive ? "Published Active" : "Saved as Draft");
+        }
 
         await db.SaveChangesAsync(ct);
 
