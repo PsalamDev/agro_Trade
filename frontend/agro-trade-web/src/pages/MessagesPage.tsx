@@ -5,6 +5,7 @@ import { ThreadView } from '../components/ThreadView'
 import { Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { getConversations } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtc, formatUtcDate } from '../lib/format'
 import { MESSAGE_CONTEXT_TYPES, labelOf } from '../types/trade'
 import type { ConversationDto } from '../types/trade'
 
@@ -82,7 +83,7 @@ export default function MessagesPage() {
                       </div>
                       <p className="mt-0.5 text-xs text-stone-500">
                         {labelOf(MESSAGE_CONTEXT_TYPES, conversation.contextType)}
-                        {conversation.contextId ? ' · RFQ thread' : ''} · {new Date(conversation.lastMessageAtUtc).toLocaleString()}
+                        {conversation.contextId ? ' · RFQ thread' : ''} · {formatUtc(conversation.lastMessageAtUtc)}
                       </p>
                       <p className="mt-1 truncate text-sm text-stone-700">{conversation.lastMessage}</p>
                     </button>
@@ -100,7 +101,7 @@ export default function MessagesPage() {
                     <p className="font-semibold">{active.otherDisplayName}</p>
                     <p className="text-xs text-stone-500">
                       {labelOf(MESSAGE_CONTEXT_TYPES, active.contextType)}
-                      {active.contextId ? ` thread · ${new Date(active.lastMessageAtUtc).toLocaleDateString()}` : ''}
+                      {active.contextId ? ` thread · ${formatUtcDate(active.lastMessageAtUtc)}` : ''}
                     </p>
                   </div>
                   <div className="flex-1 pt-4">

@@ -5,6 +5,7 @@ import { VerificationPill, VerifiedBadge } from '../components/badges'
 import { Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { adminSearchBusinesses, getBusiness, reviewBusinessVerification } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtc } from '../lib/format'
 import { DOCUMENT_TYPES, VERIFICATION_STATUS, labelOf } from '../types/trade'
 import type { BusinessDetailDto, BusinessSummaryDto } from '../types/trade'
 
@@ -150,7 +151,7 @@ export default function AdminVerificationPage() {
 
                 {detail.verification?.requestedAtUtc ? (
                   <p className="mt-3 text-sm text-stone-500">
-                    Submitted for review on {new Date(detail.verification.requestedAtUtc).toLocaleString()}
+                    Submitted for review on {formatUtc(detail.verification.requestedAtUtc)}
                   </p>
                 ) : null}
                 {detail.verification?.notes ? (
@@ -212,7 +213,7 @@ export default function AdminVerificationPage() {
                 ) : (
                   <p className="mt-6 text-sm text-stone-500">
                     Reviewed on{' '}
-                    {detail.verification?.reviewedAtUtc ? new Date(detail.verification.reviewedAtUtc).toLocaleString() : '—'}
+                    {formatUtc(detail.verification?.reviewedAtUtc)}
                   </p>
                 )}
               </Card>

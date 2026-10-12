@@ -6,7 +6,7 @@ import { Card, EmptyState, ErrorAlert, PageHeader, Spinner, Stat } from '../comp
 import { ChartIcon } from '../components/icons'
 import { adminReport } from '../lib/trade'
 import { problemFrom } from '../lib/api'
-import { count, money } from '../lib/format'
+import { count, formatUtcDate, money } from '../lib/format'
 import { REPORT_KINDS } from '../types/trade'
 import type { AdminReportDto, ReportKind } from '../types/trade'
 
@@ -61,8 +61,8 @@ export default function AdminReportsPage() {
 
   const windowLabel =
     from || to
-      ? `${from ? new Date(windowBound(from, 'start')!).toLocaleDateString() : 'the beginning'} → ${
-          to ? new Date(windowBound(to, 'end')!).toLocaleDateString() : 'now'
+      ? `${from ? formatUtcDate(windowBound(from, 'start')) : 'the beginning'} → ${
+          to ? formatUtcDate(windowBound(to, 'end')) : 'now'
         }`
       : 'All time'
 

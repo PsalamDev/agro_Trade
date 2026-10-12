@@ -5,38 +5,17 @@ import { ShipmentStatusPill } from '../components/badges'
 import { Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { trackShipment } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtc, formatUtcDate } from '../lib/format'
 import { INCOTERMS, SHIPMENT_MODES, SHIPMENT_STATUSES, labelOf } from '../types/trade'
 import type { ShipmentPublicTrackingDto } from '../types/trade'
 
 /**
- * Formatted as UTC, deliberately. The API's timestamps carry no offset — SQL Server's `datetime2`
- * has none to carry — so the wire value is a UTC wall-clock reading and treating it as local would
- * shift every milestone by the reader's offset. On a page whose whole purpose is to say *when* a
- * container moved, that is the one error worth engineering against.
+ * Milestone timestamps are shown in UTC, read from the wire value as the instant it records. On a
+ * page whose whole purpose is to say *when* a container moved, that is the one error worth
+ * engineering against. `null` is preserved for absent values so the row reads "not yet".
  */
-function formatDateTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'UTC',
-  })
-}
-
 function formatDate(value: string | null): string | null {
-  if (!value) return null
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return date.toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  return value ? formatUtcDate(value) : null
 }
 
 function route(shipment: ShipmentPublicTrackingDto): string {
@@ -218,7 +197,7 @@ export default function TrackShipmentPage() {
                             {labelOf(SHIPMENT_STATUSES, event.status)}
                           </span>
                           <span className="text-xs text-stone-500">
-                            {formatDateTime(event.occurredAtUtc)} UTC
+                            {formatUtc(event.occurredAtUtc)}
                           </span>
                         </div>
                         {event.location ? (

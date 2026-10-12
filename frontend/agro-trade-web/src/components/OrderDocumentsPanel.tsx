@@ -3,6 +3,7 @@ import { DocumentStatusPill } from './badges'
 import { Button, ErrorAlert, SelectField } from './ui'
 import { deleteOrderDocument, uploadOrderDocument } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtcDate } from '../lib/format'
 import {
   DOCUMENT_STATUS,
   ORDER_STATUS,
@@ -20,8 +21,7 @@ function fileSize(bytes: number | null) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) return null
-  return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  return value ? formatUtcDate(value) : null
 }
 
 interface Props {

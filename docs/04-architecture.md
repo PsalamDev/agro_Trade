@@ -106,6 +106,7 @@ Api → Application → Domain
 | Background | `ScheduledBackgroundService` hosted workers: a scoped, idempotent pass on a configurable interval, one bad pass logged and retried rather than killing the worker. Today: RFQ expiry + refresh-token cleanup; the base is where the later payment-timeout, email-queue and ingest jobs belong. `BackgroundJobs:Enabled` is the master switch |
 | Health | `/health` (liveness) + `/health/ready` (DB reachability) |
 | Trade terms & money | Shared services/labels for incoterms, HS-code starter map, currency formatting per ISO-4217 — used by listings, RFQs, quotes, orders |
+| Time | Every timestamp is stored in UTC and marked `Utc` when read from the database (a model convention in `AgroTradeDbContext`), so the API serialises an unambiguous `Z`-suffixed instant. The web client parses defensively — restoring a missing `Z` — and renders in UTC through the shared `formatUtc` / `formatUtcDate` helpers (decisions T11, R15) |
 
 ## 7. Development setup (this machine)
 

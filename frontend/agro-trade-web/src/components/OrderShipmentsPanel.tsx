@@ -9,6 +9,7 @@ import {
   rotateTrackingToken,
 } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtc, formatUtcDate } from '../lib/format'
 import {
   INCOTERMS,
   ORDER_STATUS,
@@ -21,35 +22,16 @@ import {
 import type { OrderDetailDto, ShipmentDto } from '../types/trade'
 
 /**
- * Dates are formatted from the wire value as-is. The API's timestamps carry no offset, because
- * SQL Server's datetime2 has none to carry — so they are read as UTC wall-clock, which is what the
- * server meant. Formatting in the browser's zone instead would shift every milestone by the
- * reader's offset, on a page whose entire job is to say *when* something happened.
+ * Milestone timestamps are shown in UTC, read from the wire value as the instant it records. A
+ * page whose whole job is to say *when* something happened must not let the reader's offset move
+ * it. `null` is preserved for absent values so callers can omit the row entirely.
  */
 function formatDateTime(value: string | null): string | null {
-  if (!value) return null
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return date.toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'UTC',
-  })
+  return value ? formatUtc(value) : null
 }
 
 function formatDate(value: string | null): string | null {
-  if (!value) return null
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return date.toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
+  return value ? formatUtcDate(value) : null
 }
 
 /** A date input yields YYYY-MM-DD with no zone, so it is sent as UTC midnight rather than parsed. */

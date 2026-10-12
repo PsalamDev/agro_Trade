@@ -14,6 +14,7 @@ import {
   uploadBusinessDocument,
 } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtc, formatUtcDate } from '../lib/format'
 import { DOCUMENT_TYPE, DOCUMENT_TYPES, VERIFICATION_STATUS, labelOf } from '../types/trade'
 import type { BusinessDetailDto, BusinessDocumentDto, VerificationStateDto } from '../types/trade'
 
@@ -222,7 +223,7 @@ export default function BusinessDetailPage() {
                           <p className="truncate text-xs text-stone-500">{doc.fileName}</p>
                         </div>
                         <div className="flex shrink-0 items-center gap-3">
-                          <span className="text-xs text-stone-400">{new Date(doc.uploadedAtUtc).toLocaleDateString()}</span>
+                          <span className="text-xs text-stone-400">{formatUtcDate(doc.uploadedAtUtc)}</span>
                           <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="font-medium text-brand-700 hover:underline">
                             View
                           </a>
@@ -254,14 +255,14 @@ export default function BusinessDetailPage() {
                       <p>
                         <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">Requested</span>
                         <br />
-                        {new Date(verification.requestedAtUtc).toLocaleString()}
+                        {formatUtc(verification.requestedAtUtc)}
                       </p>
                     ) : null}
                     {verification.reviewedAtUtc ? (
                       <p>
                         <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">Reviewed</span>
                         <br />
-                        {new Date(verification.reviewedAtUtc).toLocaleString()}
+                        {formatUtc(verification.reviewedAtUtc)}
                       </p>
                     ) : null}
                     {verification.notes ? (

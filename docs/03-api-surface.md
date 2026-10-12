@@ -18,6 +18,7 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 | Idempotency | Caller-supplied `idempotencyKey` in the request **body** on POST `/orders/{id}/payments` and POST `/orders/{id}/payments/manual`; replay returns the original resource. Off-platform payments are additionally guarded by the bank's remittance reference, which is unique per order — so a genuine double-entry is caught whether or not a key was sent. |
 | Countries | ISO-3166 alpha-2 codes everywhere (`ng`, `KE`, `cn`) |
 | Currencies | ISO-4217 codes; price/quote/order amounts always carry a currency |
+| Timestamps | ISO-8601 in UTC and always ending in `Z`, so every `*Utc` field is an unambiguous instant a client cannot misread as local |
 | File uploads | `multipart/form-data`, ≤ 10 MB, allowlisted MIME types |
 | Realtime | SignalR hubs `/hubs/notifications`, `/hubs/messages` (JWT); polling fallback |
 

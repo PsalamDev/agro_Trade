@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useAuth } from '../lib/auth-context'
 import { getThread, sendMessage, markThreadRead } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtc } from '../lib/format'
 import { MESSAGE_CONTEXT_TYPES, labelOf } from '../types/trade'
 import type { MessageDto } from '../types/trade'
 import { ErrorAlert, Spinner } from './ui'
@@ -118,7 +119,7 @@ export function ThreadView({
                   </p>
                   <p className="whitespace-pre-wrap break-words">{message.body}</p>
                   <p className={`mt-1 text-right text-[10px] ${mine ? 'text-brand-100' : 'text-stone-400'}`}>
-                    {new Date(message.sentAtUtc).toLocaleString()}
+                    {formatUtc(message.sentAtUtc)}
                   </p>
                 </div>
               </div>

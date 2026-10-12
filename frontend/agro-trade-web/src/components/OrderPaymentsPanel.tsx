@@ -3,6 +3,7 @@ import { Button, ErrorAlert, Field, SelectField } from './ui'
 import { OrderPaymentPill } from './badges'
 import { getOrderTransactions, initiatePayment, recordManualPayment, settleSandboxPayment } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtcDate } from '../lib/format'
 import {
   ORDER_STATUS,
   PAYMENT_METHODS,
@@ -14,8 +15,7 @@ import {
 import type { OrderDetailDto, PaymentDto, TransactionDto } from '../types/trade'
 
 function formatDate(value: string | null) {
-  if (!value) return null
-  return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  return value ? formatUtcDate(value) : null
 }
 
 function money(amount: number, currency: string) {

@@ -12,6 +12,7 @@ import { Button, Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { problemFrom } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import { getOrder, transitionOrder } from '../lib/trade'
+import { formatUtcDate } from '../lib/format'
 import { ORDER_STATUS, PRICE_UNITS, PAYMENT_TERMS, SHIPMENT_MODES, labelOf, orderActions } from '../types/trade'
 import type { OrderDetailDto, OrderParty } from '../types/trade'
 
@@ -32,11 +33,6 @@ function quantityUnit(q: number, unit: number) {
   const base = PRICE_UNITS[unit] ?? `Unit ${unit}`
   const short = base.startsWith('Per ') ? base.replace('Per ', '') : base
   return `${Number(q).toLocaleString(undefined, { minimumFractionDigits: q % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })} ${short.toLowerCase()}`
-}
-
-function formatDate(value: string | null) {
-  if (!value) return '—'
-  return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 export default function OrderDetailPage() {
@@ -169,11 +165,11 @@ export default function OrderDetailPage() {
                   {order.transportMode !== null && order.transportMode !== undefined ? (
                     <FieldRow label="Transport" value={labelOf(SHIPMENT_MODES, order.transportMode)} />
                   ) : null}
-                  {order.placedAtUtc ? <FieldRow label="Placed" value={formatDate(order.placedAtUtc)} /> : null}
-                  {order.completedAtUtc ? <FieldRow label="Completed" value={formatDate(order.completedAtUtc)} /> : null}
-                  {order.expectedDeliveryUtc ? <FieldRow label="Expected delivery" value={formatDate(order.expectedDeliveryUtc)} /> : null}
-                  <FieldRow label="Created" value={formatDate(order.createdAtUtc)} />
-                  <FieldRow label="Updated" value={formatDate(order.updatedAtUtc)} />
+                  {order.placedAtUtc ? <FieldRow label="Placed" value={formatUtcDate(order.placedAtUtc)} /> : null}
+                  {order.completedAtUtc ? <FieldRow label="Completed" value={formatUtcDate(order.completedAtUtc)} /> : null}
+                  {order.expectedDeliveryUtc ? <FieldRow label="Expected delivery" value={formatUtcDate(order.expectedDeliveryUtc)} /> : null}
+                  <FieldRow label="Created" value={formatUtcDate(order.createdAtUtc)} />
+                  <FieldRow label="Updated" value={formatUtcDate(order.updatedAtUtc)} />
                 </dl>
 
                 {order.deliveryLine1 ? (

@@ -6,31 +6,55 @@
  */
 
 /**
- * Formats a UTC timestamp the way the server recorded it.
+ * Parses an API timestamp as the UTC instant it records.
  *
  * <para>
- * The API emits `2026-09-27T09:00:25` — SQL Server's `datetime2` carries no offset, and
- * `System.Text.Json` only appends `Z` for a `DateTime` whose `Kind` is `Utc`, so nothing here
- * marks these as UTC. `new Date()` therefore reads them as *local* time and shifts every audit
- * entry by the reader's offset, which on a UTC+1 machine makes a review recorded at 09:00 look
- * like it happened at 10:00. Formatting with `timeZone: 'UTC'` renders the stored wall-clock
- * unchanged, which is the only reading that can be trusted.
+ * The API serialises `DateTime` values in ISO-8601. Every persisted timestamp is marked `Utc` in
+ * the model, so `System.Text.Json` appends a trailing `Z` and `new Date()` reads the correct
+ * instant. A value with no zone — an older row's cached response, or a non-conforming proxy —
+ * would instead be read as *local* time and shifted by the reader's offset, so the missing `Z` is
+ * restored here. Date-only strings already parse as UTC and are left alone.
  * </para>
+ */
+function parseUtc(value: string): Date {
+  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(value)) return new Date(value)
+  return new Date(value.includes('T') ? `${value}Z` : value)
+}
+
+/**
+ * Formats a UTC timestamp the way the server recorded it, labelled "UTC".
  *
  * <para>
- * The value is labelled "UTC" rather than being silently localised: until the API carries an
- * offset, the honest thing is to say which zone the number is in rather than to imply the reader's.
+ * The value is always shown in UTC rather than localised: the platform is cross-border, and a
+ * reader's offset must not move a recorded moment. It is labelled rather than silent so the number
+ * is never mistaken for the reader's own clock.
  * </para>
  */
 export function formatUtc(value: string | null | undefined): string {
   if (!value) return '—'
-  const parsed = new Date(value)
+  const parsed = parseUtc(value)
   if (Number.isNaN(parsed.getTime())) return '—'
   return `${parsed.toLocaleString(undefined, {
     dateStyle: 'medium',
     timeStyle: 'short',
     timeZone: 'UTC',
   })} UTC`
+}
+
+/**
+ * Formats the UTC calendar date of a timestamp, without a time.
+ *
+ * <para>
+ * Used for fields that are dates in substance — an expiry, a deadline — where converting to the
+ * reader's zone could shift the day across the date line. A price dated 2026-10-12 must read as
+ * 2026-10-12 for everyone.
+ * </para>
+ */
+export function formatUtcDate(value: string | null | undefined): string {
+  if (!value) return '—'
+  const parsed = parseUtc(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return parsed.toLocaleDateString(undefined, { dateStyle: 'medium', timeZone: 'UTC' })
 }
 
 /**

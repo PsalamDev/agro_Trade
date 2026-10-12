@@ -7,6 +7,7 @@ import { EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { problemFrom } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import { getMyOrders, getSellingOrders } from '../lib/trade'
+import { formatUtcDate } from '../lib/format'
 import { COMPANY_ROLE } from '../types/auth'
 import { ORDER_STATUS, ORDER_STATUSES } from '../types/trade'
 import type { OrderCardDto } from '../types/trade'
@@ -18,11 +19,6 @@ import type { OrderCardDto } from '../types/trade'
 const STATUS_FILTERS = ORDER_STATUSES.map((_, value) => String(value))
   .filter((value) => value !== String(ORDER_STATUS.Draft))
   .map((value) => ({ value, label: ORDER_STATUSES[Number(value)] }))
-
-function formatDate(value: string | null) {
-  if (!value) return '—'
-  return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-}
 
 function money(currency: string, amount: number) {
   return `${currency} ${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -77,13 +73,13 @@ function OrderRow({ order, view }: { order: OrderCardDto; view: 'buyer' | 'selle
             <dt className="text-xs font-medium tracking-wide text-stone-500 uppercase">
               {order.placedAtUtc ? 'Placed' : 'Created'}
             </dt>
-            <dd className="mt-0.5 text-sm font-medium">{formatDate(order.placedAtUtc ?? order.createdAtUtc)}</dd>
+            <dd className="mt-0.5 text-sm font-medium">{formatUtcDate(order.placedAtUtc ?? order.createdAtUtc)}</dd>
           </div>
         </dl>
 
         <p className="mt-3 text-xs text-stone-500">
           {order.itemCount} line{order.itemCount === 1 ? '' : 's'}
-          {order.expectedDeliveryUtc ? ` · expected ${formatDate(order.expectedDeliveryUtc)}` : ''}
+          {order.expectedDeliveryUtc ? ` · expected ${formatUtcDate(order.expectedDeliveryUtc)}` : ''}
         </p>
       </Link>
     </li>

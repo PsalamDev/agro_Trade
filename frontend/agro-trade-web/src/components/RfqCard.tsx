@@ -3,6 +3,7 @@ import type { TradeRequestCardDto } from '../types/trade'
 import { PRICE_UNITS, SHIPMENT_MODES, labelOf } from '../types/trade'
 import { IncotermBadge, RfqStatusPill } from './badges'
 import { ArrowRightIcon, CoinsIcon, MapPinIcon, PackageIcon, TruckIcon } from './icons'
+import { formatUtcDate } from '../lib/format'
 
 export function RfqCard({ rfq }: { rfq: TradeRequestCardDto }) {
   const isOpen = rfq.status === 0 || rfq.status === 1
@@ -71,7 +72,7 @@ export function RfqCard({ rfq }: { rfq: TradeRequestCardDto }) {
       </dl>
 
       <div className="mt-auto flex items-center justify-between gap-3 border-t border-stone-100 pt-4 text-sm">
-        <span className="text-stone-500">Expires {new Date(rfq.expiresAt).toLocaleDateString()}</span>
+        <span className="text-stone-500">Expires {formatUtcDate(rfq.expiresAt)}</span>
         <span
           className={`inline-flex items-center gap-1 font-semibold transition duration-200 ease-soft group-hover:gap-2 ${
             isOpen ? 'text-brand-700' : 'text-stone-400'

@@ -12,7 +12,7 @@ import {
   Skeleton,
 } from '../components/ui'
 import { problemFrom } from '../lib/api'
-import { formatUtc, money } from '../lib/format'
+import { formatUtc, formatUtcDate, money } from '../lib/format'
 import { countryName, getMarketPrices } from '../lib/trade'
 import type { MarketDataDto } from '../types/trade'
 import { CoinsIcon, FilterIcon, GlobeIcon, XIcon } from '../components/icons'
@@ -65,13 +65,6 @@ function Delta({ value }: { value: number }) {
       {Math.abs(value).toFixed(1)}%
     </span>
   )
-}
-
-/** Day-only label, read in the zone the server recorded. */
-function shortDate(iso: string): string {
-  const parsed = new Date(iso)
-  if (Number.isNaN(parsed.getTime())) return iso
-  return parsed.toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
 
 /** Compact axis label — the chart does not have room for a full `money()` string. */
@@ -135,10 +128,10 @@ function TrendChart({ series }: { series: Series[] }) {
           </g>
         ))}
         <text x={L} y={H - 10} className="fill-stone-400 text-[10px]">
-          {shortDate(first.date)}
+          {formatUtcDate(first.date)}
         </text>
         <text x={W - R} y={H - 10} textAnchor="end" className="fill-stone-400 text-[10px]">
-          {shortDate(last.date)}
+          {formatUtcDate(last.date)}
         </text>
 
         {series.map((s, idx) => {
@@ -480,7 +473,7 @@ export default function MarketIntelligencePage() {
                         </div>
                         <p className="mt-3 text-xs text-stone-500">
                           {card.observations} obs · {card.origins} origin{card.origins === 1 ? '' : 's'} · latest{' '}
-                          {shortDate(latestRow.reportedAtUtc)}
+                          {formatUtcDate(latestRow.reportedAtUtc)}
                         </p>
                       </button>
                     )

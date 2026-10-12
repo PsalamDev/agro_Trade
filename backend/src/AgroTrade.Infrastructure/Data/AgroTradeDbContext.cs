@@ -7,6 +7,7 @@ using AgroTrade.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AgroTrade.Infrastructure.Data;
 
@@ -78,6 +79,8 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     {
         base.OnModelCreating(builder);
 
+        ApplyUtcConventions(builder);
+
         builder.Entity<ApplicationUser>(e =>
         {
             e.Property(u => u.DisplayName).HasMaxLength(150).IsRequired();
@@ -106,6 +109,37 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
         ConfigureCarts(builder);
         ConfigureLogisticsDirectory(builder);
         ConfigureCommunication(builder);
+    }
+
+    /// <summary>
+    /// Marks every timestamp read from the database as UTC.
+    /// </summary>
+    /// <remarks>
+    /// SQL Server's <c>datetime2</c> carries no offset, so EF materialises these as
+    /// <see cref="DateTimeKind.Unspecified"/> and the API serialises them without a trailing
+    /// <c>Z</c>. A client then reads a bare date-time as *local* time, shifting every displayed
+    /// value by the reader's offset — risk R15. Declaring the kind here makes the wire value an
+    /// unambiguous UTC instant for every consumer, including a future mobile client. Writes are
+    /// untouched: the value is stored exactly as supplied, and the application only ever writes
+    /// <see cref="DateTime.UtcNow"/> or something already UTC.
+    /// </remarks>
+    private static void ApplyUtcConventions(ModelBuilder builder)
+    {
+        foreach (var property in builder.Model.GetEntityTypes().SelectMany(t => t.GetProperties()))
+        {
+            if (property.ClrType == typeof(DateTime))
+            {
+                property.SetValueConverter(new ValueConverter<DateTime, DateTime>(
+                    value => value,
+                    value => DateTime.SpecifyKind(value, DateTimeKind.Utc)));
+            }
+            else if (property.ClrType == typeof(DateTime?))
+            {
+                property.SetValueConverter(new ValueConverter<DateTime?, DateTime?>(
+                    value => value,
+                    value => value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : value));
+            }
+        }
     }
 
     private static void ConfigureBusiness(ModelBuilder builder)

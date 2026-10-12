@@ -3,12 +3,12 @@ import { Button, ErrorAlert, Field } from './ui'
 import { InvoiceStatusPill } from './badges'
 import { generateInvoice, getOrderInvoice, getOrderReceipts } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtcDate } from '../lib/format'
 import { ORDER_STATUS } from '../types/trade'
 import type { InvoiceDto, OrderDetailDto, ReceiptDto } from '../types/trade'
 
 function formatDate(value: string | null) {
-  if (!value) return null
-  return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  return value ? formatUtcDate(value) : null
 }
 
 function money(amount: number, currency: string) {

@@ -8,6 +8,7 @@ import { Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { acceptQuotation, getConversations, getRfq } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
+import { formatUtcDate } from '../lib/format'
 import { COMPANY_ROLE } from '../types/auth'
 import { MESSAGE_CONTEXT_TYPE, PAYMENT_TERMS, PRICE_UNITS, SHIPMENT_MODES, labelOf } from '../types/trade'
 import type { ConversationDto, QuotationDto, TradeRequestDetailDto } from '../types/trade'
@@ -137,8 +138,8 @@ export default function RfqDetailPage() {
                   {rfq.paymentTermsPreferred !== null && rfq.paymentTermsPreferred !== undefined ? (
                     <FieldRow label="Payment terms preferred" value={labelOf(PAYMENT_TERMS, rfq.paymentTermsPreferred)} />
                   ) : null}
-                  {rfq.deliveryDeadline ? <FieldRow label="Delivery deadline" value={new Date(rfq.deliveryDeadline).toLocaleDateString()} /> : null}
-                  <FieldRow label="RFQ expires" value={new Date(rfq.expiresAt).toLocaleDateString()} />
+                  {rfq.deliveryDeadline ? <FieldRow label="Delivery deadline" value={formatUtcDate(rfq.deliveryDeadline)} /> : null}
+                  <FieldRow label="RFQ expires" value={formatUtcDate(rfq.expiresAt)} />
                   {rfq.budgetMin !== null || rfq.budgetMax !== null ? (
                     <FieldRow
                       label="Budget"

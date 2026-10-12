@@ -4,6 +4,7 @@ import { AppHeader } from '../components/AppHeader'
 import { EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtc } from '../lib/format'
 import { NOTIFICATION_TYPES, labelOf } from '../types/trade'
 import type { NotificationDto } from '../types/trade'
 
@@ -91,7 +92,7 @@ export default function NotificationsPage() {
                     <span className="text-xs font-semibold uppercase tracking-wide text-brand-700">
                       {labelOf(NOTIFICATION_TYPES, n.type)}
                     </span>
-                    <span className="text-xs text-stone-400">{new Date(n.createdAtUtc).toLocaleString()}</span>
+                    <span className="text-xs text-stone-400">{formatUtc(n.createdAtUtc)}</span>
                   </div>
                   <p className="mt-1 font-medium">{n.title}</p>
                   {n.body ? <p className="mt-0.5 text-sm text-stone-600">{n.body}</p> : null}

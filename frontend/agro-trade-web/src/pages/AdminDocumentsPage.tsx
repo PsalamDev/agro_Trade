@@ -5,6 +5,7 @@ import { DocumentStatusPill } from '../components/badges'
 import { Card, EmptyState, ErrorAlert, Spinner } from '../components/ui'
 import { adminSearchDocuments, reviewDocument } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { formatUtc } from '../lib/format'
 import {
   DOCUMENT_STATUS,
   TRADE_DOCUMENT_TYPE_OPTIONS,
@@ -23,11 +24,6 @@ const STATUS_FILTERS = [
   { value: String(DOCUMENT_STATUS.Rejected), label: 'Rejected' },
   { value: '', label: 'All' },
 ]
-
-function formatDateTime(value: string | null) {
-  if (!value) return '—'
-  return new Date(value).toLocaleString()
-}
 
 export default function AdminDocumentsPage() {
   const [status, setStatus] = useState(STATUS_FILTERS[0].value)
@@ -218,7 +214,7 @@ export default function AdminDocumentsPage() {
                           {doc.orderCounterparty ? ` · ${doc.orderCounterparty}` : ''}
                           {doc.uploadedByDisplayName ? ` · by ${doc.uploadedByDisplayName}` : ''}
                           {' · '}
-                          {formatDateTime(doc.createdAtUtc)}
+                          {formatUtc(doc.createdAtUtc)}
                         </p>
                       </button>
                     </li>
@@ -280,7 +276,7 @@ export default function AdminDocumentsPage() {
                   </div>
                   <div className="flex justify-between gap-3">
                     <dt className="text-stone-500">Uploaded</dt>
-                    <dd>{formatDateTime(selected.createdAtUtc)}</dd>
+                    <dd>{formatUtc(selected.createdAtUtc)}</dd>
                   </div>
                   {selected.documentReference ? (
                     <div className="flex justify-between gap-3">
@@ -291,13 +287,13 @@ export default function AdminDocumentsPage() {
                   {selected.issuedOnUtc ? (
                     <div className="flex justify-between gap-3">
                       <dt className="text-stone-500">Issued</dt>
-                      <dd>{formatDateTime(selected.issuedOnUtc)}</dd>
+                      <dd>{formatUtc(selected.issuedOnUtc)}</dd>
                     </div>
                   ) : null}
                   {selected.expiresOnUtc ? (
                     <div className="flex justify-between gap-3">
                       <dt className="text-stone-500">Expires</dt>
-                      <dd>{formatDateTime(selected.expiresOnUtc)}</dd>
+                      <dd>{formatUtc(selected.expiresOnUtc)}</dd>
                     </div>
                   ) : null}
                 </dl>
@@ -372,7 +368,7 @@ export default function AdminDocumentsPage() {
                   </div>
                 ) : (
                   <p className="mt-5 border-t border-stone-100 pt-4 text-sm text-stone-500">
-                    Reviewed on {formatDateTime(selected.reviewedAtUtc)}. Reversing a decision is a
+                    Reviewed on {formatUtc(selected.reviewedAtUtc)}. Reversing a decision is a
                     re-review, which the server allows only to a different verdict.
                   </p>
                 )}
