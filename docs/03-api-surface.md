@@ -28,12 +28,12 @@ Versioned REST API for the **cross-border import/export platform**. Swagger/Open
 
 | Method | Route | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/auth/register` | Public | Create user + roles. `roles` selects the onboarding path — domestic `Buyer` (buy locally, no verification) or international `Importer`/`Distributor` (business verification follows). Filtered to `RoleNames.Registrable`; defaults to `Buyer` → email confirm |
+| POST | `/auth/register` | Public | Create user + roles. `roles` selects the onboarding path — domestic `Buyer` (buy locally, no verification) or international `Importer`/`Distributor` (business verification follows). Filtered to `RoleNames.Registrable`; defaults to `Buyer` → email confirm. A buyer account number (`buyerId`, e.g. `BUY-ID-AG-000001`) is assigned at registration under a locked sequence and returned on the user summary |
 | POST | `/auth/login` | Public | `accessToken`, `refreshToken`, user summary + roles |
 | POST | `/auth/refresh` | Public | Rotate refresh token (reuse detection) |
 | POST | `/auth/logout` | User | Revoke refresh token |
 | POST | `/auth/forgot-password` / `/auth/reset-password` | Public | |
-| GET | `/auth/me` | User | Profile, roles, businesses, verification status, trade countries |
+| GET | `/auth/me` | User | Profile, roles, businesses, verification status, trade countries, `buyerId` |
 | PUT | `/me` | User | Update profile/currency/home country |
 | GET/PUT | `/me/addresses` · DELETE `/me/addresses/{id}` | User | Address book; one primary |
 
@@ -308,7 +308,7 @@ is no remaining planned administrative surface.
 | GET | `/admin/overview` | **One request, the whole dashboard.** Platform counts, four funnels (business verification, document verification, order status, order payment status), corridor value, per-category supply vs demand, RFQ demand. |
 | GET | `/admin/audit-log` | Administrator decisions, newest first. `?action=&userId=&q=` |
 | GET | `/admin/audit-log/export` | The same trail as a **CSV download** under the same `?action=&userId=&q=` filters and ordering, with no page cap. Streamed, and the file opens with a UTF-8 BOM so Excel reads non-ASCII text (a trading name, a rejection reason) correctly. |
-| GET | `/admin/users` | User directory. `?q=&role=&emailConfirmed=&lockedOut=`. `role` is a role **name**, not an id — ids are database-generated and undiscoverable through the API, so an id filter would be a parameter no client could fill. |
+| GET | `/admin/users` | User directory. `?q=&role=&emailConfirmed=&lockedOut=`. `q` matches name, email, business trading name, or buyer account number; `role` is a role **name**, not an id — ids are database-generated and undiscoverable through the API, so an id filter would be a parameter no client could fill. |
 | GET | `/admin/orders` | Global order queue. `?status=&paymentStatus=&q=` |
 | GET | `/admin/shipments` | Global consignment queue. `?status=&q=&hasGuestTracking=` |
 | GET | `/admin/businesses` | Business queue. `?status=&q=` |

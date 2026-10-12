@@ -641,6 +641,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
             filtered = filtered.Where(u =>
                 EF.Functions.Like(u.Email, $"%{search}%") ||
                 EF.Functions.Like(u.DisplayName, $"%{search}%") ||
+                EF.Functions.Like(u.BuyerId, $"%{search}%") ||
                 db.Businesses.Any(b => b.OwnerUserId == u.Id && EF.Functions.Like(b.TradingName, $"%{search}%")));
         }
 
@@ -681,6 +682,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
                 u.Id,
                 Email = u.Email ?? string.Empty,
                 u.DisplayName,
+                u.BuyerId,
                 u.EmailConfirmed,
                 u.LockoutEnd,
                 u.CreatedAtUtc,
@@ -708,6 +710,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
                 Id = u.Id,
                 Email = u.Email,
                 DisplayName = u.DisplayName,
+                BuyerId = u.BuyerId,
                 EmailConfirmed = u.EmailConfirmed,
                 LockedOut = u.LockoutEnd != null && u.LockoutEnd > now,
                 IsActive = u.IsActive,
@@ -1598,6 +1601,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
             Id = user.Id,
             Email = user.Email ?? string.Empty,
             DisplayName = user.DisplayName,
+            BuyerId = user.BuyerId,
             EmailConfirmed = user.EmailConfirmed,
             LockedOut = user.LockoutEnd != null && user.LockoutEnd > now,
             IsActive = user.IsActive,

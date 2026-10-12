@@ -63,6 +63,7 @@ ports, and trade documents are first-class entities.
 | IsEmailVerified | bit | email confirm flow |
 | DefaultCurrency | varchar(3) | ISO code |
 | HomeCountry | char(2) | ISO-3166 |
+| BuyerId | nvarchar(32) | buyer account number, e.g. `BUY-ID-AG-000001`; assigned once at registration (null for non-buyer accounts). Unique where set — a filtered unique index, because a plain unique index treats NULLs as equal and would let only one account exist without a number |
 | CreatedAtUtc / UpdatedAtUtc | | stamped — `ApplicationUser` implements `IAuditableEntity` (added task 2.7; the columns already existed and were never being written, which left 3,194 nulls in the test database) |
 
 ### Roles · UserRoles

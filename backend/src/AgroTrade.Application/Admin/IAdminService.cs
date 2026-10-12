@@ -493,6 +493,13 @@ public sealed record AdminUserDto
     public Guid Id { get; init; }
     public string Email { get; init; } = string.Empty;
     public string? DisplayName { get; init; }
+
+    /// <summary>
+    /// Buyer account number, e.g. <c>BUY-ID-AG-000001</c>; null for accounts that never registered
+    /// as a buyer. Searchable — an administrator can look an account up by this or by name.
+    /// </summary>
+    public string? BuyerId { get; init; }
+
     public bool EmailConfirmed { get; init; }
     public bool LockedOut { get; init; }
 

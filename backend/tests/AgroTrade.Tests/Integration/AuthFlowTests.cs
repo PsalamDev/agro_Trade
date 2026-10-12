@@ -114,6 +114,69 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
     }
 
     [Fact]
+    public async Task BuyerId_IsGeneratedAtRegistration_AndStableAcrossLoginAndMe()
+    {
+        var email = $"buyerid_{Guid.NewGuid():N}@tests.agrotrade.local";
+        var register = await _client.PostAsJsonAsync("/api/v1/auth/register", new
+        {
+            email,
+            password = "StrongPass123",
+            displayName = "Account Number Buyer",
+            homeCountry = "NG",
+            defaultCurrency = "USD",
+            roles = new[] { "Importer" },
+        });
+        Assert.Equal(HttpStatusCode.Created, register.StatusCode);
+        var registered = await register.Content.ReadFromJsonAsync<AuthResponseDto>();
+        var buyerId = registered!.User.BuyerId;
+        Assert.NotNull(buyerId);
+        Assert.Matches(@"^BUY-ID-AG-\d{6}$", buyerId!);
+
+        // The number is an account identifier, so it is the same on every later response rather
+        // than a per-session value.
+        var login = await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "StrongPass123" });
+        var loggedIn = await login.Content.ReadFromJsonAsync<AuthResponseDto>();
+        Assert.Equal(buyerId, loggedIn!.User.BuyerId);
+
+        using var authorized = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/me");
+        authorized.Headers.Authorization = new AuthenticationHeaderValue("Bearer", loggedIn.AccessToken);
+        var me = await _client.SendAsync(authorized);
+        var meDto = await me.Content.ReadFromJsonAsync<AuthUserDto>();
+        Assert.Equal(buyerId, meDto?.BuyerId);
+    }
+
+    [Fact]
+    public async Task ConcurrentRegistrations_ReceiveDistinctBuyerIds()
+    {
+        // Two registrations racing for the same number must not both be handed it: the allocator
+        // serialises the read-then-write, so the loser waits and re-reads rather than computing the
+        // same maximum.
+        var first = RegisterBuyerAsync($"raceid_a_{Guid.NewGuid():N}@tests.agrotrade.local");
+        var second = RegisterBuyerAsync($"raceid_b_{Guid.NewGuid():N}@tests.agrotrade.local");
+        var results = await Task.WhenAll(first, second);
+
+        Assert.All(results, r => Assert.Equal(HttpStatusCode.Created, r.StatusCode));
+        var ids = results.Select(r => r.BuyerId).ToList();
+        Assert.All(ids, id => Assert.Matches(@"^BUY-ID-AG-\d{6}$", id!));
+        Assert.Equal(2, ids.Distinct().Count());
+    }
+
+    private async Task<(HttpStatusCode StatusCode, string? BuyerId)> RegisterBuyerAsync(string email)
+    {
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/register", new
+        {
+            email,
+            password = "StrongPass123",
+            displayName = "Concurrent Buyer",
+            homeCountry = "NG",
+            defaultCurrency = "USD",
+            roles = new[] { "Importer" },
+        });
+        var dto = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
+        return (response.StatusCode, dto?.User.BuyerId);
+    }
+
+    [Fact]
     public async Task ConcurrentRotations_CannotBothMintALiveSuccessor()
     {
         var email = $"race_{Guid.NewGuid():N}@tests.agrotrade.local";
@@ -217,6 +280,7 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
         public string DisplayName { get; init; } = "";
         public string? HomeCountry { get; init; }
         public string DefaultCurrency { get; init; } = "";
+        public string? BuyerId { get; init; }
         public bool IsEmailVerified { get; init; }
         public bool IsActive { get; init; }
         public List<string> Roles { get; init; } = [];

@@ -86,7 +86,13 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.Property(u => u.DisplayName).HasMaxLength(150).IsRequired();
             e.Property(u => u.HomeCountry).HasMaxLength(2);
             e.Property(u => u.DefaultCurrency).HasMaxLength(3).IsRequired();
+            e.Property(u => u.BuyerId).HasMaxLength(32);
             e.HasIndex(u => u.NormalizedEmail).IsUnique();
+            // Unique only where set: the column is null for accounts that never registered as a
+            // buyer (the administrator, the Company supplier). SQL Server's unique index treats
+            // NULLs as equal, so without the filter a second null BuyerId would collide with the
+            // first and block that account from ever being created.
+            e.HasIndex(u => u.BuyerId).IsUnique().HasFilter("[BuyerId] IS NOT NULL");
         });
 
         builder.Entity<RefreshToken>(e =>

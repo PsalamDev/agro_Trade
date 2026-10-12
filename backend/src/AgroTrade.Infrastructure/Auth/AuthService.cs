@@ -40,6 +40,15 @@ public sealed class AuthService(
     private readonly JwtOptions _jwt = jwtOptions.Value;
     private readonly AuthOptions _auth = authOptions.Value;
 
+    /// <summary>
+    /// Prefix of a buyer's account number, e.g. <c>BUY-ID-AG-000001</c>.
+    /// </summary>
+    /// <remarks>
+    /// Flat rather than year-scoped: an order or RFQ number is a document reference that resets
+    /// each January, but a buyer's is a permanent account number, so the counter never restarts.
+    /// </remarks>
+    private const string BuyerIdPrefix = "BUY-ID-AG-";
+
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
     {
         var email = request.Email.Trim().ToLowerInvariant();
@@ -85,10 +94,38 @@ public sealed class AuthService(
             CreatedAtUtc = DateTime.UtcNow,
         };
 
-        var result = await userManager.CreateAsync(user, request.Password);
-        if (!result.Succeeded)
+        // Every registrable role is buyer-side, so in practice this is always taken; the check keeps
+        // the rule explicit if a supplier role is ever added to registration.
+        if (roles.Any(r => RoleNames.BuyerRoles.Contains(r)))
         {
-            throw ApiException.BadRequest("REGISTRATION_FAILED", FormatIdentityErrors(result));
+            // The account number is MAX+1 over the ones already issued — a read-then-write that is
+            // racy on its own, so two simultaneous registrations could be handed the same number and
+            // one would fail on the unique index. SequenceAllocator holds a range lock over the
+            // BuyerId index *across the insert*, so the number and the row carrying it commit or roll
+            // back together; the insert is Identity's create, passed as the allocator's save.
+            await SequenceAllocator.AllocateAsync(
+                db,
+                table: "AspNetUsers",
+                column: "BuyerId",
+                prefix: BuyerIdPrefix,
+                assign: number => user.BuyerId = number,
+                save: async token =>
+                {
+                    var created = await userManager.CreateAsync(user, request.Password);
+                    if (!created.Succeeded)
+                    {
+                        throw ApiException.BadRequest("REGISTRATION_FAILED", FormatIdentityErrors(created));
+                    }
+                },
+                ct);
+        }
+        else
+        {
+            var created = await userManager.CreateAsync(user, request.Password);
+            if (!created.Succeeded)
+            {
+                throw ApiException.BadRequest("REGISTRATION_FAILED", FormatIdentityErrors(created));
+            }
         }
 
         var roleResult = await userManager.AddToRolesAsync(user, roles);
@@ -350,6 +387,7 @@ public sealed class AuthService(
         DisplayName = user.DisplayName,
         HomeCountry = user.HomeCountry,
         DefaultCurrency = user.DefaultCurrency,
+        BuyerId = user.BuyerId,
         IsEmailVerified = user.EmailConfirmed,
         IsActive = user.IsActive,
         Roles = (await userManager.GetRolesAsync(user)).ToList(),

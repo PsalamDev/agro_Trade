@@ -10,6 +10,13 @@ public sealed class AuthUserDto
     public string DisplayName { get; init; } = string.Empty;
     public string? HomeCountry { get; init; }
     public string DefaultCurrency { get; init; } = "NGN";
+
+    /// <summary>
+    /// Buyer account number assigned at registration, e.g. <c>BUY-ID-AG-000001</c>. Null for
+    /// accounts that never registered as a buyer.
+    /// </summary>
+    public string? BuyerId { get; init; }
+
     public bool IsEmailVerified { get; init; }
     public bool IsActive { get; init; }
     public IReadOnlyList<string> Roles { get; init; } = [];

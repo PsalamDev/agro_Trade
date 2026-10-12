@@ -20,6 +20,7 @@ import {
   PackageIcon,
   PencilIcon,
   SearchIcon,
+  UserIcon,
 } from '../components/icons'
 
 const CURRENCIES = ['NGN', 'KES', 'GHS', 'ZAR', 'EGP', 'USD', 'EUR', 'GBP', 'CNY', 'AED']
@@ -105,6 +106,11 @@ export default function DashboardPage() {
   }
 
   const profileFacts = [
+    // Only buyers carry an account number; other accounts (the platform's own) show nothing rather
+    // than an empty field that reads as a missing value.
+    ...(user.buyerId
+      ? [{ label: 'Buyer ID', value: user.buyerId, icon: <UserIcon className="h-4 w-4" /> }]
+      : []),
     { label: 'Email', value: user.email, icon: <MessageIcon className="h-4 w-4" /> },
     { label: 'Roles', value: user.roles.join(', '), icon: <CheckCircleIcon className="h-4 w-4" /> },
     { label: 'Home country', value: user.homeCountry ?? '—', icon: <GlobeIcon className="h-4 w-4" /> },

@@ -1125,6 +1125,8 @@ export interface AdminUserDto {
   id: string
   email: string
   displayName: string | null
+  /** Buyer account number, e.g. `BUY-ID-AG-000001`; null for accounts that never registered as a buyer. */
+  buyerId: string | null
   emailConfirmed: boolean
   /** Identity's failed-sign-in throttle. Clears itself. */
   lockedOut: boolean

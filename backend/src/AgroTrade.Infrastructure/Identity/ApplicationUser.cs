@@ -28,6 +28,19 @@ public class ApplicationUser : IdentityUser<Guid>, IAuditableEntity
     /// <summary>ISO-4217 default currency.</summary>
     public string DefaultCurrency { get; set; } = "NGN";
 
+    /// <summary>
+    /// Human-readable buyer account number, assigned once when a buyer registers
+    /// (e.g. <c>BUY-ID-AG-000001</c>).
+    /// </summary>
+    /// <remarks>
+    /// A public identifier, deliberately not a key: it is what a buyer quotes to support and what
+    /// an administrator searches on, so it is stable and never reused. Nothing joins on it —
+    /// <c>Order.BuyerUserId</c> remains the identifier used for relationships. It is null for
+    /// accounts that never registered as a buyer, such as the seeded administrator and the Company
+    /// supplier account.
+    /// </remarks>
+    public string? BuyerId { get; set; }
+
     /// <summary>Admin suspension flag — checked on token validation and login.</summary>
     public bool IsActive { get; set; } = true;
 

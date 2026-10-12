@@ -507,6 +507,41 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     }
 
     [Fact]
+    public async Task BuyerId_IsAssignedOnRegistration_AndFindableByNumberOrName()
+    {
+        var email = $"ops_buyerid_{Guid.NewGuid():N}@admin.tests.agrotrade.local";
+        var displayName = $"Searchable Buyer {Guid.NewGuid():N}";
+        var register = await _client.PostAsJsonAsync("/api/v1/auth/register", new
+        {
+            email,
+            password = Password,
+            displayName,
+            homeCountry = "NG",
+            defaultCurrency = "USD",
+            roles = new[] { RoleNames.Importer },
+        });
+        Assert.Equal(HttpStatusCode.Created, register.StatusCode);
+        var buyerId = (await register.Content.ReadFromJsonAsync<AuthEnvelope>())!.User.BuyerId;
+        Assert.NotNull(buyerId);
+        Assert.Matches(@"^BUY-ID-AG-\d{6}$", buyerId!);
+
+        var adminToken = await AdminTokenAsync();
+
+        // Found by account number...
+        var byNumber = await GetAsync($"/api/v1/admin/users?q={Uri.EscapeDataString(buyerId!)}", adminToken);
+        byNumber.EnsureSuccessStatusCode();
+        var numberPage = await byNumber.Content.ReadFromJsonAsync<PagedMirror<UserRowMirror>>();
+        var byNumberRow = Assert.Single(numberPage!.Items, u => u.Email == email);
+        Assert.Equal(buyerId, byNumberRow.BuyerId);
+
+        // ...and by name, independently.
+        var byName = await GetAsync($"/api/v1/admin/users?q={Uri.EscapeDataString(displayName)}", adminToken);
+        byName.EnsureSuccessStatusCode();
+        var namePage = await byName.Content.ReadFromJsonAsync<PagedMirror<UserRowMirror>>();
+        Assert.Single(namePage!.Items, u => u.Email == email);
+    }
+
+    [Fact]
     public async Task Suspension_RequiresAReason()
     {
         var email = $"ops_noreason_{Guid.NewGuid():N}@admin.tests.agrotrade.local";
@@ -1015,6 +1050,7 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
         public Guid Id { get; init; }
         public string Email { get; init; } = "";
         public string? DisplayName { get; init; }
+        public string? BuyerId { get; init; }
         public bool EmailConfirmed { get; init; }
         public bool LockedOut { get; init; }
         public bool IsActive { get; init; }
@@ -1045,6 +1081,7 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     {
         public Guid Id { get; init; }
         public string Email { get; init; } = "";
+        public string? BuyerId { get; init; }
         public bool IsActive { get; init; }
         public List<string> Roles { get; init; } = [];
     }

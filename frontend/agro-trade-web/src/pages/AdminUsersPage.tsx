@@ -104,13 +104,13 @@ export default function AdminUsersPage() {
         <div className="mt-6 flex flex-wrap items-end gap-3">
           <label className="flex-1 sm:max-w-sm">
             <span className="mb-1.5 block text-xs font-medium text-stone-700">
-              Search name, email or business
+              Search name, email, business or buyer ID
             </span>
             <input
               type="search"
               value={term}
               onChange={(e) => applyFilter(setTerm)(e.target.value)}
-              placeholder="company@achieversglobalconsult.com"
+              placeholder="BUY-ID-AG-000001, or a name"
               className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm shadow-soft transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
             />
           </label>
@@ -194,6 +194,12 @@ export default function AdminUsersPage() {
                           {account.businessName ?? 'None registered'}
                         </dd>
                       </div>
+                      {account.buyerId ? (
+                        <div className="flex gap-1.5">
+                          <dt>Buyer ID</dt>
+                          <dd className="font-medium text-stone-700">{account.buyerId}</dd>
+                        </div>
+                      ) : null}
                       <div className="flex gap-1.5">
                         <dt>Registered</dt>
                         {/*

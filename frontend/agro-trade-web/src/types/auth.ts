@@ -6,6 +6,8 @@ export interface AuthUser {
   displayName: string
   homeCountry: string | null
   defaultCurrency: string
+  /** Buyer account number assigned at registration, e.g. `BUY-ID-AG-000001`; null for non-buyers. */
+  buyerId: string | null
   isEmailVerified: boolean
   isActive: boolean
   roles: string[]
