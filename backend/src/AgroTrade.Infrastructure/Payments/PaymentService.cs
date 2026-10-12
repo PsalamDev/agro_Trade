@@ -480,24 +480,37 @@ public sealed class PaymentService(
 
         db.Transactions.Add(entry);
 
-        // Same allocator as settlements, for the same reason: MAX+1 is racy.
+        // Bring the payment's rowversion into this write before the allocator commits the entry.
+        // The refundable balance was read from the ledger, and a second simultaneous refund reads
+        // the same balance; making the payment row part of the same transaction turns that race
+        // into a lost update — a clean 409 — instead of a double refund. It also keeps the ledger
+        // entry and the payment state in one commit, so a lost race cannot leave a refund entry
+        // behind with no matching payment state.
+        if (full)
+        {
+            // A full refund is money the payment began and ended with; the row changes state so
+            // the payment list reads true.
+            payment.Status = PaymentStatus.Refunded;
+            payment.RefundedAtUtc = occurredAtUtc;
+        }
+        else
+        {
+            // A partial refund leaves the payment Paid — most of it is still money the seller is
+            // holding — and only the ledger says what went back. It still has to serialise against
+            // another refund, so touch the audited timestamp to bring the rowversion into the write.
+            db.Entry(payment).Property(p => p.UpdatedAtUtc).IsModified = true;
+        }
+
+        // Same allocator as settlements, for the same reason: MAX+1 is racy. It commits the entry
+        // and the payment state together.
         await SequenceAllocator.AllocateAsync(
             db,
             table: "Transactions",
             column: "Reference",
             prefix: TransactionPrefix(),
             assign: reference => entry.Reference = reference,
-            save: ct => db.SaveChangesAsync(ct),
+            save: ct => SaveAsync(ct),
             ct);
-
-        // A full refund is money the payment began and ended with; the row changes state so the
-        // payment list reads true. A partial refund leaves the payment Paid — most of it is
-        // still money the seller is holding — and only the ledger says what went back.
-        if (full)
-        {
-            payment.Status = PaymentStatus.Refunded;
-            payment.RefundedAtUtc = occurredAtUtc;
-        }
 
         var order = await RollUpOrderAsync(payment.OrderId, ct);
 
@@ -539,7 +552,7 @@ public sealed class PaymentService(
         {
             throw ApiException.Conflict(
                 "PAYMENT_CHANGED",
-                "This payment was updated by someone else at the same time. Reload it and try again.");
+                "This payment or its order was updated by someone else at the same time. Reload it and try again.");
         }
     }
 
