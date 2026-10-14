@@ -334,6 +334,17 @@ export function EyeIcon(props: IconProps) {
   )
 }
 
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M10.6 5.1A9.9 9.9 0 0 1 12 5c6.4 0 10 7 10 7a17.7 17.7 0 0 1-3.3 4.3" />
+      <path d="M6.7 6.7A17.6 17.6 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 4.1-.9" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+      <path d="m2 2 20 20" />
+    </Svg>
+  )
+}
+
 export function TrashIcon(props: IconProps) {
   return (
     <Svg {...props}>

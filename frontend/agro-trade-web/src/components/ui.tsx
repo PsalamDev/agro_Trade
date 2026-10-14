@@ -127,14 +127,21 @@ interface FieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string
   /** Optional leading icon rendered inside the input (left side). */
   icon?: ReactNode
+  /** Optional trailing control rendered inside the input (right side), e.g. a password reveal. */
+  trailing?: ReactNode
+  /** Optional control rendered at the right of the label row, e.g. a "Forgot password?" link. */
+  labelAction?: ReactNode
   /** Optional helper or validation text under the control. */
   hint?: string
 }
 
-export function Field({ label, id, icon, hint, ...rest }: FieldProps) {
+export function Field({ label, id, icon, trailing, labelAction, hint, ...rest }: FieldProps) {
   return (
     <label htmlFor={id} className="block">
-      <span className={labelClass}>{label}</span>
+      <span className="mb-1.5 flex items-center justify-between gap-3">
+        <span className="text-sm font-medium text-stone-700">{label}</span>
+        {labelAction}
+      </span>
       <div className="relative">
         {icon ? (
           <span className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-stone-400 transition peer-focus:text-brand-500">
@@ -143,9 +150,12 @@ export function Field({ label, id, icon, hint, ...rest }: FieldProps) {
         ) : null}
         <input
           id={id}
-          className={`${controlClass} peer ${icon ? 'pl-10' : ''}`}
+          className={`${controlClass} peer ${icon ? 'pl-10' : ''} ${trailing ? 'pr-11' : ''}`}
           {...rest}
         />
+        {trailing ? (
+          <span className="absolute inset-y-0 right-1.5 flex items-center">{trailing}</span>
+        ) : null}
       </div>
       {hint ? <span className="mt-1 block text-xs text-stone-500">{hint}</span> : null}
     </label>
