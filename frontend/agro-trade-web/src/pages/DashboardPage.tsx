@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ComponentType, FormEvent, SVGProps } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
 import CountrySelect from '../components/CountrySelect'
@@ -7,11 +7,10 @@ import { Button, Card, ErrorAlert, Field, PageHeader, SelectField, SubmitButton 
 import { AppHeader } from '../components/AppHeader'
 import { BUYER_ROLES, COMPANY_ROLE, DOMESTIC_BUYER_ROLE } from '../types/auth'
 import {
-  BellIcon,
   BuildingIcon,
-  CartIcon,
   CheckCircleIcon,
   CoinsIcon,
+  CompassIcon,
   FileTextIcon,
   GlobeIcon,
   GridIcon,
@@ -20,52 +19,119 @@ import {
   PackageIcon,
   PencilIcon,
   SearchIcon,
+  TagIcon,
+  TruckIcon,
   UserIcon,
 } from '../components/icons'
 
 const CURRENCIES = ['NGN', 'KES', 'GHS', 'ZAR', 'EGP', 'USD', 'EUR', 'GBP', 'CNY', 'AED']
 
-const quickActions = [
+const LSP_ROLE = 'LogisticsProvider'
+
+/** Friendly names for the role identifiers the API returns. */
+const ROLE_LABELS: Record<string, string> = {
+  Buyer: 'Buyer',
+  Importer: 'Importer',
+  Distributor: 'Distributor',
+  Company: 'Supplier',
+  LogisticsProvider: 'Logistics provider',
+  Administrator: 'Administrator',
+}
+
+interface WorkspaceAction {
+  title: string
+  icon: ComponentType<SVGProps<SVGSVGElement>>
+  body: string
+  to: string
+  cta: string
+  buyersOnly?: boolean
+  companyOnly?: boolean
+  lspOnly?: boolean
+}
+
+/**
+ * The tools a signed-in user can reach, gated by role.
+ *
+ * <p>
+ * Discovery only — no roadmap or build-phase language reaches the screen. A destination a user's
+ * roles cannot use is filtered out rather than shown greyed out, so the grid reads as "what you can
+ * do" rather than "what you are missing".
+ * </p>
+ */
+const WORKSPACE: WorkspaceAction[] = [
   {
     title: 'Marketplace',
-    phase: 'Live · Phase 1',
     icon: GridIcon,
-    body: 'Browse verified export listings, filter by origin, destination, and price.',
+    body: 'Browse verified export listings and compare price, origin and trade terms.',
     to: '/marketplace',
     cta: 'Explore supply',
   },
   {
     title: 'Buy locally',
-    phase: 'Phase 4',
     icon: MapPinIcon,
-    body: 'Produce that ships domestically with a flat delivery fee — add to your cart and check out with a local address.',
+    body: 'Produce that ships domestically with a flat delivery fee and a local address.',
     to: '/marketplace?domesticOnly=1',
     cta: 'Start shopping',
-    onlyForBuyers: true,
+    buyersOnly: true,
   },
   {
-    title: 'RFQ directory',
-    phase: 'Live · Phase 1',
+    title: 'Find RFQs',
     icon: SearchIcon,
-    body: 'Open importers’ sourcing requests. Verified suppliers quote with full trade terms.',
+    body: 'Open sourcing requests from importers — respond with your full trade terms.',
     to: '/rfqs',
     cta: 'Find requests',
   },
   {
-    title: 'Messages & RFQs',
-    phase: 'Live · Phase 1',
+    title: 'My RFQs',
+    icon: FileTextIcon,
+    body: 'Requests you have published and the quotations they received.',
+    to: '/my/rfqs',
+    cta: 'Review RFQs',
+    buyersOnly: true,
+  },
+  {
+    title: 'Orders',
+    icon: PackageIcon,
+    body: 'Track orders, payments, documents and shipments end to end.',
+    to: '/dashboard/orders',
+    cta: 'Open orders',
+  },
+  {
+    title: 'Messages',
     icon: MessageIcon,
-    body: 'Negotiation threads per RFQ, plus RFQ/quotation/verification notifications.',
+    body: 'Negotiation threads, quotation replies and platform notices.',
     to: '/messages',
     cta: 'Open messages',
   },
   {
-    title: 'Orders & payments',
-    phase: 'Phase 2',
-    icon: CoinsIcon,
-    body: 'Convert quotations to orders with agreed terms; verify invoices, COO, bills of lading.',
-    to: null,
-    cta: 'Coming soon',
+    title: 'My listings',
+    icon: TagIcon,
+    body: 'Publish and manage the supply your business offers.',
+    to: '/my/products',
+    cta: 'Manage listings',
+    companyOnly: true,
+  },
+  {
+    title: 'Business profile',
+    icon: BuildingIcon,
+    body: 'Company details, verification status and your public profile.',
+    to: '/business',
+    cta: 'Open business',
+  },
+  {
+    title: 'Logistics',
+    icon: TruckIcon,
+    body: 'Book freight and follow consignments on the agreed Incoterm.',
+    to: '/logistics/bookings',
+    cta: 'View bookings',
+  },
+  {
+    title: 'LSP profile',
+    icon: CompassIcon,
+    body: 'Your logistics provider listing and the routes you cover.',
+    to: '/logistics/profile',
+    cta: 'Open profile',
+    lspOnly: true,
   },
 ]
 
@@ -83,7 +149,16 @@ export default function DashboardPage() {
 
   const roles = user.roles
   const isBuyer = roles.some((r) => BUYER_ROLES.includes(r))
+  const isCompany = roles.includes(COMPANY_ROLE)
+  const isLsp = roles.includes(LSP_ROLE)
   const isDomesticOnly = roles.length === 1 && roles[0] === DOMESTIC_BUYER_ROLE
+
+  const workspace = WORKSPACE.filter((action) => {
+    if (action.buyersOnly && !isBuyer) return false
+    if (action.companyOnly && !isCompany) return false
+    if (action.lspOnly && !isLsp) return false
+    return true
+  })
 
   async function handleSave(event: FormEvent) {
     event.preventDefault()
@@ -107,7 +182,11 @@ export default function DashboardPage() {
 
   const profileFacts = [
     { label: 'Email', value: user.email, icon: <MessageIcon className="h-4 w-4" /> },
-    { label: 'Roles', value: user.roles.join(', '), icon: <CheckCircleIcon className="h-4 w-4" /> },
+    {
+      label: 'Roles',
+      value: user.roles.map((role) => ROLE_LABELS[role] ?? role).join(', '),
+      icon: <CheckCircleIcon className="h-4 w-4" />,
+    },
     { label: 'Home country', value: user.homeCountry ?? '—', icon: <GlobeIcon className="h-4 w-4" /> },
     { label: 'Currency', value: user.defaultCurrency, icon: <CoinsIcon className="h-4 w-4" /> },
   ]
@@ -122,7 +201,7 @@ export default function DashboardPage() {
           subtitle={
             isDomesticOnly
               ? 'Your domestic shopping workspace — nearby produce with local delivery.'
-              : 'Your cross-border trading workspace takes shape in Phase 1.'
+              : 'Your cross-border trading workspace — sourcing, quotations, orders and logistics in one place.'
           }
           action={
             <Button
@@ -140,164 +219,102 @@ export default function DashboardPage() {
 
         {user.buyerId ? <BuyerIdCard buyerId={user.buyerId} /> : null}
 
-        <div className="mt-6">
-          {editing ? (
-            <form onSubmit={handleSave} className="max-w-lg space-y-4">
-              <Card>
-                <h2 className="font-display text-lg font-semibold">Profile</h2>
-                <div className="mt-5 space-y-4">
-                  <ErrorAlert title={error?.title} detail={error?.detail} />
-                  <Field
-                    label="Display name"
-                    id="me-displayName"
-                    required
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                  />
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <CountrySelect
-                      label="Home country"
-                      id="me-country"
-                      value={homeCountry}
-                      onChange={setHomeCountry}
-                      hint="Search by country name — the ISO-2 code is stored automatically."
-                    />
-                    <SelectField
-                      label="Default currency"
-                      id="me-currency"
-                      options={CURRENCIES}
-                      values={CURRENCIES}
-                      value={defaultCurrency}
-                      onChange={(e) => setDefaultCurrency(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <SubmitButton type="submit" pending={pending} className="!w-auto px-6">
-                      Save changes
-                    </SubmitButton>
-                    {saved ? (
-                      <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-700">
-                        <CheckCircleIcon className="h-4 w-4" />
-                        Saved
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </Card>
-            </form>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {profileFacts.map((fact) => (
-                <div
-                  key={fact.label}
-                  className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3.5 shadow-soft"
-                >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700">
-                    {fact.icon}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium tracking-wide text-stone-500 uppercase">
-                      {fact.label}
-                    </p>
-                    <p className="truncate font-display text-sm font-semibold text-stone-900">
-                      {fact.value}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <section className="mt-10">
+          <h2 className="font-display text-lg font-semibold">Your account</h2>
+          <p className="mt-1 text-sm text-stone-500">
+            Who you trade as, and the defaults applied to new orders.
+          </p>
 
-        <section className="mt-12">
-          <h2 className="font-display text-lg font-semibold">Trading workspace</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {quickActions
-              .filter((action) => !action.onlyForBuyers || isBuyer)
-              .map(({ title, phase, icon: Icon, body, to, cta }) =>
-              to ? (
-                <Link
-                  key={title}
-                  to={to}
-                  className="group flex flex-col rounded-2xl border border-stone-200 bg-white p-5 shadow-card transition duration-300 ease-soft hover:-translate-y-1 hover:border-brand-200 hover:shadow-lift"
-                >
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-700 transition duration-300 ease-soft group-hover:bg-brand-100">
-                    <Icon className="h-4.5 w-4.5" />
-                  </span>
-                  <p className="mt-4 text-[11px] font-semibold tracking-wide text-brand-700 uppercase">
-                    {phase}
-                  </p>
-                  <h3 className="font-display mt-1.5 font-semibold transition group-hover:text-brand-700">
-                    {title}
-                  </h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-stone-600">{body}</p>
-                  <p className="mt-auto pt-4 text-sm font-semibold text-brand-700">{cta} →</p>
-                </Link>
-              ) : (
-                <div
-                  key={title}
-                  className="flex flex-col rounded-2xl border border-dashed border-stone-300 bg-stone-50/60 p-5"
-                >
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-stone-200/70 text-stone-500">
-                    <Icon className="h-4.5 w-4.5" />
-                  </span>
-                  <p className="mt-4 text-[11px] font-semibold tracking-wide text-stone-500 uppercase">
-                    {phase}
-                  </p>
-                  <h3 className="font-display mt-1.5 font-semibold text-stone-700">{title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-stone-500">{body}</p>
-                  <p className="mt-auto pt-4 text-sm font-semibold text-stone-400">{cta}</p>
-                </div>
-              ),
+          <div className="mt-4">
+            {editing ? (
+              <form onSubmit={handleSave} className="max-w-lg">
+                <Card>
+                  <div className="space-y-4">
+                    <ErrorAlert title={error?.title} detail={error?.detail} />
+                    <Field
+                      label="Display name"
+                      id="me-displayName"
+                      required
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                    />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <CountrySelect
+                        label="Home country"
+                        id="me-country"
+                        value={homeCountry}
+                        onChange={setHomeCountry}
+                      />
+                      <SelectField
+                        label="Default currency"
+                        id="me-currency"
+                        options={CURRENCIES}
+                        values={CURRENCIES}
+                        value={defaultCurrency}
+                        onChange={(e) => setDefaultCurrency(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <SubmitButton type="submit" pending={pending} className="!w-auto px-6">
+                        Save changes
+                      </SubmitButton>
+                      {saved ? (
+                        <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-700">
+                          <CheckCircleIcon className="h-4 w-4" />
+                          Saved
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </Card>
+              </form>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {profileFacts.map((fact) => (
+                  <div
+                    key={fact.label}
+                    className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white px-4 py-3.5 shadow-soft"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700">
+                      {fact.icon}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium tracking-wide text-stone-500 uppercase">
+                        {fact.label}
+                      </p>
+                      <p className="truncate font-display text-sm font-semibold text-stone-900">
+                        {fact.value}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
+        </section>
 
-          <Card className="mt-6">
-            <h3 className="font-display text-sm font-semibold text-stone-800">Quick actions</h3>
-            <div className="mt-4 flex flex-wrap gap-2">
+        <section className="mt-12">
+          <h2 className="font-display text-lg font-semibold">Workspace</h2>
+          <p className="mt-1 text-sm text-stone-500">The tools available to your roles right now.</p>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {workspace.map(({ title, icon: Icon, body, to, cta }) => (
               <Link
-                to="/business"
-                className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white shadow-brand transition duration-200 ease-soft hover:bg-brand-700"
+                key={title}
+                to={to}
+                className="group flex flex-col rounded-2xl border border-stone-200 bg-white p-5 shadow-card transition duration-300 ease-soft hover:-translate-y-1 hover:border-brand-200 hover:shadow-lift"
               >
-                <BuildingIcon className="h-4 w-4" />
-                Manage business
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-700 transition duration-300 ease-soft group-hover:bg-brand-100">
+                  <Icon className="h-4.5 w-4.5" />
+                </span>
+                <h3 className="font-display mt-4 font-semibold transition group-hover:text-brand-700">
+                  {title}
+                </h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-stone-600">{body}</p>
+                <p className="mt-auto pt-4 text-sm font-semibold text-brand-700">{cta} →</p>
               </Link>
-              {user.roles.includes(COMPANY_ROLE) ? (
-                <Link
-                  to="/products/new"
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 shadow-soft transition duration-200 ease-soft hover:bg-stone-50"
-                >
-                  <PackageIcon className="h-4 w-4" />
-                  New listing
-                </Link>
-              ) : null}
-              {isBuyer ? (
-                <Link
-                  to="/cart"
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 shadow-soft transition duration-200 ease-soft hover:bg-stone-50"
-                >
-                  <CartIcon className="h-4 w-4" />
-                  Shopping cart
-                </Link>
-              ) : null}
-              {isBuyer ? (
-                <Link
-                  to="/rfqs/new"
-                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 shadow-soft transition duration-200 ease-soft hover:bg-stone-50"
-                >
-                  <FileTextIcon className="h-4 w-4" />
-                  Publish RFQ
-                </Link>
-              ) : null}
-              <Link
-                to="/notifications"
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-700 shadow-soft transition duration-200 ease-soft hover:bg-stone-50"
-              >
-                <BellIcon className="h-4 w-4" />
-                Notifications
-              </Link>
-            </div>
-          </Card>
+            ))}
+          </div>
         </section>
       </main>
     </div>
