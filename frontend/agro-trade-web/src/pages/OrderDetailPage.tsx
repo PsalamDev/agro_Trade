@@ -112,9 +112,9 @@ export default function OrderDetailPage() {
   const canCancel = actions.some((a) => a.to === ORDER_STATUS.Cancelled)
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <AppHeader />
-      <main className="mx-auto max-w-6xl px-4 py-10">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
         <Link to="/dashboard/orders" className="text-sm font-medium text-brand-700 hover:underline">
           ← Back to orders
         </Link>
@@ -143,7 +143,7 @@ export default function OrderDetailPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-mono text-xs text-stone-400">{order.orderNumber}</p>
-                    <h1 className="mt-1 text-2xl font-bold tracking-tight">{order.sellerTradingName}</h1>
+                    <h1 className="font-display mt-1 text-2xl font-bold tracking-tight">{order.sellerTradingName}</h1>
                     <p className="mt-1 text-sm text-stone-500">
                       {party === 'buyer' ? 'Purchased by you' : party === 'seller' ? 'Selling to buyer' : 'Order'}
                       {order.buyerDisplayName ? ` · ${order.buyerDisplayName}` : ''}
@@ -174,7 +174,7 @@ export default function OrderDetailPage() {
 
                 {order.deliveryLine1 ? (
                   <div className="mt-6">
-                    <h2 className="text-lg font-semibold">Delivery address</h2>
+                    <h2 className="font-display text-lg font-semibold">Delivery address</h2>
                     <address className="mt-2 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm leading-relaxed text-stone-700 not-italic">
                       {order.deliveryLine1}
                       {order.deliveryLine2 ? (
@@ -198,13 +198,13 @@ export default function OrderDetailPage() {
 
                 {order.notes ? (
                   <div className="mt-6">
-                    <h2 className="text-lg font-semibold">Notes</h2>
+                    <h2 className="font-display text-lg font-semibold">Notes</h2>
                     <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-stone-600">{order.notes}</p>
                   </div>
                 ) : null}
 
                 <div className="mt-6">
-                  <h2 className="text-lg font-semibold">Line items</h2>
+                  <h2 className="font-display text-lg font-semibold">Line items</h2>
                   {order.items.length === 0 ? (
                     <p className="mt-2 text-sm text-stone-500">This order has no line items.</p>
                   ) : (
@@ -238,7 +238,7 @@ export default function OrderDetailPage() {
                 </div>
 
                 <div className="mt-6">
-                  <h2 className="text-lg font-semibold">Totals</h2>
+                  <h2 className="font-display text-lg font-semibold">Totals</h2>
                   <dl className="mt-3 space-y-2 rounded-xl border border-stone-200 p-4">
                     <div className="flex items-center justify-between">
                       <dt className="text-sm text-stone-600">Subtotal</dt>
@@ -269,24 +269,27 @@ export default function OrderDetailPage() {
                   </dl>
                 </div>
 
-                <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                  <Card>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">Buyer</h3>
-                    <p className="mt-1 font-medium">
-                      {order.buyerDisplayName}
-                      {order.isBuyer ? ' (you)' : ''}
-                    </p>
-                    <p className="mt-1 font-mono text-xs text-stone-400">{order.buyerUserId}</p>
-                  </Card>
-                  <Card>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-stone-500">Seller</h3>
-                    <p className="mt-1 font-medium">
-                      {order.sellerTradingName}
-                      {order.isSeller ? ' (you)' : ''}
-                    </p>
-                    <p className="mt-1 font-mono text-xs text-stone-400">{order.sellerBusinessId}</p>
-                  </Card>
-                </div>
+                <section className="mt-8">
+                  <h2 className="font-display text-lg font-semibold">Parties</h2>
+                  <dl className="mt-3 grid gap-px overflow-hidden rounded-xl border border-stone-200 bg-stone-200 sm:grid-cols-2">
+                    <div className="bg-white px-4 py-3.5">
+                      <dt className="text-xs font-medium tracking-wide text-stone-500 uppercase">Buyer</dt>
+                      <dd className="mt-1 font-medium">
+                        {order.buyerDisplayName}
+                        {order.isBuyer ? ' (you)' : ''}
+                      </dd>
+                      <dd className="mt-1 font-mono text-xs text-stone-400">{order.buyerUserId}</dd>
+                    </div>
+                    <div className="bg-white px-4 py-3.5">
+                      <dt className="text-xs font-medium tracking-wide text-stone-500 uppercase">Seller</dt>
+                      <dd className="mt-1 font-medium">
+                        {order.sellerTradingName}
+                        {order.isSeller ? ' (you)' : ''}
+                      </dd>
+                      <dd className="mt-1 font-mono text-xs text-stone-400">{order.sellerBusinessId}</dd>
+                    </div>
+                  </dl>
+                </section>
 
                 <OrderPaymentsPanel order={order} payments={order.payments} onChanged={refresh} />
 
@@ -307,7 +310,7 @@ export default function OrderDetailPage() {
 
             <div className="lg:col-span-2">
               <Card className="sticky top-6">
-                <h2 className="text-lg font-semibold">Actions</h2>
+                <h2 className="font-display text-lg font-semibold">Actions</h2>
                 <p className="mt-1 text-sm text-stone-500">
                   {party === 'buyer' ? 'Buyer actions' : party === 'seller' ? 'Seller actions' : 'No actions available'}
                 </p>
