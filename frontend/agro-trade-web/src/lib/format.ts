@@ -80,3 +80,43 @@ export function money(amount: number, currency: string | null | undefined): stri
 export function count(value: number | null | undefined): string {
   return Number(value ?? 0).toLocaleString()
 }
+
+/**
+ * Formats only the UTC clock time of a timestamp, e.g. "14:32 UTC".
+ *
+ * <para>
+ * Short enough for a message bubble, but still labelled: the value is the instant the server
+ * recorded, and an unlabelled clock time reads as the reader's own.
+ * </para>
+ */
+export function formatUtcTime(value: string | null | undefined): string {
+  if (!value) return '—'
+  const parsed = parseUtc(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  return `${parsed.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  })} UTC`
+}
+
+/**
+ * A day separator label for a conversation: "Today", "Yesterday", or the UTC calendar date.
+ *
+ * <para>
+ * Compared against the current UTC day, so the label turns over at UTC midnight for every reader —
+ * the same boundary the stored timestamps use. The comparison is against the ISO date, taken in UTC
+ * on both sides, so a reader's offset cannot move the day.
+ * </para>
+ */
+export function formatUtcDayLabel(value: string | null | undefined): string {
+  if (!value) return '—'
+  const parsed = parseUtc(value)
+  if (Number.isNaN(parsed.getTime())) return '—'
+  const isoDay = (date: Date) => date.toLocaleDateString('en-CA', { timeZone: 'UTC' })
+  const day = isoDay(parsed)
+  const now = new Date()
+  if (day === isoDay(now)) return 'Today'
+  if (day === isoDay(new Date(now.getTime() - 86400000))) return 'Yesterday'
+  return formatUtcDate(value)
+}

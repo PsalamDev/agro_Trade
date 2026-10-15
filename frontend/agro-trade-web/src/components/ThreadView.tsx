@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../lib/auth-context'
 import { getThread, sendMessage, markThreadRead } from '../lib/trade'
 import { problemFrom } from '../lib/api'
-import { formatUtc } from '../lib/format'
+import { formatUtc, formatUtcDayLabel, formatUtcTime } from '../lib/format'
 import { MESSAGE_CONTEXT_TYPES, labelOf } from '../types/trade'
 import type { MessageDto } from '../types/trade'
-import { ErrorAlert, Spinner } from './ui'
+import { Button, ErrorAlert, Skeleton } from './ui'
+import { MessageIcon } from './icons'
 
 interface ThreadViewProps {
   threadKey: string | null
@@ -17,7 +18,21 @@ interface ThreadViewProps {
   contextId?: string
   /** Buyer→supplier RFQ replies require the recipient's user id. */
   recipientUserId?: string
-  compact?: boolean
+  /**
+   * Outer height. Defaults to a fixed box so the view can sit inside a card; pass `h-full` when the
+   * parent already constrains the height and the thread should fill it.
+   */
+  className?: string
+}
+
+function DaySeparator({ label }: { label: string }) {
+  return (
+    <div className="my-3 flex items-center gap-3 first:mt-0">
+      <span className="h-px flex-1 bg-stone-100" />
+      <span className="text-[11px] font-medium tracking-wide text-stone-400 uppercase">{label}</span>
+      <span className="h-px flex-1 bg-stone-100" />
+    </div>
+  )
 }
 
 export function ThreadView({
@@ -26,7 +41,7 @@ export function ThreadView({
   contextType,
   contextId,
   recipientUserId,
-  compact,
+  className,
 }: ThreadViewProps) {
   const { user } = useAuth()
   const [messages, setMessages] = useState<MessageDto[]>([])
@@ -35,7 +50,7 @@ export function ThreadView({
   const [sending, setSending] = useState(false)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<{ code?: string; detail?: string } | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   // Only show messages fetched for the thread currently selected.
   const viewMessages = loadedThreadKey === threadKey ? messages : []
@@ -69,9 +84,12 @@ export function ThreadView({
     }
   }, [threadKey, user?.id])
 
+  // Pin to the newest message. Scrolling the container directly keeps the page still, which
+  // `scrollIntoView` on a nested box would not.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [messages.length])
+    const list = listRef.current
+    if (list) list.scrollTop = list.scrollHeight
+  }, [viewMessages.length, threadKey])
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -96,37 +114,64 @@ export function ThreadView({
   }
 
   return (
-    <div className={compact ? '' : 'flex h-[28rem] flex-col'}>
-      <div className={`flex-1 space-y-3 overflow-y-auto ${compact ? 'max-h-80' : ''} pr-1`}>
+    <div className={`flex flex-col ${className ?? 'h-[28rem]'}`}>
+      <div ref={listRef} className="flex-1 overflow-y-auto pr-1">
         {loading ? (
-          <Spinner label="Loading messages…" />
+          <div className="space-y-4 py-2" aria-hidden>
+            <Skeleton className="h-10 w-2/3" />
+            <Skeleton className="ml-auto h-10 w-1/2" />
+            <Skeleton className="h-10 w-3/5" />
+          </div>
         ) : viewMessages.length === 0 ? (
-          <p className={`text-sm text-stone-500 ${compact ? 'py-2' : 'py-8 text-center'}`}>
-            No messages yet in this thread.
-          </p>
+          <div className="grid h-full place-items-center px-4 py-8 text-center">
+            <div>
+              <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-stone-100 text-stone-400">
+                <MessageIcon className="h-5 w-5" />
+              </span>
+              <p className="mt-3 font-display text-sm font-semibold text-stone-700">No messages yet</p>
+              <p className="mt-1 text-sm text-stone-500">Send the first message to start the conversation.</p>
+            </div>
+          </div>
         ) : (
-          viewMessages.map((message) => {
+          viewMessages.map((message, index) => {
             const mine = message.senderUserId === user?.id
+            const previous = viewMessages[index - 1]
+            const showDay =
+              index === 0 || formatUtcDayLabel(previous.sentAtUtc) !== formatUtcDayLabel(message.sentAtUtc)
+            const grouped = !showDay && previous.senderUserId === message.senderUserId
+            const showName = !mine && !grouped
+
             return (
-              <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <Fragment key={message.id}>
+                {showDay ? <DaySeparator label={formatUtcDayLabel(message.sentAtUtc)} /> : null}
                 <div
-                  className={`max-w-[80%] rounded-xl px-3 py-2 text-sm shadow-sm ${
-                    mine ? 'bg-brand-600 text-white' : 'border border-stone-200 bg-white text-stone-800'
+                  className={`flex ${mine ? 'justify-end' : 'justify-start'} ${
+                    showDay ? 'mt-1' : grouped ? 'mt-0.5' : 'mt-3'
                   }`}
                 >
-                  <p className={`mb-0.5 text-xs ${mine ? 'text-brand-100' : 'text-stone-400'}`}>
-                    {message.senderDisplayName} · {labelOf(MESSAGE_CONTEXT_TYPES, message.contextType)}
-                  </p>
-                  <p className="whitespace-pre-wrap break-words">{message.body}</p>
-                  <p className={`mt-1 text-right text-[10px] ${mine ? 'text-brand-100' : 'text-stone-400'}`}>
-                    {formatUtc(message.sentAtUtc)}
-                  </p>
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
+                      mine
+                        ? 'rounded-br-md bg-brand-600 text-white'
+                        : 'rounded-bl-md border border-stone-200 bg-white text-stone-800'
+                    }`}
+                  >
+                    {showName ? (
+                      <p className="mb-0.5 text-xs font-semibold text-stone-500">{message.senderDisplayName}</p>
+                    ) : null}
+                    <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                    <p
+                      className={`mt-1 text-right text-[10px] ${mine ? 'text-brand-100' : 'text-stone-400'}`}
+                      title={`${formatUtc(message.sentAtUtc)} · ${labelOf(MESSAGE_CONTEXT_TYPES, message.contextType)}`}
+                    >
+                      {formatUtcTime(message.sentAtUtc)}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </Fragment>
             )
           })
         )}
-        <div ref={bottomRef} />
       </div>
 
       {error ? (
@@ -135,7 +180,7 @@ export function ThreadView({
         </div>
       ) : null}
 
-      <form onSubmit={handleSubmit} className={`flex items-end gap-2 ${compact ? 'mt-3' : 'mt-3'}`}>
+      <form onSubmit={handleSubmit} className="mt-3 flex items-end gap-2 border-t border-stone-100 pt-3">
         <label htmlFor="thread-body" className="sr-only">
           Reply
         </label>
@@ -143,16 +188,12 @@ export function ThreadView({
           id="thread-body"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Write a reply… (if the seller has quoted, this opens the negotiation thread)"
-          className="min-w-0 flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+          placeholder="Write a message…"
+          className="min-w-0 flex-1 rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm shadow-soft outline-none transition duration-200 ease-soft placeholder:text-stone-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15"
         />
-        <button
-          type="submit"
-          disabled={sending || !draft.trim()}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <Button type="submit" disabled={sending || !draft.trim()}>
           {sending ? 'Sending…' : 'Send'}
-        </button>
+        </Button>
       </form>
     </div>
   )
