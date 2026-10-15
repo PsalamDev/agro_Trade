@@ -37,6 +37,10 @@
   --animate-slide-out-right: slide-out-right 0.2s ease-in both;
   --animate-slide-in-left: slide-in-left 0.3s var(--ease-soft) both;
   --animate-slide-out-left: slide-out-left 0.2s ease-in both;
+  /* Landing consignment-tracking showcase: the marker travels the route and the
+     progress fill grows in step with it. Same duration/easing so they stay aligned. */
+  --animate-track: track 7s ease-in-out infinite;
+  --animate-track-fill: track-fill 7s ease-in-out infinite;
 
   @keyframes fade-up {
     from {
@@ -123,6 +127,24 @@
     }
     50% {
       opacity: 1;
+    }
+  }
+
+  @keyframes track {
+    0% {
+      left: 0%;
+    }
+    100% {
+      left: 100%;
+    }
+  }
+
+  @keyframes track-fill {
+    0% {
+      width: 0%;
+    }
+    100% {
+      width: 100%;
     }
   }
 }

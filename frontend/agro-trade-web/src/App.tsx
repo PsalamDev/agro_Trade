@@ -70,7 +70,6 @@ export default function App() {
         <Route path="/products/:idOrSlug" element={<ProductDetailPage />} />
         <Route path="/businesses/:id" element={<PublicBusinessPage />} />
         <Route path="/rfqs" element={<RfqDirectoryPage />} />
-        <Route path="/logistics" element={<LogisticsDirectoryPage />} />
 
         {/*
           Guest consignment tracking. Deliberately outside ProtectedRoute: the link goes to freight
@@ -162,9 +161,18 @@ export default function App() {
           }
         />
         {/*
-          The directory itself is public, but a provider's full profile carries contact details and
-          is signed-in only — so the detail route sits behind ProtectedRoute.
+          Logistics is part of the trading flow, not the marketing site: the directory and a
+          provider's full profile (which carries contact details) are both signed-in only. Anonymous
+          visitors meet consignment tracking on the landing page and the public /track/:token link.
         */}
+        <Route
+          path="/logistics"
+          element={
+            <ProtectedRoute>
+              <LogisticsDirectoryPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/logistics/providers/:id"
           element={

@@ -1,4 +1,6 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { SiteFooter } from '../components/SiteFooter'
 import { COMMODITIES } from '../lib/brand'
@@ -60,6 +62,143 @@ const steps = [
     body: 'Verified trade documents — invoice, packing list, certificate of origin, bill of lading — clear customs with confidence.',
   },
 ]
+
+const trackingMilestones = [
+  { label: 'Booked', place: 'Apapa, NG' },
+  { label: 'Departed', place: 'Lagos' },
+  { label: 'In transit', place: 'At sea' },
+  { label: 'Arriving', place: 'Rotterdam' },
+]
+
+/**
+ * Extracts a tracking token from whatever a visitor pastes: the full link the seller shared, a
+ * bare `/track/...` path, or just the token. The token is the only secret, so the page never
+ * guesses at a reference — it only navigates with what was pasted.
+ */
+function tokenFromInput(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  try {
+    const url = new URL(trimmed)
+    const parts = url.pathname.split('/').filter(Boolean)
+    return parts[parts.length - 1] ?? ''
+  } catch {
+    return trimmed.replace(/^\/?track\//i, '')
+  }
+}
+
+/**
+ * The public face of logistics: a consignment moving along its route, and a way to open a shared
+ * tracking link. The functional provider directory sits behind sign-in; on the landing page the
+ * journey itself is the story, so a visitor sees what tracking looks like without a booking tool
+ * in front of them.
+ */
+function ConsignmentTracking() {
+  const navigate = useNavigate()
+  const [code, setCode] = useState('')
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    const token = tokenFromInput(code)
+    if (token) navigate(`/track/${encodeURIComponent(token)}`)
+  }
+
+  return (
+    <section className="border-b border-stone-200 bg-stone-50">
+      <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 md:grid-cols-2 md:items-center">
+        <div>
+          <p className="text-xs font-semibold tracking-widest text-brand-600 uppercase">
+            Consignment tracking
+          </p>
+          <h2 className="mt-2 font-display text-3xl font-bold tracking-tight">
+            Follow every consignment, port to port
+          </h2>
+          <p className="mt-3 text-base leading-relaxed text-stone-600">
+            Freight is tracked milestone by milestone — booking, departure, transit, customs and
+            arrival. Share a live link with your buyer, freight forwarder or customs agent; they can
+            follow the journey without an account.
+          </p>
+
+          <form onSubmit={handleSubmit} className="mt-8">
+            <label htmlFor="tracking-code" className="block text-sm font-medium text-stone-700">
+              Have a tracking link?
+            </label>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                id="tracking-code"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                placeholder="Paste your consignment link or code"
+                className="h-12 min-w-0 flex-1 rounded-xl border border-stone-300 bg-white px-4 text-sm text-stone-900 shadow-soft outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+              />
+              <button
+                type="submit"
+                disabled={!code.trim()}
+                className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-600 px-6 text-sm font-semibold text-white shadow-brand transition duration-200 ease-soft hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Track
+                <ArrowRightIcon className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-stone-500">
+              Links are issued per consignment and cannot be looked up — paste the one the seller
+              shared.
+            </p>
+          </form>
+        </div>
+
+        <div className="rounded-3xl border border-stone-200 bg-white p-6 shadow-pop">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-semibold tracking-widest text-stone-400 uppercase">
+              Example consignment
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              </span>
+              In transit
+            </span>
+          </div>
+
+          <div className="mt-5 flex items-center gap-3">
+            <p className="font-display text-lg font-semibold text-stone-900">Lagos</p>
+            <ArrowRightIcon className="h-4 w-4 shrink-0 text-brand-500" />
+            <p className="font-display text-lg font-semibold text-stone-900">Rotterdam</p>
+          </div>
+          <p className="mt-1 text-sm text-stone-500">Cocoa beans · 24 t · FOB → CIF</p>
+
+          <div className="relative mt-10 mb-2" aria-hidden>
+            <div className="relative h-1.5 rounded-full bg-stone-200">
+              <span className="animate-track-fill absolute inset-y-0 left-0 w-0 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 motion-reduce:animate-none" />
+              <span className="absolute -top-1 left-0 h-3.5 w-3.5 -translate-x-1/2 rounded-full border-2 border-brand-500 bg-white" />
+              <span className="absolute -top-1 left-full h-3.5 w-3.5 -translate-x-1/2 rounded-full border-2 border-stone-300 bg-white" />
+              <span className="animate-track absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 motion-reduce:animate-none">
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-white shadow-lift ring-2 ring-brand-500">
+                  <TruckIcon className="h-4 w-4 text-brand-700" />
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <ol className="mt-8 grid grid-cols-4 gap-2">
+            {trackingMilestones.map((milestone, index) => (
+              <li key={milestone.label}>
+                <span
+                  className={`block h-2 w-2 rounded-full ${
+                    index < 2 ? 'bg-brand-600' : 'bg-stone-200'
+                  }`}
+                />
+                <p className="mt-2 text-xs font-semibold text-stone-800">{milestone.label}</p>
+                <p className="text-[11px] text-stone-500">{milestone.place}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 export default function LandingPage() {
   return (
@@ -268,6 +407,8 @@ export default function LandingPage() {
           ))}
         </div>
       </section>
+
+      <ConsignmentTracking />
 
       <section className="mx-auto w-full max-w-6xl px-4 pb-20">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-700 to-brand-900 px-8 py-14 text-center shadow-brand">
