@@ -747,7 +747,7 @@ public sealed class ManualPaymentFlowTests : IClassFixture<TestingWebAppFactory>
             displayName = prefix,
             homeCountry = "NG",
             defaultCurrency = "USD",
-            roles = new[] { RoleNames.Importer },
+            roles = new[] { RoleNames.Buyer },
         });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         return (await register.Content.ReadFromJsonAsync<AuthResponseDto>())!.AccessToken;

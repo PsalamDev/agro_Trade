@@ -48,7 +48,6 @@ export default function RegisterPage() {
   const navigate = useNavigate()
 
   const [intent, setIntent] = useState<Intent>('domestic')
-  const [internationalRole, setInternationalRole] = useState('Importer')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -69,7 +68,7 @@ export default function RegisterPage() {
     setPending(true)
     setError(null)
     try {
-      const roles = intent === 'domestic' ? [DOMESTIC_BUYER_ROLE] : [internationalRole]
+      const roles = [DOMESTIC_BUYER_ROLE]
       await register({
         email,
         password,
@@ -203,17 +202,6 @@ export default function RegisterPage() {
             </p>
           )}
         </div>
-
-        {intent === 'international' ? (
-          <SelectField
-            label="Your role"
-            id="register-role"
-            options={['Importer', 'Distributor']}
-            values={['Importer', 'Distributor']}
-            value={internationalRole}
-            onChange={(e) => setInternationalRole(e.target.value)}
-          />
-        ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <CountrySelect

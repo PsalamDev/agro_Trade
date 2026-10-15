@@ -24,7 +24,7 @@ public sealed class JwtAccessTokenServiceTests
         var service = new JwtAccessTokenService(Microsoft.Extensions.Options.Options.Create(Options));
         var userId = Guid.NewGuid();
 
-        var token = service.CreateAccessToken(userId, "trader@example.com", "Mama Farms", [RoleNames.Supplier, RoleNames.Exporter]);
+        var token = service.CreateAccessToken(userId, "trader@example.com", "Mama Farms", [RoleNames.Buyer, RoleNames.Company]);
 
         var handler = new JwtSecurityTokenHandler();
         var jwt = handler.ReadJwtToken(token);
@@ -34,7 +34,7 @@ public sealed class JwtAccessTokenServiceTests
         Assert.Equal(userId.ToString(), jwt.Subject);
         Assert.Equal("trader@example.com", GetClaim(jwt, JwtRegisteredClaimNames.Email));
         var roles = jwt.Claims.Where(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToArray();
-        Assert.Equal([RoleNames.Supplier, RoleNames.Exporter], roles);
+        Assert.Equal([RoleNames.Buyer, RoleNames.Company], roles);
         Assert.True(jwt.ValidTo > DateTime.UtcNow.AddMinutes(20));
         Assert.NotNull(jwt.Id); // jti present
     }

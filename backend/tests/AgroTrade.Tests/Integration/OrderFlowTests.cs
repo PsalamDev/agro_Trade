@@ -290,7 +290,7 @@ public sealed class OrderFlowTests : IClassFixture<TestingWebAppFactory>
     /// Creates a seller and a buyer. The seller role is <see cref="RoleNames.Company"/>,
     /// which is deliberately NOT self-registrable (see RoleNames.Registrable) — the single
     /// supplier account is granted out of band, so the test does the same via UserManager.
-    /// The buyer self-registers with the Importer role.
+    /// The buyer self-registers with the Buyer role.
     /// </summary>
     private async Task<(string BuyerToken, string SupplierToken)> SeedTradeAsync(string tag)
     {
@@ -440,7 +440,7 @@ public sealed class OrderFlowTests : IClassFixture<TestingWebAppFactory>
     private Task<Guid> SeedAcceptedQuotationAsync(string buyerToken, string supplierToken, string title) =>
         SeedQuotationAsync(buyerToken, supplierToken, title, accept: true);
 
-    /// <summary>Self-registers a buyer (Importer role is self-registrable) and returns a token.</summary>
+    /// <summary>Self-registers a buyer (the Buyer role is self-registrable) and returns a token.</summary>
     private async Task<string> RegisterAndLoginAsync(string prefix)
     {
         var email = $"{prefix}@orders.tests.agrotrade.local";
@@ -451,7 +451,7 @@ public sealed class OrderFlowTests : IClassFixture<TestingWebAppFactory>
             displayName = prefix,
             homeCountry = "NG",
             defaultCurrency = "USD",
-            roles = new[] { RoleNames.Importer },
+            roles = new[] { RoleNames.Buyer },
         });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         var registered = await register.Content.ReadFromJsonAsync<AuthResponseDto>();

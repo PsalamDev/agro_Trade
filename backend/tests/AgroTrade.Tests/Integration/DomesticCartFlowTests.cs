@@ -356,7 +356,7 @@ public sealed class DomesticCartFlowTests : IClassFixture<TestingWebAppFactory>
     {
         // A user holding both a seller role and a buyer role cannot buy from themselves:
         // a self-sale would consume their own stock and issue a notification to themselves.
-        var token = await CreateCompanyUserAsync($"self_sale_{Guid.NewGuid():N}", extraRoles: [RoleNames.Importer]);
+        var token = await CreateCompanyUserAsync($"self_sale_{Guid.NewGuid():N}", extraRoles: [RoleNames.Buyer]);
         var sellerToken = await VerifyBusinessAsync(token);
         var (productId, _) = await CreateDomesticProductAsync(sellerToken, "Self Sale Grain", price: 10m, deliveryFee: 2m);
 
@@ -491,7 +491,7 @@ public sealed class DomesticCartFlowTests : IClassFixture<TestingWebAppFactory>
             displayName = prefix,
             homeCountry = "NG",
             defaultCurrency = "USD",
-            roles = new[] { RoleNames.Importer },
+            roles = new[] { RoleNames.Buyer },
         });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         return (await register.Content.ReadFromJsonAsync<AuthResponseMirror>())!.AccessToken;

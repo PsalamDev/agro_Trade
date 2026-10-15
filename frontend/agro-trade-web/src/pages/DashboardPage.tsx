@@ -26,15 +26,10 @@ import {
 
 const CURRENCIES = ['NGN', 'KES', 'GHS', 'ZAR', 'EGP', 'USD', 'EUR', 'GBP', 'CNY', 'AED']
 
-const LSP_ROLE = 'LogisticsProvider'
-
 /** Friendly names for the role identifiers the API returns. */
 const ROLE_LABELS: Record<string, string> = {
   Buyer: 'Buyer',
-  Importer: 'Importer',
-  Distributor: 'Distributor',
   Company: 'Supplier',
-  LogisticsProvider: 'Logistics provider',
   Administrator: 'Administrator',
 }
 
@@ -150,7 +145,7 @@ export default function DashboardPage() {
   const roles = user.roles
   const isBuyer = roles.some((r) => BUYER_ROLES.includes(r))
   const isCompany = roles.includes(COMPANY_ROLE)
-  const isLsp = roles.includes(LSP_ROLE)
+  const isLsp = isCompany
   const isDomesticOnly = roles.length === 1 && roles[0] === DOMESTIC_BUYER_ROLE
 
   const workspace = WORKSPACE.filter((action) => {

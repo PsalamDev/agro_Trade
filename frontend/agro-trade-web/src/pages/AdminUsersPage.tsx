@@ -23,9 +23,8 @@ import type { AdminUserDto, PagedResult } from '../types/trade'
  */
 const ROLE_FILTERS = [
   { value: '', label: 'All roles' },
-  { value: 'Company', label: 'Company (sellers)' },
-  { value: 'Importer', label: 'Importers' },
-  { value: 'Exporter', label: 'Exporters' },
+  { value: 'Buyer', label: 'Buyers' },
+  { value: 'Company', label: 'Company (suppliers)' },
   { value: 'Administrator', label: 'Administrators' },
 ]
 

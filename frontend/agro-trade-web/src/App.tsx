@@ -40,7 +40,7 @@ import AdminReportsPage from './pages/AdminReportsPage'
 import AdminSettingsPage from './pages/AdminSettingsPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { RequireRole } from './components/RequireRole'
-import { BUYER_ROLES } from './types/auth'
+import { BUYER_ROLES, COMPANY_ROLE } from './types/auth'
 import CartPage from './pages/CartPage'
 import LogisticsDirectoryPage from './pages/LogisticsDirectoryPage'
 import LogisticsProviderPage from './pages/LogisticsProviderPage'
@@ -48,7 +48,8 @@ import LogisticsBookingsPage from './pages/LogisticsBookingsPage'
 import LogisticsProfilePage from './pages/LogisticsProfilePage'
 
 const ADMIN_ROLES = ['Administrator']
-const LSP_ROLES = ['LogisticsProvider']
+// Logistics is folded into the Company (operator) role — there is no separate LSP role.
+const LSP_ROLES = [COMPANY_ROLE]
 
 export default function App() {
   return (

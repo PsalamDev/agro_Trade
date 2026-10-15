@@ -38,14 +38,14 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
             displayName = "Mama Farms",
             homeCountry = "KE",
             defaultCurrency = "KES",
-            roles = new[] { "Importer" }, // buyer/importer roles only
+            roles = new[] { "Buyer" }, // buyer role only
         });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         var registered = await register.Content.ReadFromJsonAsync<AuthResponseDto>();
         Assert.NotNull(registered);
         Assert.NotEmpty(registered.AccessToken);
         Assert.NotEmpty(registered.RefreshToken);
-        Assert.Equal(["Importer"], registered.User.Roles);
+        Assert.Equal(["Buyer"], registered.User.Roles);
         Assert.True(registered.User.IsEmailVerified); // AutoConfirmEmail in test config
 
         // Duplicate registration is rejected
@@ -124,7 +124,7 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
             displayName = "Account Number Buyer",
             homeCountry = "NG",
             defaultCurrency = "USD",
-            roles = new[] { "Importer" },
+            roles = new[] { "Buyer" },
         });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         var registered = await register.Content.ReadFromJsonAsync<AuthResponseDto>();
@@ -170,7 +170,7 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
             displayName = "Concurrent Buyer",
             homeCountry = "NG",
             defaultCurrency = "USD",
-            roles = new[] { "Importer" },
+            roles = new[] { "Buyer" },
         });
         var dto = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
         return (response.StatusCode, dto?.User.BuyerId);
@@ -187,7 +187,7 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
             displayName = "Race User",
             homeCountry = "NG",
             defaultCurrency = "USD",
-            roles = new[] { "Importer" },
+            roles = new[] { "Buyer" },
         });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         var auth = await register.Content.ReadFromJsonAsync<AuthResponseDto>();

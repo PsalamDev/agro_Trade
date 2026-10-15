@@ -18,7 +18,7 @@ const controlClass =
  * may hold by signing up. Offering a role nobody can register as would let an operator configure
  * something that fails closed at the next signup.
  */
-const ROLE_OPTIONS = ['Buyer', 'Importer', 'Distributor']
+const ROLE_OPTIONS = ['Buyer']
 
 function optionsFor(setting: AdminSettingDto): string[] {
   if (!ROLE_OPTIONS.includes(setting.value)) {

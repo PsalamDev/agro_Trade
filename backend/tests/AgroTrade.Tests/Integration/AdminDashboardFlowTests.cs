@@ -63,9 +63,9 @@ public sealed class AdminDashboardFlowTests : IClassFixture<TestingWebAppFactory
     }
 
     [Fact]
-    public async Task AnImporterCannotReachTheDashboard()
+    public async Task ABuyerCannotReachTheDashboard()
     {
-        var buyerToken = await RegisterAndLoginAsync($"adm_importer_{Guid.NewGuid():N}");
+        var buyerToken = await RegisterAndLoginAsync($"adm_buyer_{Guid.NewGuid():N}");
         var response = await GetAuthenticatedAsync("/api/v1/admin/overview", buyerToken);
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -1417,7 +1417,7 @@ public sealed class AdminDashboardFlowTests : IClassFixture<TestingWebAppFactory
             displayName = prefix,
             homeCountry = "NG",
             defaultCurrency = "USD",
-            roles = new[] { RoleNames.Importer },
+            roles = new[] { RoleNames.Buyer },
         });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         return (await register.Content.ReadFromJsonAsync<AuthResponse>())!.AccessToken;

@@ -11,10 +11,12 @@ using Microsoft.Extensions.Logging;
 namespace AgroTrade.Infrastructure.Data;
 
 /// <summary>
-/// Seeds roles (spec §6), the root administrator, the product category tree
-/// (spec §4), and idempotent demo corridors — two verified exporters (KE, GH) with
-/// live listings plus an importer (NG) with an open RFQ and a quotation (plan §01
-/// Phase 1 exit criteria). All idempotent; safe to run on every dev startup.
+/// Seeds the platform roles (three: Buyer, Company, Administrator), the root
+/// administrator, the product category tree (spec §4), and idempotent demo corridors —
+/// the supplier business with the marketplace catalogue, verified partner businesses, a
+/// buyer (NG) with an open RFQ and a quotation, and the logistics-provider directory
+/// (plan §01 Phase 1 / Phase 4 exit criteria). All idempotent; safe to run on every dev
+/// startup.
 /// </summary>
 public sealed partial class DbSeeder(
     AgroTradeDbContext db,
@@ -251,7 +253,7 @@ public sealed partial class DbSeeder(
             var result = await userManager.CreateAsync(uzuriOwner, password);
             if (result.Succeeded)
             {
-                await userManager.AddToRolesAsync(uzuriOwner, [RoleNames.Farmer, RoleNames.Exporter]);
+                await userManager.AddToRoleAsync(uzuriOwner, RoleNames.Company);
             }
         }
 
@@ -309,7 +311,7 @@ public sealed partial class DbSeeder(
             var result = await userManager.CreateAsync(westOwner, password);
             if (result.Succeeded)
             {
-                await userManager.AddToRolesAsync(westOwner, [RoleNames.Exporter]);
+                await userManager.AddToRoleAsync(westOwner, RoleNames.Company);
             }
         }
 
@@ -364,7 +366,7 @@ public sealed partial class DbSeeder(
             var result = await userManager.CreateAsync(deltaOwner, password);
             if (result.Succeeded)
             {
-                await userManager.AddToRolesAsync(deltaOwner, [RoleNames.Importer]);
+                await userManager.AddToRoleAsync(deltaOwner, RoleNames.Buyer);
             }
         }
 
@@ -812,9 +814,10 @@ public sealed partial class DbSeeder(
 
     /// <summary>
     /// A small, idempotent provider directory so the buyer-facing LSP directory is not empty on a
-    /// fresh dev database. Providers are seeded rather than self-registered because the
-    /// LogisticsProvider role is not in <see cref="RoleNames.Registrable"/> — in the MVP they are
-    /// onboarded by the operator. All three are verified so the directory's trust mark is visible.
+    /// fresh dev database. Providers are seeded rather than self-registered because the operator
+    /// role (Company) is not in <see cref="RoleNames.Registrable"/> — in the MVP they are onboarded
+    /// by the operator, and logistics is folded into the Company role. All three are verified so the
+    /// directory's trust mark is visible.
     /// </summary>
     private async Task SeedLogisticsProvidersAsync(CancellationToken ct)
     {
@@ -878,7 +881,7 @@ public sealed partial class DbSeeder(
                     continue;
                 }
 
-                await userManager.AddToRoleAsync(owner, RoleNames.LogisticsProvider);
+                await userManager.AddToRoleAsync(owner, RoleNames.Company);
             }
 
             if (await db.LogisticsProviders.AnyAsync(p => p.OwnerUserId == owner.Id, ct))

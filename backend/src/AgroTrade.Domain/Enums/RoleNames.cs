@@ -1,47 +1,36 @@
 namespace AgroTrade.Domain.Enums;
 
 /// <summary>
-/// Platform roles (spec §6). A user may hold multiple roles (e.g. Farmer + Exporter).
-/// Values are stored as Identity role names.
+/// Platform roles. The platform keeps to three: a buyer, the supplier/operator
+/// (Company) and an administrator. A user may hold more than one.
 /// </summary>
 public static class RoleNames
 {
+    /// <summary>Buyer-side role — can publish RFQs and place orders.</summary>
     public const string Buyer = "Buyer";
-    public const string Farmer = "Farmer";
-    public const string Supplier = "Supplier";
-    public const string AgroProcessor = "AgroProcessor";
-    public const string Exporter = "Exporter";
-    public const string Importer = "Importer";
-    public const string Distributor = "Distributor";
-    public const string LogisticsProvider = "LogisticsProvider";
-    public const string Administrator = "Administrator";
+
     /// <summary>
-    /// The platform's single supplier account (Achievers Global Consult). Only this
-    /// role may list products and quote on RFQs (single-supplier model).
+    /// The supplier/operator role. It holds the single supplier business that lists
+    /// products and quotes on RFQs, and also operates the logistics directory
+    /// (the Phase 4 LSP portal). Held only by the platform's operator accounts.
     /// </summary>
     public const string Company = "Company";
 
-    /// <summary>All roles seeded on startup (spec §6).</summary>
+    /// <summary>Platform administrator.</summary>
+    public const string Administrator = "Administrator";
+
+    /// <summary>All roles seeded on startup.</summary>
     public static readonly IReadOnlyList<string> All =
     [
         Buyer,
-        Farmer,
-        Supplier,
-        AgroProcessor,
-        Exporter,
-        Importer,
-        Distributor,
-        LogisticsProvider,
         Company,
         Administrator,
     ];
 
-    /// <summary>Roles a user may self-select at registration (buyers/importers only).</summary>
+    /// <summary>Roles a user may self-select at registration (buyers only).</summary>
     public static readonly IReadOnlyList<string> Registrable =
     [
         Buyer,
-        Importer,
-        Distributor,
     ];
 
     /// <summary>
@@ -57,7 +46,5 @@ public static class RoleNames
     public static readonly IReadOnlyList<string> BuyerRoles =
     [
         Buyer,
-        Importer,
-        Distributor,
     ];
 }

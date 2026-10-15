@@ -43,7 +43,7 @@ export function AppHeader() {
   const isCompany = roles.includes(COMPANY_ROLE)
   const isAdmin = roles.includes('Administrator')
   const isBuyer = roles.some((role) => BUYER_ROLES.includes(role))
-  const isLsp = roles.includes('LogisticsProvider')
+  const isLsp = isCompany
   const [menuOpen, setMenuOpen] = useState(false)
 
   const tradingLinks = [

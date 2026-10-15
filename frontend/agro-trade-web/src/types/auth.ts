@@ -49,11 +49,11 @@ export interface ProblemDetails {
   fieldErrors?: Record<string, string[]>
 }
 
-/** Roles a user may choose at registration (mirror of RoleNames.Registrable, buyer/importer only). */
-export const REGISTRABLE_ROLES = ['Buyer', 'Importer', 'Distributor'] as const
+/** Roles a user may choose at registration (mirror of RoleNames.Registrable, buyers only). */
+export const REGISTRABLE_ROLES = ['Buyer'] as const
 
 /** Buyer-side roles — publish RFQs and place orders (mirror of RoleNames.BuyerRoles). */
-export const BUYER_ROLES: string[] = ['Buyer', 'Importer', 'Distributor']
+export const BUYER_ROLES: string[] = ['Buyer']
 
 /** The role a domestic (buy-local) registrant is granted. */
 export const DOMESTIC_BUYER_ROLE = 'Buyer' as const

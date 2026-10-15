@@ -320,8 +320,8 @@ export default function ProductDetailPage() {
                     </Link>
                   ) : !isBuyer ? (
                     <div className="mt-4 rounded-lg bg-white/70 p-3 text-xs leading-relaxed text-stone-600">
-                      Buy-now is available to Buyer, Importer and Distributor accounts. Your account can
-                      still trade through RFQs.
+                      Buy-now is available to Buyer accounts. Your account can still trade through
+                      RFQs.
                     </div>
                   ) : (
                     <>

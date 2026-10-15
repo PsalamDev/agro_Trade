@@ -66,7 +66,7 @@ public sealed class AuthService(
                 "Registration is temporarily closed. Please try again later.");
         }
 
-        // Single-supplier model: registration is buyers/importers only. Supplier-side roles are
+        // Single-supplier model: registration is buyers only. Supplier-side roles are
         // filtered out, and a registrant who names none gets the configured default role — Buyer
         // unless an administrator has chosen otherwise.
         var fallbackRole = PlatformSettingsCatalog.ReadRole(

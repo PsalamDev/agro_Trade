@@ -785,7 +785,7 @@ public sealed class LogisticsDirectoryFlowTests : IClassFixture<TestingWebAppFac
         };
         var created = await users.CreateAsync(user, Password);
         Assert.True(created.Succeeded, string.Join("; ", created.Errors.Select(e => e.Description)));
-        await users.AddToRoleAsync(user, RoleNames.LogisticsProvider);
+        await users.AddToRoleAsync(user, RoleNames.Company);
         return await LoginAsync(user.Email!, Password);
     }
 
@@ -867,7 +867,7 @@ public sealed class LogisticsDirectoryFlowTests : IClassFixture<TestingWebAppFac
             displayName = prefix,
             homeCountry = "NG",
             defaultCurrency = "USD",
-            roles = new[] { RoleNames.Importer },
+            roles = new[] { RoleNames.Buyer },
         });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         return (await register.Content.ReadFromJsonAsync<AuthResponseMirror>(JsonOptions))!.AccessToken;

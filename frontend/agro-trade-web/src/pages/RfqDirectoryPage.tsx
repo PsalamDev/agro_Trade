@@ -72,7 +72,7 @@ export default function RfqDirectoryPage() {
         <PageHeader
           eyebrow="Sourcing requests"
           title="Open RFQs"
-          subtitle="Importers’ sourcing requests — quote with full trade terms, or publish your own."
+          subtitle="Buyers’ sourcing requests — quote with full trade terms, or publish your own."
           action={
             canBuy ? (
               <Link

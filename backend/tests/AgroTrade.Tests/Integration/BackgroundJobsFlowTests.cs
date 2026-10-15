@@ -125,7 +125,7 @@ public sealed class BackgroundJobsFlowTests : IClassFixture<TestingWebAppFactory
             displayName = email,
             homeCountry = "NG",
             defaultCurrency = "USD",
-            roles = new[] { RoleNames.Importer },
+            roles = new[] { RoleNames.Buyer },
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var token = (await response.Content.ReadFromJsonAsync<AuthEnvelope>())!.AccessToken;

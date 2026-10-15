@@ -19,10 +19,10 @@ namespace AgroTrade.Domain.Trade;
 /// question especially costly to get wrong.
 /// </para>
 /// <para>
-/// The profile is owned by one user who holds the <see cref="RoleNames.LogisticsProvider"/> role.
-/// That role is not self-registrable (see <see cref="RoleNames.Registrable"/>), so in the MVP
-/// providers are onboarded by the operator — the directory exists for them to be found in, not for
-/// anyone to sign up to.
+/// The profile is owned by one user who holds the <see cref="RoleNames.Company"/> role — logistics
+/// is folded into the operator role. That role is not self-registrable (see
+/// <see cref="RoleNames.Registrable"/>), so in the MVP providers are onboarded by the operator — the
+/// directory exists for them to be found in, not for anyone to sign up to.
 /// </para>
 /// </remarks>
 public sealed class LogisticsProvider : IAuditableEntity

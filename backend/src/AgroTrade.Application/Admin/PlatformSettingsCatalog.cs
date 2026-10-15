@@ -67,7 +67,7 @@ public static class PlatformSettingsCatalog
         new(
             RegistrationDefaultRoleKey,
             "Default registration role",
-            "The role given to a new account that does not choose one. Must be Buyer, Importer or Distributor.",
+            "The role given to a new account that does not choose one. Must be a registrable role (Buyer).",
             PlatformSettingKind.Role,
             RoleNames.Buyer),
     ];

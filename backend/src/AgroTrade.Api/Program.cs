@@ -134,7 +134,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(Policies.Administrator, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.Administrator));
     options.AddPolicy(Policies.Seller, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.SellerRoles.ToArray()));
     options.AddPolicy(Policies.Buyer, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.BuyerRoles.ToArray()));
-    options.AddPolicy(Policies.Lsp, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.LogisticsProvider));
+    options.AddPolicy(Policies.Lsp, policy => policy.RequireRole(AgroTrade.Domain.Enums.RoleNames.Company));
 });
 
 // ---- Cross-cutting ----
@@ -210,9 +210,9 @@ public static partial class Policies
     public const string Administrator = "Administrator";
     /// <summary>Seller-side role: the Company (single-supplier model, see RoleNames.SellerRoles).</summary>
     public const string Seller = "Seller";
-    /// <summary>Buyer-side roles: Buyer, Importer, Distributor.</summary>
+    /// <summary>Buyer-side role: Buyer.</summary>
     public const string Buyer = "Buyer";
-    /// <summary>Logistics-provider role (Phase 4): maintains a directory profile and answers bookings.</summary>
+    /// <summary>Logistics-provider role (Phase 4): held by the Company/operator — maintains a directory profile and answers bookings.</summary>
     public const string Lsp = "Lsp";
 }
 

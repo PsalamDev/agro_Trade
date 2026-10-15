@@ -154,9 +154,8 @@ public sealed class AdminUserSearchQuery
     /// </summary>
     /// <remarks>
     /// The dashboard's buyer panel needs an exact count of buyer accounts, and a role filter cannot
-    /// give it: a buyer-side account may hold any of Buyer, Importer or Distributor, so one role name
-    /// matches a subset, while counting the three separately double-counts a user who holds more than
-    /// one. The presence of the number is the one thing every buyer-side account shares.
+    /// give it: the buyer account number is the one thing every buyer-side account carries, whatever
+    /// role it holds.
     /// </remarks>
     public bool? HasBuyerId { get; init; }
 

@@ -351,17 +351,17 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
         try
         {
             var updated = await PutSettingsAsync(adminToken,
-                new { key = DefaultRoleKey, value = "importer" });
+                new { key = DefaultRoleKey, value = "buyer" });
 
             var changed = Assert.Single(updated, s => s.Key == DefaultRoleKey);
             // Stored in the platform's own casing, not the caller's.
-            Assert.Equal("Importer", changed.Value);
+            Assert.Equal("Buyer", changed.Value);
             Assert.True(changed.IsOverridden);
             Assert.Equal(adminId, changed.UpdatedByUserId);
 
             // And it survives a re-read, rather than only being echoed by the write.
             var reread = await ReadSettingsAsync(adminToken);
-            Assert.Equal("Importer", Assert.Single(reread, s => s.Key == DefaultRoleKey).Value);
+            Assert.Equal("Buyer", Assert.Single(reread, s => s.Key == DefaultRoleKey).Value);
 
             var audit = await AuditAsync(adminToken, "settings.updated");
             Assert.Contains(audit.Items, a => a.Details is not null && a.Details.Contains(DefaultRoleKey));
@@ -431,12 +431,12 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
         var adminToken = await AdminTokenAsync();
         try
         {
-            await PutSettingsAsync(adminToken, new { key = DefaultRoleKey, value = "Distributor" });
+            await PutSettingsAsync(adminToken, new { key = DefaultRoleKey, value = "buyer" });
 
             var register = await RegisterRawAsync($"ops_default_{Guid.NewGuid():N}@admin.tests.agrotrade.local", roles: []);
             Assert.Equal(HttpStatusCode.Created, register.StatusCode);
             var body = await register.Content.ReadFromJsonAsync<AuthEnvelope>();
-            Assert.Equal(new[] { "Distributor" }, body!.User.Roles);
+            Assert.Equal(new[] { "Buyer" }, body!.User.Roles);
         }
         finally
         {
@@ -450,7 +450,7 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     public async Task Suspension_BlocksLoginAndInvalidatesExistingSessions()
     {
         var email = $"ops_suspend_{Guid.NewGuid():N}@admin.tests.agrotrade.local";
-        var register = await RegisterRawAsync(email, roles: [RoleNames.Importer]);
+        var register = await RegisterRawAsync(email, roles: [RoleNames.Buyer]);
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         var registered = await register.Content.ReadFromJsonAsync<AuthEnvelope>();
         var userId = registered!.User.Id;
@@ -492,7 +492,7 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     public async Task Suspension_IsVisibleInTheUserQueue()
     {
         var email = $"ops_queue_{Guid.NewGuid():N}@admin.tests.agrotrade.local";
-        var register = await RegisterRawAsync(email, roles: [RoleNames.Importer]);
+        var register = await RegisterRawAsync(email, roles: [RoleNames.Buyer]);
         var registered = await register.Content.ReadFromJsonAsync<AuthEnvelope>();
         var adminToken = await AdminTokenAsync();
 
@@ -518,7 +518,7 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
             displayName,
             homeCountry = "NG",
             defaultCurrency = "USD",
-            roles = new[] { RoleNames.Importer },
+            roles = new[] { RoleNames.Buyer },
         });
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         var buyerId = (await register.Content.ReadFromJsonAsync<AuthEnvelope>())!.User.BuyerId;
@@ -545,7 +545,7 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     public async Task BuyerIdFilter_MatchesAccountsWithANumberAndExcludesTheRest()
     {
         var email = $"ops_buyerfilter_{Guid.NewGuid():N}@admin.tests.agrotrade.local";
-        var register = await RegisterRawAsync(email, roles: [RoleNames.Importer]);
+        var register = await RegisterRawAsync(email, roles: [RoleNames.Buyer]);
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         var buyerId = (await register.Content.ReadFromJsonAsync<AuthEnvelope>())!.User.BuyerId;
         Assert.NotNull(buyerId);
@@ -573,7 +573,7 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     public async Task Suspension_RequiresAReason()
     {
         var email = $"ops_noreason_{Guid.NewGuid():N}@admin.tests.agrotrade.local";
-        var register = await RegisterRawAsync(email, roles: [RoleNames.Importer]);
+        var register = await RegisterRawAsync(email, roles: [RoleNames.Buyer]);
         var registered = await register.Content.ReadFromJsonAsync<AuthEnvelope>();
 
         var response = await PatchAsync($"/api/v1/admin/users/{registered!.User.Id}/status", await AdminTokenAsync(),
@@ -593,7 +593,7 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     public async Task Suspension_RepeatedOrOnAnActiveAccount_IsConflict()
     {
         var email = $"ops_repeat_{Guid.NewGuid():N}@admin.tests.agrotrade.local";
-        var register = await RegisterRawAsync(email, roles: [RoleNames.Importer]);
+        var register = await RegisterRawAsync(email, roles: [RoleNames.Buyer]);
         var registered = await register.Content.ReadFromJsonAsync<AuthEnvelope>();
         var adminToken = await AdminTokenAsync();
         var url = $"/api/v1/admin/users/{registered!.User.Id}/status";
@@ -616,7 +616,7 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     public async Task Suspension_IsAuditedAgainstTheAccount()
     {
         var email = $"ops_audit_{Guid.NewGuid():N}@admin.tests.agrotrade.local";
-        var register = await RegisterRawAsync(email, roles: [RoleNames.Importer]);
+        var register = await RegisterRawAsync(email, roles: [RoleNames.Buyer]);
         var registered = await register.Content.ReadFromJsonAsync<AuthEnvelope>();
         var adminToken = await AdminTokenAsync();
 
@@ -1035,7 +1035,7 @@ public sealed class AdminOperationsFlowTests : IClassFixture<TestingWebAppFactor
     private async Task<string> RegisterAndLoginAsync(string prefix)
     {
         var response = await RegisterRawAsync(
-            $"{prefix}@admin.tests.agrotrade.local", roles: [RoleNames.Importer]);
+            $"{prefix}@admin.tests.agrotrade.local", roles: [RoleNames.Buyer]);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<AuthEnvelope>())!.AccessToken;
     }

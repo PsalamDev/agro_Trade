@@ -667,7 +667,7 @@ public sealed class AdminService(AgroTradeDbContext db, IAuditLogWriter audit) :
         if (query.HasBuyerId.HasValue)
         {
             // Matched on the account number rather than on a role: it is the one thing every
-            // buyer-side account carries, whatever combination of Buyer/Importer/Distributor it holds.
+            // buyer-side account carries, whatever role it holds.
             filtered = query.HasBuyerId.Value
                 ? filtered.Where(u => u.BuyerId != null)
                 : filtered.Where(u => u.BuyerId == null);

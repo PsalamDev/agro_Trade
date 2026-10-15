@@ -547,10 +547,8 @@ export default function AdminDashboardPage() {
  * Buyer accounts: how many there are, who registered most recently, and a way into the full queue.
  *
  * <p>
- * "Buyer" is counted by the account number rather than by role. A buyer-side account may hold Buyer,
- * Importer or Distributor, so one role name would match a subset, and counting the three separately
- * would double-count anyone holding more than one. Every buyer-side account carries a number, so its
- * presence is the one test that covers them all exactly once.
+ * "Buyer" is counted by the account number rather than by role. A buyer-side account carries a
+ * number, so its presence is the one test that covers every buyer exactly once.
  * </p>
  *
  * <p>
