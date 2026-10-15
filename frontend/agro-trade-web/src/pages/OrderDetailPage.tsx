@@ -137,25 +137,50 @@ export default function OrderDetailPage() {
             <Spinner />
           </div>
         ) : order ? (
-          <div className="mt-6 grid gap-6 lg:grid-cols-5">
+          <div className="mt-5 grid gap-6 lg:grid-cols-5">
+            <header className="rounded-2xl bg-brand-800 px-6 py-6 shadow-card sm:px-8 sm:py-7 lg:col-span-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs tracking-wide text-brand-200">{order.orderNumber}</p>
+                  <h1 className="font-display mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                    {order.sellerTradingName}
+                  </h1>
+                  <p className="mt-1.5 text-sm text-brand-100/80">
+                    {party === 'buyer' ? 'Purchased by you' : party === 'seller' ? 'Selling to buyer' : 'Order'}
+                    {order.buyerDisplayName ? ` · ${order.buyerDisplayName}` : ''}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <OrderStatusPill status={order.status} />
+                  <OrderPaymentPill status={order.paymentStatus} />
+                </div>
+              </div>
+
+              <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-white/15 sm:grid-cols-3">
+                <div className="bg-brand-900/40 px-4 py-3">
+                  <dt className="text-[11px] font-semibold tracking-wide text-brand-200 uppercase">Order total</dt>
+                  <dd className="font-display mt-0.5 text-base font-bold text-white">
+                    {money(order.currency, order.total)}
+                  </dd>
+                </div>
+                <div className="bg-brand-900/40 px-4 py-3">
+                  <dt className="text-[11px] font-semibold tracking-wide text-brand-200 uppercase">Amount paid</dt>
+                  <dd className="font-display mt-0.5 text-base font-bold text-white">
+                    {money(order.currency, order.amountPaid)}
+                  </dd>
+                </div>
+                <div className="bg-brand-900/40 px-4 py-3">
+                  <dt className="text-[11px] font-semibold tracking-wide text-brand-200 uppercase">Balance due</dt>
+                  <dd className="font-display mt-0.5 text-base font-bold text-white">
+                    {money(order.currency, order.balanceDue)}
+                  </dd>
+                </div>
+              </dl>
+            </header>
+
             <div className="space-y-6 lg:col-span-3">
               <Card>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-mono text-xs text-stone-400">{order.orderNumber}</p>
-                    <h1 className="font-display mt-1 text-2xl font-bold tracking-tight">{order.sellerTradingName}</h1>
-                    <p className="mt-1 text-sm text-stone-500">
-                      {party === 'buyer' ? 'Purchased by you' : party === 'seller' ? 'Selling to buyer' : 'Order'}
-                      {order.buyerDisplayName ? ` · ${order.buyerDisplayName}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <OrderStatusPill status={order.status} />
-                    <OrderPaymentPill status={order.paymentStatus} />
-                  </div>
-                </div>
-
-                <dl className="mt-6 grid grid-cols-2 gap-4 rounded-xl bg-stone-50 p-4 sm:grid-cols-3">
+                <dl className="grid grid-cols-2 gap-4 rounded-xl bg-stone-50 p-4 sm:grid-cols-3">
                   <FieldRow label="Currency" value={order.currency} />
                   <FieldRow label="Incoterm" value={labelOf(['EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP'], order.incoterms)} />
                   <FieldRow label="Payment terms" value={labelOf(PAYMENT_TERMS, order.paymentTerms)} />
