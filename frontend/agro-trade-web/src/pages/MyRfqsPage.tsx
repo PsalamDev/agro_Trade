@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import { RfqCard } from '../components/RfqCard'
-import { EmptyState, ErrorAlert, Spinner } from '../components/ui'
+import { Tabs } from '../components/overlays'
+import { EmptyState, ErrorAlert, PageHeader, SkeletonGrid } from '../components/ui'
 import { getMyRfqs } from '../lib/trade'
 import { problemFrom } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
@@ -17,61 +18,61 @@ export default function MyRfqsPage() {
 
   const roles = user?.roles ?? []
   const canSell = roles.includes(COMPANY_ROLE)
-  const canBuy = roles.some((r) => BUYER_ROLES.includes(r))
+  const canBuy = roles.some((role) => BUYER_ROLES.includes(role))
+
+  // A user with one side only never sees the switch, so the fetch follows the side that applies
+  // rather than the tab state they cannot reach.
+  const effectiveAs = !canSell ? 'buyer' : !canBuy ? 'supplier' : as_
 
   const load = useCallback(async () => {
     setError(null)
+    setRfqs(null)
     try {
-      const result = await getMyRfqs({ as: as_, pageSize: 50 })
+      const result = await getMyRfqs({ as: effectiveAs, pageSize: 50 })
       setRfqs(result.items)
     } catch (err) {
       setError(problemFrom(err))
+      setRfqs([])
     }
-  }, [as_])
+  }, [effectiveAs])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const effectiveAs = !canSell ? 'buyer' : !canBuy ? 'supplier' : as_
+  const isBuyerView = effectiveAs === 'buyer'
+  const tabs = [
+    ...(canBuy ? [{ id: 'buyer', label: 'As buyer' }] : []),
+    ...(canSell ? [{ id: 'supplier', label: 'As supplier' }] : []),
+  ]
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <AppHeader />
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">My RFQs</h1>
-            <p className="mt-1 text-sm text-stone-500">
-              {effectiveAs === 'buyer' ? "Requests you published — track quotations." : 'RFQs you quoted on — manage your offers.'}
-            </p>
-          </div>
-          {effectiveAs === 'buyer' ? (
-            <Link
-              to="/rfqs/new"
-              className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700"
-            >
-              Publish RFQ
-            </Link>
-          ) : null}
-        </div>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
+        <PageHeader
+          eyebrow="Sourcing"
+          title="My RFQs"
+          subtitle={
+            isBuyerView
+              ? 'Requests you published — track quotations and accept an offer.'
+              : 'RFQs you quoted on — manage your offers and negotiate with the buyer.'
+          }
+          action={
+            isBuyerView ? (
+              <Link
+                to="/rfqs/new"
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white shadow-brand transition duration-200 ease-soft hover:bg-brand-700"
+              >
+                Publish RFQ
+              </Link>
+            ) : undefined
+          }
+        />
 
-        {canSell && canBuy ? (
-          <div className="mt-6 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setAs('buyer')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${effectiveAs === 'buyer' ? 'bg-brand-600 text-white' : 'bg-white text-stone-600 hover:bg-stone-100'}`}
-            >
-              As buyer
-            </button>
-            <button
-              type="button"
-              onClick={() => setAs('supplier')}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${effectiveAs === 'supplier' ? 'bg-brand-600 text-white' : 'bg-white text-stone-600 hover:bg-stone-100'}`}
-            >
-              As supplier
-            </button>
+        {tabs.length > 1 ? (
+          <div className="mt-6">
+            <Tabs items={tabs} value={effectiveAs} onChange={(id) => setAs(id as 'buyer' | 'supplier')} />
           </div>
         ) : null}
 
@@ -82,22 +83,48 @@ export default function MyRfqsPage() {
         ) : null}
 
         {rfqs === null ? (
-          <div className="mt-6">
-            <Spinner />
-          </div>
+          <SkeletonGrid className="mt-6" />
         ) : rfqs.length === 0 ? (
           <div className="mt-6">
             <EmptyState
               title="Nothing here yet"
-              body={effectiveAs === 'buyer' ? 'Publish a sourcing request to start receiving quotes.' : 'Quote on an open RFQ from the directory and it will appear here.'}
+              body={
+                isBuyerView
+                  ? 'Publish a sourcing request to start receiving quotes.'
+                  : 'Quote on an open RFQ from the directory and it will appear here.'
+              }
+              action={
+                isBuyerView ? (
+                  <Link
+                    to="/rfqs/new"
+                    className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+                  >
+                    Publish an RFQ
+                  </Link>
+                ) : (
+                  <Link
+                    to="/rfqs"
+                    className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+                  >
+                    Browse open RFQs
+                  </Link>
+                )
+              }
             />
           </div>
         ) : (
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {rfqs.map((rfq) => (
-              <RfqCard key={rfq.id} rfq={rfq} />
-            ))}
-          </div>
+          <>
+            <p className="mt-6 text-sm text-stone-500">
+              <span className="rounded-full bg-brand-100 px-3 py-1 text-sm font-semibold text-brand-800">
+                {rfqs.length} RFQ{rfqs.length === 1 ? '' : 's'}
+              </span>
+            </p>
+            <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {rfqs.map((rfq) => (
+                <RfqCard key={rfq.id} rfq={rfq} />
+              ))}
+            </div>
+          </>
         )}
       </main>
     </div>

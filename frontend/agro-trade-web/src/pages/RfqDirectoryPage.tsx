@@ -1,20 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { AppHeader } from '../components/AppHeader'
 import CountrySelect from '../components/CountrySelect'
 import { RfqCard } from '../components/RfqCard'
 import { EmptyState, ErrorAlert, Field, PageHeader, SelectField, SkeletonGrid } from '../components/ui'
 import { getCategoryTree, getOpenRfqs } from '../lib/trade'
 import { problemFrom } from '../lib/api'
+import { useAuth } from '../lib/auth-context'
+import { BUYER_ROLES } from '../types/auth'
 import type { CategoryDto, TradeRequestCardDto } from '../types/trade'
 import { SearchIcon } from '../components/icons'
 
 export default function RfqDirectoryPage() {
+  const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [rfqs, setRfqs] = useState<TradeRequestCardDto[]>([])
   const [categories, setCategories] = useState<CategoryDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<{ code?: string; detail?: string } | null>(null)
+
+  const canBuy = (user?.roles ?? []).some((role) => BUYER_ROLES.includes(role))
 
   const q = searchParams.get('q') ?? ''
   const categoryId = searchParams.get('categoryId') ?? ''
@@ -68,6 +73,16 @@ export default function RfqDirectoryPage() {
           eyebrow="Sourcing requests"
           title="Open RFQs"
           subtitle="Importers’ sourcing requests — quote with full trade terms, or publish your own."
+          action={
+            canBuy ? (
+              <Link
+                to="/rfqs/new"
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-semibold text-white shadow-brand transition duration-200 ease-soft hover:bg-brand-700"
+              >
+                Publish RFQ
+              </Link>
+            ) : undefined
+          }
         />
 
         <div className="mt-6 grid gap-4 rounded-2xl border border-stone-200 bg-white p-5 shadow-card sm:grid-cols-3">
@@ -94,7 +109,6 @@ export default function RfqDirectoryPage() {
             onChange={(code) => void updateParam('destinationCountry', code)}
             allowClear
             placeholder="Any country"
-            hint="Search by country name — the ISO-2 code is applied automatically."
           />
         </div>
 

@@ -84,20 +84,20 @@ export default function RfqPublishPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <AppHeader />
-      <main className="mx-auto max-w-3xl px-4 py-10">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
         <Link to="/rfqs" className="text-sm font-medium text-brand-700 hover:underline">
           ← Back to RFQ directory
         </Link>
-        <h1 className="mt-3 text-2xl font-bold tracking-tight">Publish a sourcing request</h1>
+        <h1 className="font-display mt-3 text-2xl font-bold tracking-tight">Publish a sourcing request</h1>
         <p className="mt-1 text-sm text-stone-500">
           Describe what you need, where it must land, and the trade terms that suit you. Verified suppliers will quote.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           <Card>
-            <h2 className="text-lg font-semibold">Request</h2>
+            <h2 className="font-display text-lg font-semibold">Request</h2>
             <div className="mt-4 space-y-4">
               <Field label="Title *" id="rfq-title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. White Maize Grade 1 — 100 MT for Lagos" maxLength={200} />
               <TextArea label="Description" id="rfq-description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} placeholder="Grade, moisture, impurities, bagging, delivery expectations…" />
@@ -117,7 +117,7 @@ export default function RfqPublishPage() {
           </Card>
 
           <Card>
-            <h2 className="text-lg font-semibold">Delivery</h2>
+            <h2 className="font-display text-lg font-semibold">Delivery</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <CountrySelect
                 id="rfq-dest-country"
@@ -125,7 +125,6 @@ export default function RfqPublishPage() {
                 value={destinationCountry}
                 onChange={setDestinationCountry}
                 required
-                hint="Search by country name — the ISO-2 code (e.g. NG) is generated automatically."
               />
               <Field label="Destination port or city" id="rfq-dest-port" value={destinationPortOrCity} onChange={(e) => setDestinationPortOrCity(e.target.value)} placeholder="Lagos / Apapa" />
               <SelectField label="Preferred incoterm" id="rfq-incoterm" options={INCOTERMS} value={preferredIncoterm} onChange={(e) => setPreferredIncoterm(e.target.value)} />
@@ -143,7 +142,7 @@ export default function RfqPublishPage() {
           </Card>
 
           <Card>
-            <h2 className="text-lg font-semibold">Terms</h2>
+            <h2 className="font-display text-lg font-semibold">Terms</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Field label="Preferred currency (ISO-3) *" id="rfq-currency" required maxLength={3} value={preferredCurrency} onChange={(e) => setPreferredCurrency(e.target.value.toUpperCase())} />
               <SelectField label="Payment terms preferred" id="rfq-payment" options={PAYMENT_TERMS} values={Object.values(PAYMENT_TERM)} value={paymentTermsPreferred} onChange={(e) => setPaymentTermsPreferred(e.target.value)} />
@@ -155,7 +154,7 @@ export default function RfqPublishPage() {
           </Card>
 
           <Card>
-            <h2 className="text-lg font-semibold">Specs &amp; certifications</h2>
+            <h2 className="font-display text-lg font-semibold">Specs &amp; certifications</h2>
             <div className="mt-4 space-y-5">
               <KeyValueEditor label="Target specifications" id="rfq-specs" value={targetSpecs} onChange={setTargetSpecs} placeholder="e.g. grade" />
               <TagInput label="Certifications required" id="rfq-certs" value={certifications} onChange={setCertifications} />
