@@ -292,6 +292,10 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
         var code = ExtractResetCode(message!);
         Assert.Matches(@"^\d{6}$", code);
 
+        // The same email also carries a one-click link with the code, so a user can skip typing it.
+        Assert.Contains("reset-password", message!.PlainTextBody!);
+        Assert.Contains($"code={code}", message!.PlainTextBody!);
+
         // A wrong code is refused and leaves the password untouched.
         var wrongCode = code == "000000" ? "111111" : "000000";
         var wrong = await _client.PostAsJsonAsync("/api/v1/auth/reset-password",

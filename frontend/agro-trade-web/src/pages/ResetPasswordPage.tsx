@@ -9,7 +9,7 @@ import { CheckCircleIcon, EyeIcon, EyeOffIcon, LockIcon, MailIcon } from '../com
 export default function ResetPasswordPage() {
   const [params] = useSearchParams()
   const [email, setEmail] = useState(params.get('email') ?? '')
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState((params.get('code') ?? '').replace(/\D/g, '').slice(0, 6))
   const [newPassword, setNewPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [pending, setPending] = useState(false)
@@ -17,6 +17,8 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<{ title?: string; detail?: string } | null>(null)
 
   const emailFromLink = Boolean(params.get('email'))
+  // The emailed one-click link carries the code, so the form arrives ready to submit.
+  const codeFromLink = code.length === 6
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -36,7 +38,11 @@ export default function ResetPasswordPage() {
     <AuthLayout minimal>
       <h1 className="font-display text-2xl font-bold tracking-tight">Choose a new password</h1>
       <p className="mt-1.5 text-sm text-stone-500">
-        {emailFromLink ? (
+        {codeFromLink ? (
+          <>
+            We’ve filled in the code from your email. Choose a new password to finish.
+          </>
+        ) : emailFromLink ? (
           <>
             Enter the 6-digit code we sent to{' '}
             <span className="font-medium text-stone-700">{email}</span>, then pick a new password.

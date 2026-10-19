@@ -30,19 +30,23 @@ public static class EmailTemplates
             token: token,
             outro: "The button signs you in and activates the account in one step. This link expires shortly; if it has, sign in and request a new confirmation email.");
 
-    public static RenderedEmail PasswordResetCode(string displayName, string code, int lifetimeMinutes) =>
+    public static RenderedEmail PasswordResetCode(
+        string displayName, string code, string resetUrl, int lifetimeMinutes) =>
         BuildCode(
             subject: "Your AgroTrade password reset code",
             heading: "Reset your password",
             greeting: displayName,
-            intro: "Use the code below to choose a new password for your AgroTrade account. Enter it on the reset page along with your new password.",
+            intro: "Use the 6-digit code below to choose a new password for your AgroTrade account — or open the link and we’ll take you straight to the reset page.",
             code: code,
+            actionLabel: "Reset my password",
+            actionUrl: resetUrl,
+            lifetimeMinutes: lifetimeMinutes,
             outro: $"This code expires in {lifetimeMinutes} minutes and can be used once. If you did not ask for this, you can ignore this email — your password stays unchanged.");
 
     /// <summary>
-    /// The code-only message. Unlike the confirmation mail there is nothing to click: a six-digit
-    /// code is retyped into the reset form, which is why the code block — not a button — is the one
-    /// thing this layout is built around.
+    /// The reset message. It offers the two ways a user can prove they received it — type the
+    /// six-digit code, or click the one-click link — so the code block and the button share equal
+    /// billing rather than the button alone carrying the action.
     /// </summary>
     private static RenderedEmail BuildCode(
         string subject,
@@ -50,6 +54,9 @@ public static class EmailTemplates
         string greeting,
         string intro,
         string code,
+        string actionLabel,
+        string actionUrl,
+        int lifetimeMinutes,
         string outro)
     {
         var safeHeading = WebUtility.HtmlEncode(heading);
@@ -57,6 +64,8 @@ public static class EmailTemplates
         var safeIntro = WebUtility.HtmlEncode(intro);
         var safeOutro = WebUtility.HtmlEncode(outro);
         var safeCode = WebUtility.HtmlEncode(code);
+        var safeActionLabel = WebUtility.HtmlEncode(actionLabel);
+        var safeUrl = WebUtility.HtmlEncode(actionUrl);
 
         var html = $"""
             <!doctype html>
@@ -76,7 +85,20 @@ public static class EmailTemplates
                             <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:{Ink};">{safeHeading}</h1>
                             <p style="margin:0 0 16px;font-size:15px;line-height:1.6;">Hi {safeGreeting},</p>
                             <p style="margin:0 0 24px;font-size:15px;line-height:1.6;">{safeIntro}</p>
+                            <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:{Muted};text-transform:uppercase;letter-spacing:0.08em;">Your reset code</p>
                             <p style="margin:0 0 24px;font-size:34px;font-weight:700;letter-spacing:0.35em;font-family:Consolas,Menlo,monospace;background:{Page};border:1px solid {Hairline};border-radius:10px;padding:18px;text-align:center;color:{BrandGreen};">{safeCode}</p>
+                            <p style="margin:0 0 16px;font-size:13px;color:{Muted};">The code expires in {lifetimeMinutes} minutes — or use the button below.</p>
+                            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+                              <tr>
+                                <td style="border-radius:10px;background:{ButtonGreen};">
+                                  <a href="{safeUrl}" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px;">{safeActionLabel}</a>
+                                </td>
+                              </tr>
+                            </table>
+                            <p style="margin:0 0 8px;font-size:13px;color:{Muted};">If the button does not work, paste this link into your browser:</p>
+                            <p style="margin:0 0 24px;font-size:13px;line-height:1.5;word-break:break-all;">
+                              <a href="{safeUrl}" style="color:{BrandGreen};">{safeUrl}</a>
+                            </p>
                             <p style="margin:0;font-size:13px;line-height:1.6;color:{Muted};">{safeOutro}</p>
                           </td>
                         </tr>
@@ -101,6 +123,8 @@ public static class EmailTemplates
             {intro}
 
             Your code: {code}
+
+            Or reset here: {actionUrl}
 
             {outro}
 
