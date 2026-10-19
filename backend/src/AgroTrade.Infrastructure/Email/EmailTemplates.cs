@@ -242,7 +242,7 @@ public static class EmailTemplates
                   <img src="cid:{BrandMarkContentId}" width="40" height="40" alt="{BrandName}" style="display:block;width:40px;height:40px;border:0;border-radius:10px;" />
                 </td>
                 <td style="font-size:18px;font-weight:700;letter-spacing:-0.01em;color:#ffffff;vertical-align:middle;">
-                  Achievers <span style="color:{AccentOnGreen};">Global</span>
+                  Achievers <span style="color:{AccentOnGreen};">Global</span> Consult
                 </td>
               </tr>
             </table>

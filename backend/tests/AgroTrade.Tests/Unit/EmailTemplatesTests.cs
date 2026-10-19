@@ -36,6 +36,15 @@ public sealed class EmailTemplatesTests
     }
 
     [Fact]
+    public void Header_ShowsTheFullBrandNameBesideTheMark()
+    {
+        var email = EmailTemplates.PasswordResetCode("Ada Obi", "123456", ResetUrl, 10);
+
+        // "Global" sits in an accent span, so assert the visible wordmark ends with "Consult".
+        Assert.Matches(@"Achievers\s+<span[^>]*>Global</span>\s+Consult", email.Html);
+    }
+
+    [Fact]
     public void PasswordResetCode_KeepsThePlainTextTwinReadable()
     {
         // The integration suite, and text-only clients, read the code from the plain-text twin.
