@@ -36,9 +36,9 @@ public static class EmailTemplates
             subject: "Your AgroTrade password reset code",
             heading: "Reset your password",
             greeting: displayName,
-            intro: "Enter the 6-digit code below to verify it’s you and choose a new password — or open the link and we’ll take you straight to setting a new one.",
+            intro: "Enter the 6-digit code below to verify it’s you, then choose a new password — or open the link and we’ll verify it for you automatically.",
             code: code,
-            actionLabel: "Choose a new password",
+            actionLabel: "Verify & choose a new password",
             actionUrl: resetUrl,
             lifetimeMinutes: lifetimeMinutes,
             outro: $"This code expires in {lifetimeMinutes} minutes and can be used once. If you did not ask for this, you can ignore this email — your password stays unchanged.");
@@ -87,7 +87,7 @@ public static class EmailTemplates
                             <p style="margin:0 0 24px;font-size:15px;line-height:1.6;">{safeIntro}</p>
                             <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:{Muted};text-transform:uppercase;letter-spacing:0.08em;">Your reset code</p>
                             <p style="margin:0 0 24px;font-size:34px;font-weight:700;letter-spacing:0.35em;font-family:Consolas,Menlo,monospace;background:{Page};border:1px solid {Hairline};border-radius:10px;padding:18px;text-align:center;color:{BrandGreen};">{safeCode}</p>
-                            <p style="margin:0 0 16px;font-size:13px;color:{Muted};">The code expires in {lifetimeMinutes} minutes — or use the button below.</p>
+                            <p style="margin:0 0 16px;font-size:13px;color:{Muted};">The code expires in {lifetimeMinutes} minutes — or tap the button to verify automatically and set a new password.</p>
                             <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
                               <tr>
                                 <td style="border-radius:10px;background:{ButtonGreen};">

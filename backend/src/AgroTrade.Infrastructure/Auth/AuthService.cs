@@ -302,7 +302,7 @@ public sealed class AuthService(
         });
         await db.SaveChangesAsync(ct);
 
-        var resetUrl = $"{_auth.AppBaseUrl}/reset-password?email={Uri.EscapeDataString(user.Email!)}&code={Uri.EscapeDataString(code)}";
+        var resetUrl = $"{_auth.AppBaseUrl}/reset-password?email={Uri.EscapeDataString(user.Email!)}&code={Uri.EscapeDataString(code)}&auto=1";
         var resetBody = EmailTemplates.PasswordResetCode(user.DisplayName, code, resetUrl, _auth.ResetCodeLifetimeMinutes);
         await emailSender.SendAsync(new EmailMessage(
             To: user.Email!,
