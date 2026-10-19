@@ -73,9 +73,11 @@ export function AppHeader() {
     <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/85 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
         <Link to="/" onClick={() => setMenuOpen(false)} className="group flex shrink-0 items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-brand transition duration-300 ease-soft group-hover:scale-105">
-            AG
-          </span>
+          <img
+            src="/App _ social icon (1).png"
+            alt=""
+            className="h-9 w-9 rounded-xl object-cover shadow-brand transition duration-300 ease-soft group-hover:scale-105"
+          />
           <span className="font-display text-[17px] leading-tight font-bold tracking-tight">
             Achievers <span className="text-brand-600">Global</span>
           </span>

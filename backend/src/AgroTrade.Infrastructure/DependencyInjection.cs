@@ -78,9 +78,26 @@ public static class DependencyInjection
                 "Payments:SupportedCurrencies must name at least one corridor.")
             .ValidateOnStart();
 
+        services.AddOptions<EmailOptions>()
+            .Bind(configuration.GetSection(EmailOptions.SectionName))
+            .Validate(
+                o => string.IsNullOrWhiteSpace(o.Smtp.Host) || !string.IsNullOrWhiteSpace(o.FromAddress),
+                "Email:FromAddress must be set when Email:Smtp:Host is configured.")
+            .ValidateOnStart();
+
+        // MailKit when a server is configured, the console sink otherwise, so a developer with no
+        // mail server still sees confirmation/reset messages in the log (plan D3).
+        if (!string.IsNullOrWhiteSpace(configuration[$"{EmailOptions.SectionName}:Smtp:Host"]))
+        {
+            services.AddScoped<IEmailSender, SmtpEmailSender>();
+        }
+        else
+        {
+            services.AddScoped<IEmailSender, ConsoleEmailSender>();
+        }
+
         services.AddScoped<IAccessTokenService, JwtAccessTokenService>();
         services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<IEmailSender, ConsoleEmailSender>();
         services.AddScoped<DbSeeder>();
 
         // Read-through cache (Phase 5 — "Redis caching"). Redis when ConnectionStrings:Redis is set,

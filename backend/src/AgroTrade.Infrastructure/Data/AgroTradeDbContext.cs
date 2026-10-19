@@ -24,6 +24,7 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
     }
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<PasswordResetCode> PasswordResetCodes => Set<PasswordResetCode>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PlatformSetting> PlatformSettings => Set<PlatformSetting>();
 
@@ -108,6 +109,19 @@ public class AgroTradeDbContext : IdentityDbContext<ApplicationUser, IdentityRol
             e.HasOne<ApplicationUser>()
                 .WithMany()
                 .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<PasswordResetCode>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.CodeHash).HasMaxLength(128).IsRequired();
+            // The only read is "this user's live code", so the index leads with the user and
+            // carries the two columns the lookup filters on.
+            e.HasIndex(c => new { c.UserId, c.ConsumedAtUtc, c.ExpiresAtUtc });
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

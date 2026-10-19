@@ -6,6 +6,7 @@ using AgroTrade.Application.Common;
 using AgroTrade.Domain.Enums;
 using AgroTrade.Domain.Identity;
 using AgroTrade.Infrastructure.Data;
+using AgroTrade.Infrastructure.Email;
 using AgroTrade.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,12 @@ public sealed class AuthOptions
 
     /// <summary>Base URL used to build links sent by email (confirm token, reset).</summary>
     public string AppBaseUrl { get; set; } = "http://localhost:5173";
+
+    /// <summary>How long an emailed password-reset code stays valid.</summary>
+    public int ResetCodeLifetimeMinutes { get; set; } = 10;
+
+    /// <summary>Wrong guesses allowed against a code before it is retired.</summary>
+    public int ResetCodeMaxAttempts { get; set; } = 5;
 }
 
 /// <summary>
@@ -143,11 +150,13 @@ public sealed class AuthService(
         else
         {
             var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
-            await SendTemplatedEmailAsync(
-                user,
-                "Confirm your AgroTrade account",
-                $"Your confirmation code: <strong>{System.Net.WebUtility.HtmlEncode(token)}</strong><br/>" +
-                $"Or open: {_auth.AppBaseUrl}/confirm-email?token={Uri.EscapeDataString(token)}");
+            var confirmUrl = $"{_auth.AppBaseUrl}/confirm-email?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
+            var emailBody = EmailTemplates.ConfirmEmail(user.DisplayName, confirmUrl, token);
+            await emailSender.SendAsync(new EmailMessage(
+                To: user.Email!,
+                Subject: emailBody.Subject,
+                HtmlBody: emailBody.Html,
+                PlainTextBody: emailBody.Text));
         }
 
         return await IssueTokenPairAsync(user);
@@ -273,23 +282,84 @@ public sealed class AuthService(
             return;
         }
 
-        var token = await userManager.GeneratePasswordResetTokenAsync(user);
-        await SendTemplatedEmailAsync(
-            user,
-            "Reset your AgroTrade password",
-            $"Your password reset code: <strong>{System.Net.WebUtility.HtmlEncode(token)}</strong><br/>" +
-            $"Or open: {_auth.AppBaseUrl}/reset-password?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}");
+        var now = DateTime.UtcNow;
+
+        // A newer request supersedes an older one. Retiring the outstanding codes keeps exactly one
+        // live at a time, so a code the user was sent earlier cannot still be redeemed after they
+        // ask for a fresh one.
+        await db.PasswordResetCodes
+            .Where(c => c.UserId == user.Id && c.ConsumedAtUtc == null)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.ConsumedAtUtc, now), ct);
+
+        var code = ResetCodeFactory.Create();
+        db.PasswordResetCodes.Add(new PasswordResetCode
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            CodeHash = ResetCodeFactory.Hash(code),
+            ExpiresAtUtc = now.AddMinutes(_auth.ResetCodeLifetimeMinutes),
+            CreatedAtUtc = now,
+        });
+        await db.SaveChangesAsync(ct);
+
+        var resetBody = EmailTemplates.PasswordResetCode(user.DisplayName, code, _auth.ResetCodeLifetimeMinutes);
+        await emailSender.SendAsync(new EmailMessage(
+            To: user.Email!,
+            Subject: resetBody.Subject,
+            HtmlBody: resetBody.Html,
+            PlainTextBody: resetBody.Text), ct);
     }
 
     public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct = default)
     {
-        var user = await userManager.FindByEmailAsync(request.Email.Trim().ToLowerInvariant())
-            ?? throw ApiException.NotFound("USER_NOT_FOUND", "No account exists for that email.");
-        var result = await userManager.ResetPasswordAsync(user, request.Token, request.NewPassword);
+        var user = await userManager.FindByEmailAsync(request.Email.Trim().ToLowerInvariant());
+        var now = DateTime.UtcNow;
+
+        // One message covers every failure — unknown account, missing/expired code, wrong code — so
+        // this endpoint cannot be used to learn which addresses have accounts.
+        var invalid = ApiException.BadRequest(
+            "INVALID_RESET_CODE", "That code is invalid or has expired. Request a new one.");
+
+        if (user is null)
+        {
+            throw invalid;
+        }
+
+        var record = await db.PasswordResetCodes
+            .Where(c => c.UserId == user.Id && c.ConsumedAtUtc == null && c.ExpiresAtUtc > now)
+            .OrderByDescending(c => c.CreatedAtUtc)
+            .FirstOrDefaultAsync(ct);
+
+        if (record is null)
+        {
+            throw invalid;
+        }
+
+        if (record.Attempts >= _auth.ResetCodeMaxAttempts)
+        {
+            record.ConsumedAtUtc = now;
+            await db.SaveChangesAsync(ct);
+            throw ApiException.BadRequest("INVALID_RESET_CODE", "Too many incorrect attempts. Request a new code.");
+        }
+
+        if (!ResetCodeFactory.Verify(request.Code, record.CodeHash))
+        {
+            record.Attempts++;
+            await db.SaveChangesAsync(ct);
+            throw invalid;
+        }
+
+        // The code is the factor we just verified. The Identity token is generated here only
+        // because ResetPasswordAsync insists on one, and is spent immediately.
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await userManager.ResetPasswordAsync(user, token, request.NewPassword);
         if (!result.Succeeded)
         {
-            throw ApiException.BadRequest("INVALID_RESET_TOKEN", FormatIdentityErrors(result));
+            throw ApiException.BadRequest("RESET_PASSWORD_FAILED", FormatIdentityErrors(result));
         }
+
+        record.ConsumedAtUtc = now;
+        await db.SaveChangesAsync(ct);
     }
 
     public async Task<AuthUserDto> GetCurrentUserAsync(Guid userId, CancellationToken ct = default)
@@ -404,12 +474,5 @@ public sealed class AuthService(
     private static string FormatIdentityErrors(IdentityResult result) =>
         string.Join(" ", result.Errors.Select(e => e.Description));
 
-    private async Task SendTemplatedEmailAsync(ApplicationUser user, string subject, string body)
-    {
-        await emailSender.SendAsync(new EmailMessage(
-            To: user.Email!,
-            Subject: subject,
-            HtmlBody: body,
-            PlainTextBody: body));
-    }
+
 }

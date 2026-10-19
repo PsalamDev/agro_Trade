@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ORG } from '../lib/brand'
 import { ArrowLeftIcon, FileTextIcon, ShieldCheckIcon, TruckIcon } from './icons'
+import { Logo } from './Logo'
 
 const PROOF_POINTS = [
   {
@@ -29,6 +30,12 @@ export interface AuthLayoutProps {
   headline?: string
   /** Supporting sentence under the brand headline. */
   blurb?: string
+  /**
+   * Render the brand panel with the logo only — no headline, proof points or
+   * commodity strip. Used by sign-in, where the form's own welcome copy is
+   * enough and a quiet green panel reads cleaner.
+   */
+  minimal?: boolean
 }
 
 /**
@@ -37,64 +44,89 @@ export interface AuthLayoutProps {
  * the right column is a clean, focused surface for a single form. Pages pass
  * only their form as children so the whole auth surface stays consistent.
  */
-export function AuthLayout({ children, eyebrow, headline, blurb }: AuthLayoutProps) {
+export function AuthLayout({ children, eyebrow, headline, blurb, minimal = false }: AuthLayoutProps) {
   return (
     <div className="flex min-h-screen flex-col lg:grid lg:grid-cols-2">
       <aside className="hidden bg-brand-800 lg:flex lg:flex-col">
-        <div className="flex flex-1 flex-col p-10 xl:p-14">
-          <Link to="/" className="group inline-flex items-center gap-2.5 self-start">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-sm font-bold text-white ring-1 ring-white/20 backdrop-blur transition duration-300 ease-soft group-hover:bg-white/20">
-              AG
-            </span>
-            <span className="font-display text-[17px] font-bold tracking-tight text-white">
-              Achievers <span className="text-brand-300">Global</span>
-            </span>
-          </Link>
+        {minimal ? (
+          // Sign-in: the mark centred on the brand panel with a short caption.
+          <div className="flex flex-1 flex-col items-center justify-center p-10">
+            <Link to="/" className="group block w-full max-w-md">
+              <Logo
+                variant="panel"
+                size="xl"
+                className="transition duration-300 ease-soft group-hover:opacity-90"
+              />
+            </Link>
 
-          <div className="flex flex-1 items-center py-12">
-            <div className="max-w-md">
-            <p className="text-xs font-semibold tracking-widest text-brand-300 uppercase">
-              {eyebrow ?? ORG.name}
-            </p>
-            <h2 className="font-display mt-3 text-3xl leading-tight font-bold tracking-tight text-white xl:text-[2.1rem]">
-              {headline ?? 'Agro commodities, traded across borders with trust.'}
-            </h2>
-            <p className="mt-4 text-sm leading-relaxed text-brand-100/80">
-              {blurb ??
-                'Cocoa, cashew, palm kernel and fishery — from verified origin farms to buyers worldwide, with clear trade terms and reliable logistics.'}
-            </p>
-
-            <ul className="mt-10 space-y-5">
-              {PROOF_POINTS.map(({ icon: Icon, title, body }) => (
-                <li key={title} className="flex gap-3.5">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-brand-200 ring-1 ring-white/15">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-white">{title}</p>
-                    <p className="mt-0.5 text-sm leading-relaxed text-brand-100/70">{body}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-10 max-w-sm text-center">
+              <p className="font-display text-xl font-semibold tracking-tight text-white sm:text-2xl">
+                Trade with confidence.
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-brand-100/75">
+                Get your agro-allied products — from verified origin farms to buyers across the
+                globe, with clear trade terms and reliable logistics.
+              </p>
             </div>
-          </div>
 
-          <p className="mt-10 text-xs font-medium tracking-widest text-brand-200/60 uppercase">
-            Cocoa · Cashew nut · Palm kernel · Fishery
-          </p>
-        </div>
+            <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] font-semibold tracking-widest text-brand-200/70 uppercase">
+              <li>Verified origins</li>
+              <li aria-hidden>·</li>
+              <li>Port-to-port logistics</li>
+              <li aria-hidden>·</li>
+              <li>Documented shipments</li>
+            </ul>
+          </div>
+        ) : (
+          <div className="flex flex-1 flex-col p-10 xl:p-14">
+            <Link to="/" className="group inline-flex items-center gap-2.5 self-start">
+              <Logo
+                variant="panel"
+                size="md"
+                className="max-w-[200px] transition duration-300 ease-soft group-hover:opacity-90"
+              />
+            </Link>
+
+            <div className="flex flex-1 items-center py-12">
+              <div className="max-w-md">
+              <p className="text-xs font-semibold tracking-widest text-brand-300 uppercase">
+                {eyebrow ?? ORG.name}
+              </p>
+              <h2 className="font-display mt-3 text-3xl leading-tight font-bold tracking-tight text-white xl:text-[2.1rem]">
+                {headline ?? 'Agro commodities, traded across borders with trust.'}
+              </h2>
+              <p className="mt-4 text-sm leading-relaxed text-brand-100/80">
+                {blurb ??
+                  'Cocoa, cashew, palm kernel and fishery — from verified origin farms to buyers worldwide, with clear trade terms and reliable logistics.'}
+              </p>
+
+              <ul className="mt-10 space-y-5">
+                {PROOF_POINTS.map(({ icon: Icon, title, body }) => (
+                  <li key={title} className="flex gap-3.5">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-brand-200 ring-1 ring-white/15">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-white">{title}</p>
+                      <p className="mt-0.5 text-sm leading-relaxed text-brand-100/70">{body}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              </div>
+            </div>
+
+            <p className="mt-10 text-xs font-medium tracking-widest text-brand-200/60 uppercase">
+              Cocoa · Cashew nut · Palm kernel · Fishery
+            </p>
+          </div>
+        )}
       </aside>
 
       <main className="flex min-h-screen flex-col bg-white">
         <div className="flex items-center justify-between gap-4 px-6 py-5 sm:px-10">
           <Link to="/" className="inline-flex items-center gap-2.5 lg:hidden">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-brand">
-              AG
-            </span>
-            <span className="font-display text-[16px] font-bold tracking-tight">
-              Achievers <span className="text-brand-600">Global</span>
-            </span>
+            <Logo variant="horizontal" size="sm" className="max-w-[160px]" />
           </Link>
           <Link
             to="/"

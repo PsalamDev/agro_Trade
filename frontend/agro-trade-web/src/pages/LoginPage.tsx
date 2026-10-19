@@ -34,11 +34,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthLayout
-      eyebrow="Welcome back"
-      headline="Your trade desk awaits."
-      blurb="Sign in to manage quotations, orders, shipments and trade documents in one place."
-    >
+    <AuthLayout minimal>
       <h1 className="font-display text-2xl font-bold tracking-tight">Welcome back</h1>
       <p className="mt-1.5 text-sm text-stone-500">
         Sign in to your Achievers Global Consult trading account.
@@ -68,14 +64,6 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => setCapsLock(e.getModifierState('CapsLock'))}
             onKeyUp={(e) => setCapsLock(e.getModifierState('CapsLock'))}
-            labelAction={
-              <Link
-                to="/forgot-password"
-                className="text-xs font-medium text-stone-500 transition hover:text-brand-700 hover:underline"
-              >
-                Forgot password?
-              </Link>
-            }
             trailing={
               <button
                 type="button"
@@ -89,12 +77,22 @@ export default function LoginPage() {
               </button>
             }
           />
-          {capsLock ? (
-            <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-amber-700">
-              <AlertCircleIcon className="h-3.5 w-3.5" />
-              Caps Lock is on.
-            </p>
-          ) : null}
+          <div className="mt-1.5 flex items-center justify-between gap-3">
+            {capsLock ? (
+              <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
+                <AlertCircleIcon className="h-3.5 w-3.5" />
+                Caps Lock is on.
+              </p>
+            ) : (
+              <span />
+            )}
+            <Link
+              to="/forgot-password"
+              className="text-xs font-medium text-stone-500 transition hover:text-brand-700 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
         </div>
         <SubmitButton type="submit" pending={pending}>
           Sign in

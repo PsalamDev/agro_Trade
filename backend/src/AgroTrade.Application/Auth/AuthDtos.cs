@@ -89,8 +89,8 @@ public sealed class ResetPasswordRequest
     [Required, EmailAddress]
     public string Email { get; init; } = string.Empty;
 
-    [Required]
-    public string Token { get; init; } = string.Empty;
+    [Required, StringLength(6, MinimumLength = 6)]
+    public string Code { get; init; } = string.Empty;
 
     [Required, MinLength(8), MaxLength(128)]
     public string NewPassword { get; init; } = string.Empty;

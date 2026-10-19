@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using AgroTrade.Application.Common;
 using AgroTrade.Domain.Identity;
 using AgroTrade.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -262,6 +264,75 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
         var dto = await login.Content.ReadFromJsonAsync<AuthResponseDto>();
         Assert.Contains("Administrator", dto!.User.Roles);
+    }
+
+    [Fact]
+    public async Task PasswordReset_EmailedCode_ChangesPassword_AndIsSingleUse()
+    {
+        var email = $"reset_{Guid.NewGuid():N}@tests.agrotrade.local";
+        var register = await _client.PostAsJsonAsync("/api/v1/auth/register", new
+        {
+            email,
+            password = "StrongPass123",
+            displayName = "Reset User",
+            homeCountry = "NG",
+            defaultCurrency = "USD",
+            roles = new[] { "Buyer" },
+        });
+        Assert.Equal(HttpStatusCode.Created, register.StatusCode);
+
+        var recorder = _factory.Services.GetRequiredService<RecordingEmailSender>();
+
+        // Ask for a code. The response is a bare 204 whether or not the address exists.
+        var forgot = await _client.PostAsJsonAsync("/api/v1/auth/forgot-password", new { email });
+        Assert.Equal(HttpStatusCode.NoContent, forgot.StatusCode);
+
+        var message = recorder.LastTo(email);
+        Assert.NotNull(message);
+        var code = ExtractResetCode(message!);
+        Assert.Matches(@"^\d{6}$", code);
+
+        // A wrong code is refused and leaves the password untouched.
+        var wrongCode = code == "000000" ? "111111" : "000000";
+        var wrong = await _client.PostAsJsonAsync("/api/v1/auth/reset-password",
+            new { email, code = wrongCode, newPassword = "NewStrong123" });
+        Assert.Equal(HttpStatusCode.BadRequest, wrong.StatusCode);
+        var wrongProblem = await wrong.Content.ReadFromJsonAsync<ProblemDetailsDto>();
+        Assert.Equal("INVALID_RESET_CODE", wrongProblem?.Code);
+
+        // The real code resets the password.
+        var reset = await _client.PostAsJsonAsync("/api/v1/auth/reset-password",
+            new { email, code, newPassword = "NewStrong123" });
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+
+        var oldLogin = await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "StrongPass123" });
+        Assert.Equal(HttpStatusCode.Unauthorized, oldLogin.StatusCode);
+        var newLogin = await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "NewStrong123" });
+        Assert.Equal(HttpStatusCode.OK, newLogin.StatusCode);
+
+        // The code is single-use: replaying it after a successful reset is refused.
+        var reuse = await _client.PostAsJsonAsync("/api/v1/auth/reset-password",
+            new { email, code, newPassword = "Another123" });
+        Assert.Equal(HttpStatusCode.BadRequest, reuse.StatusCode);
+    }
+
+    [Fact]
+    public async Task PasswordReset_UnknownEmail_ReturnsNoContent_ToAvoidEnumeration()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/auth/forgot-password",
+            new { email = $"nobody_{Guid.NewGuid():N}@tests.agrotrade.local" });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    private static string ExtractResetCode(EmailMessage message)
+    {
+        // The plain-text twin is the stable place to read the code; the HTML wraps it in markup.
+        var body = message.PlainTextBody ?? message.HtmlBody;
+        var match = Regex.Match(body, @"Your code:\s*(\d{6})");
+        Assert.True(match.Success, "The reset email did not contain a 6-digit code.");
+        return match.Groups[1].Value;
     }
 
     // ---- DTO mirrors (system-text-json friendly) ----

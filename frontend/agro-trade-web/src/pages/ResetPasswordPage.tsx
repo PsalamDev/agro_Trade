@@ -9,19 +9,21 @@ import { CheckCircleIcon, EyeIcon, EyeOffIcon, LockIcon, MailIcon } from '../com
 export default function ResetPasswordPage() {
   const [params] = useSearchParams()
   const [email, setEmail] = useState(params.get('email') ?? '')
-  const [token, setToken] = useState(params.get('token') ?? '')
+  const [code, setCode] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [pending, setPending] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState<{ title?: string; detail?: string } | null>(null)
 
+  const emailFromLink = Boolean(params.get('email'))
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setPending(true)
     setError(null)
     try {
-      await api.post('/auth/reset-password', { email, token, newPassword })
+      await api.post('/auth/reset-password', { email, code, newPassword })
       setDone(true)
     } catch (err) {
       setError(problemFrom(err))
@@ -31,14 +33,17 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <AuthLayout
-      eyebrow="Account recovery"
-      headline="Set a new password."
-      blurb="Choose a strong password to secure your trade account, then sign back in."
-    >
+    <AuthLayout minimal>
       <h1 className="font-display text-2xl font-bold tracking-tight">Choose a new password</h1>
       <p className="mt-1.5 text-sm text-stone-500">
-        Paste the token from your reset email and pick a new password.
+        {emailFromLink ? (
+          <>
+            Enter the 6-digit code we sent to{' '}
+            <span className="font-medium text-stone-700">{email}</span>, then pick a new password.
+          </>
+        ) : (
+          'Enter the 6-digit code from your email, then pick a new password.'
+        )}
       </p>
 
       {done ? (
@@ -68,11 +73,18 @@ export default function ResetPasswordPage() {
             onChange={(e) => setEmail(e.target.value)}
           />
           <Field
-            label="Reset token"
-            id="token"
+            label="Reset code"
+            id="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxLength={6}
             required
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
+            placeholder="000000"
+            style={{ letterSpacing: '0.4em' }}
+            hint="The 6-digit code from your email."
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
           />
           <Field
             label="New password"
@@ -103,6 +115,13 @@ export default function ResetPasswordPage() {
           </SubmitButton>
         </form>
       )}
+
+      <p className="mt-6 border-t border-stone-100 pt-5 text-center text-sm text-stone-500">
+        Didn’t get a code?{' '}
+        <Link to="/forgot-password" className="font-semibold text-brand-700 hover:underline">
+          Send a new one
+        </Link>
+      </p>
     </AuthLayout>
   )
 }

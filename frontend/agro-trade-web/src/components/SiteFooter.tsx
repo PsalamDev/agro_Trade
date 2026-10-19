@@ -16,9 +16,11 @@ export function SiteFooter() {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="lg:col-span-2">
             <div className="flex items-center gap-2.5">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-brand">
-                AG
-              </span>
+              <img
+                src="/App _ social icon (1).png"
+                alt=""
+                className="h-9 w-9 rounded-xl object-cover shadow-brand"
+              />
               <span className="font-display text-[17px] font-bold tracking-tight">
                 Achievers <span className="text-brand-600">Global</span>
               </span>

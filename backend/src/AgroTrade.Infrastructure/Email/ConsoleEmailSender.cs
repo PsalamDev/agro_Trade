@@ -4,16 +4,17 @@ using Microsoft.Extensions.Logging;
 namespace AgroTrade.Infrastructure.Email;
 
 /// <summary>
-/// MVP email sink: writes to the log. Swap for a transactional provider (SendGrid,
-/// Mailjet, resend…) behind IEmailSender at cloud deploy (plan D3).
+/// The no-configuration sink: written to the log instead of sent. Used whenever
+/// <c>Email:Smtp:Host</c> is blank, which is the default for local development, and kept as the
+/// deliberate fallback for a deployment that has not been given a mail server yet.
 /// </summary>
 public sealed class ConsoleEmailSender(ILogger<ConsoleEmailSender> logger) : IEmailSender
 {
     public Task SendAsync(EmailMessage message, CancellationToken ct = default)
     {
         logger.LogWarning(
-            "[EMAIL-STUB] To: {To} | Subject: {Subject}\n{Body}",
-            message.To, message.Subject, message.HtmlBody);
+            "[EMAIL-STUB] No Email:Smtp:Host configured — not sending. To: {To} | Subject: {Subject}\n{Body}",
+            EmailRedaction.Mask(message.To), message.Subject, message.HtmlBody);
         return Task.CompletedTask;
     }
 }

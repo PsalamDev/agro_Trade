@@ -1,11 +1,14 @@
+using AgroTrade.Application.Common;
 using AgroTrade.Domain.Enums;
 using AgroTrade.Infrastructure.Data;
 using AgroTrade.Infrastructure.Identity;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AgroTrade.Tests.Integration;
 
@@ -54,6 +57,16 @@ public sealed class TestingWebAppFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        // Swap the console/console-or-SMTP sink for a recorder so a test can read the code the
+        // reset flow emails, the same way a user would. ConfigureTestServices runs after the app's
+        // own registrations, so the replacement wins.
+        builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<RecordingEmailSender>();
+            services.AddSingleton<IEmailSender>(sp => sp.GetRequiredService<RecordingEmailSender>());
+        });
     }
 
     /// <summary>
