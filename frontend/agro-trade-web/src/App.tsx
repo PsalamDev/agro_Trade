@@ -5,6 +5,7 @@ import ContactPage from './pages/ContactPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import VerifyCodePage from './pages/VerifyCodePage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import ConfirmEmailPage from './pages/ConfirmEmailPage'
 import DashboardPage from './pages/DashboardPage'
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/verify-code" element={<VerifyCodePage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/confirm-email" element={<ConfirmEmailPage />} />
 

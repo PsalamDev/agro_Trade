@@ -311,9 +311,40 @@ public sealed class AuthService(
             PlainTextBody: resetBody.Text), ct);
     }
 
+    public async Task VerifyResetCodeAsync(VerifyResetCodeRequest request, CancellationToken ct = default)
+    {
+        // Confirms the code so the client can advance to the password step. The code is not spent
+        // here — ResetPasswordAsync re-verifies and consumes it, so a verified code is still
+        // single-use at the point it actually changes the password.
+        await RequireValidResetCodeAsync(request.Email, request.Code, ct);
+    }
+
     public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct = default)
     {
-        var user = await userManager.FindByEmailAsync(request.Email.Trim().ToLowerInvariant());
+        var (user, record) = await RequireValidResetCodeAsync(request.Email, request.Code, ct);
+
+        // The code is the factor we just verified. The Identity token is generated here only
+        // because ResetPasswordAsync insists on one, and is spent immediately.
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await userManager.ResetPasswordAsync(user, token, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            throw ApiException.BadRequest("RESET_PASSWORD_FAILED", FormatIdentityErrors(result));
+        }
+
+        record.ConsumedAtUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Loads the account and its newest live reset code, applying the same uniform failure
+    /// (and the wrong-guess cap) for verify and reset so neither reveals which emails exist.
+    /// On success the code is left unconsumed for the caller to spend.
+    /// </summary>
+    private async Task<(ApplicationUser User, PasswordResetCode Record)> RequireValidResetCodeAsync(
+        string email, string code, CancellationToken ct)
+    {
+        var user = await userManager.FindByEmailAsync(email.Trim().ToLowerInvariant());
         var now = DateTime.UtcNow;
 
         // One message covers every failure — unknown account, missing/expired code, wrong code — so
@@ -343,24 +374,14 @@ public sealed class AuthService(
             throw ApiException.BadRequest("INVALID_RESET_CODE", "Too many incorrect attempts. Request a new code.");
         }
 
-        if (!ResetCodeFactory.Verify(request.Code, record.CodeHash))
+        if (!ResetCodeFactory.Verify(code, record.CodeHash))
         {
             record.Attempts++;
             await db.SaveChangesAsync(ct);
             throw invalid;
         }
 
-        // The code is the factor we just verified. The Identity token is generated here only
-        // because ResetPasswordAsync insists on one, and is spent immediately.
-        var token = await userManager.GeneratePasswordResetTokenAsync(user);
-        var result = await userManager.ResetPasswordAsync(user, token, request.NewPassword);
-        if (!result.Succeeded)
-        {
-            throw ApiException.BadRequest("RESET_PASSWORD_FAILED", FormatIdentityErrors(result));
-        }
-
-        record.ConsumedAtUtc = now;
-        await db.SaveChangesAsync(ct);
+        return (user, record);
     }
 
     public async Task<AuthUserDto> GetCurrentUserAsync(Guid userId, CancellationToken ct = default)

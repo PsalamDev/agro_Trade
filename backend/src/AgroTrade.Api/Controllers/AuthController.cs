@@ -19,7 +19,8 @@ public class AuthController(
     IValidator<RegisterRequest> registerValidator,
     IValidator<LoginRequest> loginValidator,
     IValidator<RefreshRequest> refreshValidator,
-    IValidator<ResetPasswordRequest> resetValidator) : ControllerBase
+    IValidator<ResetPasswordRequest> resetValidator,
+    IValidator<VerifyResetCodeRequest> verifyResetCodeValidator) : ControllerBase
 {
     [HttpPost("register")]
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status201Created)]
@@ -75,6 +76,16 @@ public class AuthController(
     {
         EnsureBody(request);
         await authService.ForgotPasswordAsync(request, ct);
+        return NoContent();
+    }
+
+    [HttpPost("verify-reset-code")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> VerifyResetCode(VerifyResetCodeRequest request, CancellationToken ct)
+    {
+        EnsureBody(request);
+        await verifyResetCodeValidator.ValidateAndThrowAsync(request, ct);
+        await authService.VerifyResetCodeAsync(request, ct);
         return NoContent();
     }
 

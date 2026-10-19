@@ -36,9 +36,9 @@ public static class EmailTemplates
             subject: "Your AgroTrade password reset code",
             heading: "Reset your password",
             greeting: displayName,
-            intro: "Use the 6-digit code below to choose a new password for your AgroTrade account — or open the link and we’ll take you straight to the reset page.",
+            intro: "Enter the 6-digit code below to verify it’s you and choose a new password — or open the link and we’ll take you straight to setting a new one.",
             code: code,
-            actionLabel: "Reset my password",
+            actionLabel: "Choose a new password",
             actionUrl: resetUrl,
             lifetimeMinutes: lifetimeMinutes,
             outro: $"This code expires in {lifetimeMinutes} minutes and can be used once. If you did not ask for this, you can ignore this email — your password stays unchanged.");

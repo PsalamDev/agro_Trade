@@ -96,6 +96,15 @@ public sealed class ResetPasswordRequest
     public string NewPassword { get; init; } = string.Empty;
 }
 
+public sealed class VerifyResetCodeRequest
+{
+    [Required, EmailAddress]
+    public string Email { get; init; } = string.Empty;
+
+    [Required, StringLength(6, MinimumLength = 6)]
+    public string Code { get; init; } = string.Empty;
+}
+
 public sealed class UpdateProfileRequest
 {
     [MaxLength(150)]

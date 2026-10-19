@@ -61,3 +61,15 @@ public sealed class ResetPasswordRequestValidator : AbstractValidator<ResetPassw
             .Matches(@"\d").WithMessage("Password must contain a digit.");
     }
 }
+
+public sealed class VerifyResetCodeRequestValidator : AbstractValidator<VerifyResetCodeRequest>
+{
+    public VerifyResetCodeRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
+        RuleFor(x => x.Code)
+            .NotEmpty()
+            .Length(6).WithMessage("Enter the 6-digit code from your email.")
+            .Matches(@"^\d{6}$").WithMessage("The reset code is six digits.");
+    }
+}

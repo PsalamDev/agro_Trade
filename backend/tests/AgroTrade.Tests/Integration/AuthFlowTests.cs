@@ -321,6 +321,53 @@ public sealed class AuthFlowTests : IClassFixture<TestingWebAppFactory>
     }
 
     [Fact]
+    public async Task PasswordReset_VerifyStep_ConfirmsCodeWithoutSpendingIt()
+    {
+        var email = $"verify_{Guid.NewGuid():N}@tests.agrotrade.local";
+        var register = await _client.PostAsJsonAsync("/api/v1/auth/register", new
+        {
+            email,
+            password = "StrongPass123",
+            displayName = "Verify User",
+            homeCountry = "NG",
+            defaultCurrency = "USD",
+            roles = new[] { "Buyer" },
+        });
+        Assert.Equal(HttpStatusCode.Created, register.StatusCode);
+
+        var recorder = _factory.Services.GetRequiredService<RecordingEmailSender>();
+        await _client.PostAsJsonAsync("/api/v1/auth/forgot-password", new { email });
+        var code = ExtractResetCode(recorder.LastTo(email)!);
+
+        // A wrong code fails verification the same way a wrong reset does (no enumeration).
+        var wrongCode = code == "000000" ? "111111" : "000000";
+        var wrong = await _client.PostAsJsonAsync("/api/v1/auth/verify-reset-code",
+            new { email, code = wrongCode });
+        Assert.Equal(HttpStatusCode.BadRequest, wrong.StatusCode);
+        var wrongProblem = await wrong.Content.ReadFromJsonAsync<ProblemDetailsDto>();
+        Assert.Equal("INVALID_RESET_CODE", wrongProblem?.Code);
+
+        // The real code verifies...
+        var verify = await _client.PostAsJsonAsync("/api/v1/auth/verify-reset-code", new { email, code });
+        Assert.Equal(HttpStatusCode.NoContent, verify.StatusCode);
+
+        // ...and verifying is idempotent: it does not spend the code the reset still needs.
+        var verifyAgain = await _client.PostAsJsonAsync("/api/v1/auth/verify-reset-code", new { email, code });
+        Assert.Equal(HttpStatusCode.NoContent, verifyAgain.StatusCode);
+
+        var reset = await _client.PostAsJsonAsync("/api/v1/auth/reset-password",
+            new { email, code, newPassword = "NewStrong123" });
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+
+        var newLogin = await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password = "NewStrong123" });
+        Assert.Equal(HttpStatusCode.OK, newLogin.StatusCode);
+
+        // Once the reset spends it, the code no longer verifies.
+        var afterReset = await _client.PostAsJsonAsync("/api/v1/auth/verify-reset-code", new { email, code });
+        Assert.Equal(HttpStatusCode.BadRequest, afterReset.StatusCode);
+    }
+
+    [Fact]
     public async Task PasswordReset_UnknownEmail_ReturnsNoContent_ToAvoidEnumeration()
     {
         var response = await _client.PostAsJsonAsync(
