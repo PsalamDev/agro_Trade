@@ -26,7 +26,7 @@ namespace AgroTrade.Infrastructure.Logistics;
 /// are.
 /// </para>
 /// </remarks>
-public sealed class ShipmentService(AgroTradeDbContext db) : IShipmentService
+public sealed class ShipmentService(AgroTradeDbContext db, ITransactionalEmailService email) : IShipmentService
 {
     public async Task<ShipmentDto> CreateAsync(
         Guid orderId, Guid userId, CreateShipmentRequest request, CancellationToken ct = default)
@@ -158,6 +158,10 @@ public sealed class ShipmentService(AgroTradeDbContext db) : IShipmentService
             throw ApiException.Conflict(
                 "SHIPMENT_EXISTS", "This order already has a consignment recorded against it.");
         }
+
+        // The booking is committed by the allocator above, so the message describes a fact rather
+        // than a change still in flight. Delivery is best-effort and never rolls the booking back.
+        await email.OrderShippedAsync(order, shipment, ct);
 
         return (await ProjectAsync([shipment], userId, ct))[0];
     }

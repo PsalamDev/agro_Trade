@@ -47,7 +47,8 @@ public sealed class PaymentService(
     AgroTradeDbContext db,
     IPaymentGatewayResolver gateways,
     ILogger<PaymentService> logger,
-    IAuditLogWriter audit) : IPaymentService
+    IAuditLogWriter audit,
+    ITransactionalEmailService email) : IPaymentService
 {
     private const string ReferencePrefixStem = "PAY-";
     private const string TransactionPrefixStem = "TXN-";
@@ -229,6 +230,10 @@ public sealed class PaymentService(
         await RollUpOrderAsync(order.Id, ct);
         await SaveAsync(ct);
 
+        // The charge is recorded; tell the payer the gateway is working on it. A failure here must
+        // not make the API look as if the charge was not raised.
+        await email.PaymentInitiatedAsync(payment, order, ct);
+
         logger.LogInformation(
             "Payment {Reference} raised against order {OrderId} for {Amount} {Currency} (providerRef {ProviderRef})",
             payment.Reference, orderId, payment.Amount, payment.Currency, payment.ProviderRef);
@@ -403,6 +408,13 @@ public sealed class PaymentService(
 
         await SaveAsync(ct);
 
+        // The seller recorded the money, so the buyer is the party who needs telling. `rolled` is
+        // the order after the payment rollup, so the email and the order page agree on the balance.
+        if (rolled is not null)
+        {
+            await email.PaymentReceivedAsync(payment, rolled, actorUserId: userId, ct);
+        }
+
         logger.LogInformation(
             "Manual payment {Reference} recorded against order {OrderId} for {Amount} {Currency} (remittance {RemittanceReference})",
             payment.Reference, orderId, payment.Amount, payment.Currency, payment.RemittanceReference);
@@ -526,6 +538,13 @@ public sealed class PaymentService(
             reason);
 
         await SaveAsync(ct);
+
+        // Both sides need to see money leave the order; the administrator who issued the refund is
+        // not a party and the notification does not tell them. Best-effort, after the commit.
+        if (order is not null)
+        {
+            await email.PaymentRefundedAsync(payment, order, amount, reason, ct);
+        }
 
         logger.LogInformation(
             "Refunded {Amount} {Currency} on payment {Reference} (order {OrderId})",
@@ -905,6 +924,20 @@ public sealed class PaymentService(
         await NotifyAsync(payment, order, was, ct: ct);
 
         await db.SaveChangesAsync(ct);
+
+        // Only now, with the settlement durable, is the email safe to describe as a fact. The
+        // concurrency retry above re-enters before this point, so a lost save cannot send twice.
+        if (order is not null)
+        {
+            if (payment.Status == PaymentStatus.Paid)
+            {
+                await email.PaymentReceivedAsync(payment, order, ct: ct);
+            }
+            else if (payment.Status == PaymentStatus.Failed)
+            {
+                await email.PaymentFailedAsync(payment, order, ct);
+            }
+        }
 
         logger.LogInformation(
             "Webhook {EventId} applied to payment {Reference}: {Was} -> {Now}",

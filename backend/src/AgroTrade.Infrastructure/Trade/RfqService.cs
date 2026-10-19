@@ -14,7 +14,7 @@ namespace AgroTrade.Infrastructure.Trade;
 /// quotations with full trade terms, buyer comparison, accept/withdraw, and RFQ
 /// negotiation context (plan §03 — RFQs / Trade Requests). Order handoff is Phase 2.
 /// </summary>
-public sealed class RfqService(AgroTradeDbContext db) : IRfqService
+public sealed class RfqService(AgroTradeDbContext db, ITransactionalEmailService email) : IRfqService
 {
     public async Task<TradeRequestDetailDto> CreateAsync(Guid buyerUserId, CreateTradeRequestRequest request, CancellationToken ct = default)
     {
@@ -233,6 +233,11 @@ public sealed class RfqService(AgroTradeDbContext db) : IRfqService
         });
 
         await db.SaveChangesAsync(ct);
+
+        // The quotation is durable now, so the buyer can be told about it. The email is best-effort:
+        // the supplier's quote has already been accepted by the API whether or not SMTP answers.
+        await email.QuotationReceivedAsync(rfq, quotation, business, ct);
+
         return ToQuotationDto(quotation, business, isMine: true);
     }
 

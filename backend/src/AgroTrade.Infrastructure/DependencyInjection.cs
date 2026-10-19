@@ -96,6 +96,10 @@ public static class DependencyInjection
             services.AddScoped<IEmailSender, ConsoleEmailSender>();
         }
 
+        // Event mail (shipment, quotation, payment, admin alerts) rides the same transport and the
+        // same templates, so there is one place to configure delivery.
+        services.AddScoped<ITransactionalEmailService, TransactionalEmailService>();
+
         services.AddScoped<IAccessTokenService, JwtAccessTokenService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<DbSeeder>();

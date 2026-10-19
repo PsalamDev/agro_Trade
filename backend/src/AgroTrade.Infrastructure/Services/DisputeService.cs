@@ -1,3 +1,4 @@
+using AgroTrade.Application.Common;
 using AgroTrade.Application.Trade;
 using AgroTrade.Domain.Enums;
 using AgroTrade.Infrastructure.Data;
@@ -5,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AgroTrade.Infrastructure.Services;
 
-public sealed class DisputeService(AgroTradeDbContext db) : IDisputeService
+public sealed class DisputeService(AgroTradeDbContext db, ITransactionalEmailService email) : IDisputeService
 {
     public async Task<DisputeResponse> CreateAsync(Guid userId, DisputeCreateRequest request, CancellationToken ct)
     {
@@ -22,6 +23,11 @@ public sealed class DisputeService(AgroTradeDbContext db) : IDisputeService
         };
         db.Disputes.Add(d);
         await db.SaveChangesAsync(ct);
+
+        // A dispute is an administrator's work item; the record is committed before anyone is
+        // told about it, and a failed email cannot undo the filing.
+        await email.DisputeOpenedAsync(d, ct);
+
         return new DisputeResponse(d.Id, d.OrderId, d.RaisedByUserId, d.AgainstBusinessId, d.Reason, d.Details, d.Status, d.ResolvedByUserId, d.Resolution, d.CreatedAtUtc!.Value, d.ResolvedAtUtc);
     }
 

@@ -17,7 +17,8 @@ namespace AgroTrade.Infrastructure.Trade;
 public sealed class BusinessService(
     AgroTradeDbContext db,
     IFileStorage fileStorage,
-    IAuditLogWriter auditLog) : IBusinessService
+    IAuditLogWriter auditLog,
+    ITransactionalEmailService email) : IBusinessService
 {
     public async Task<BusinessDetailDto> CreateAsync(Guid ownerUserId, RegisterBusinessRequest request, CancellationToken ct = default)
     {
@@ -255,6 +256,10 @@ public sealed class BusinessService(
             VerifiedLevel = "Basic",
         });
         await db.SaveChangesAsync(ct);
+
+        // A new queue entry is the administrator's work item, so they hear about it now rather
+        // than discovering it on the next dashboard visit. The submission itself has committed.
+        await email.VerificationRequestedAsync(business, ct);
 
         return await GetVerificationAsync(id, ownerUserId, false, ct);
     }
