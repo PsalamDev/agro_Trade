@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { api, problemFrom } from '../lib/api'
 import { AuthLayout } from '../components/AuthLayout'
-import { ErrorAlert, Field, SubmitButton } from '../components/ui'
+import { ErrorAlert, Field, PasswordRules, SubmitButton } from '../components/ui'
 import { CheckCircleIcon, EyeIcon, EyeOffIcon, LockIcon, MailIcon } from '../components/icons'
 
 export default function ResetPasswordPage() {
@@ -14,7 +14,11 @@ export default function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [pending, setPending] = useState(false)
   const [done, setDone] = useState(false)
-  const [error, setError] = useState<{ title?: string; detail?: string } | null>(null)
+  const [error, setError] = useState<{
+    title?: string
+    detail?: string
+    fieldErrors?: Record<string, string[]>
+  } | null>(null)
 
   const emailFromLink = Boolean(params.get('email'))
   // The emailed one-click link carries the code, so the form arrives ready to submit.
@@ -67,7 +71,7 @@ export default function ResetPasswordPage() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="mt-7 space-y-4">
-          <ErrorAlert title={error?.title} detail={error?.detail} />
+          <ErrorAlert title={error?.title} detail={error?.detail} fieldErrors={error?.fieldErrors} />
           <Field
             label="Email"
             id="email"
@@ -92,30 +96,32 @@ export default function ResetPasswordPage() {
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
           />
-          <Field
-            label="New password"
-            id="newPassword"
-            type={showPassword ? 'text' : 'password'}
-            autoComplete="new-password"
-            required
-            minLength={8}
-            hint="At least 8 characters, with an uppercase letter, a lowercase letter and a number."
-            icon={<LockIcon className="h-4 w-4" />}
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            trailing={
-              <button
-                type="button"
-                onClick={() => setShowPassword((visible) => !visible)}
-                onMouseDown={(e) => e.preventDefault()}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                aria-pressed={showPassword}
-                className="grid h-8 w-8 place-items-center rounded-lg text-stone-400 transition duration-200 ease-soft hover:bg-stone-100 hover:text-stone-700"
-              >
-                {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
-              </button>
-            }
-          />
+          <div>
+            <Field
+              label="New password"
+              id="newPassword"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              required
+              minLength={8}
+              icon={<LockIcon className="h-4 w-4" />}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  onMouseDown={(e) => e.preventDefault()}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  className="grid h-8 w-8 place-items-center rounded-lg text-stone-400 transition duration-200 ease-soft hover:bg-stone-100 hover:text-stone-700"
+                >
+                  {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+                </button>
+              }
+            />
+            <PasswordRules value={newPassword} />
+          </div>
           <SubmitButton type="submit" pending={pending}>
             Set new password
           </SubmitButton>

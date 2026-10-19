@@ -12,7 +12,11 @@ export default function ConfirmEmailPage() {
   const [token, setToken] = useState(params.get('token') ?? '')
   const [pending, setPending] = useState(false)
   const [done, setDone] = useState(false)
-  const [error, setError] = useState<{ title?: string; detail?: string } | null>(null)
+  const [error, setError] = useState<{
+    title?: string
+    detail?: string
+    fieldErrors?: Record<string, string[]>
+  } | null>(null)
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -54,7 +58,7 @@ export default function ConfirmEmailPage() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="mt-7 space-y-4">
-          <ErrorAlert title={error?.title} detail={error?.detail} />
+          <ErrorAlert title={error?.title} detail={error?.detail} fieldErrors={error?.fieldErrors} />
           <Field
             label="Email"
             id="email"

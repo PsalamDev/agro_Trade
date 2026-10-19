@@ -4,10 +4,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
 import CountrySelect from '../components/CountrySelect'
 import { AuthLayout } from '../components/AuthLayout'
-import { ErrorAlert, Field, SelectField, SubmitButton } from '../components/ui'
+import { ErrorAlert, Field, PasswordRules, SelectField, SubmitButton } from '../components/ui'
 import { DOMESTIC_BUYER_ROLE } from '../types/auth'
 import {
-  CheckIcon,
   EyeIcon,
   EyeOffIcon,
   GlobeIcon,
@@ -35,13 +34,6 @@ const INTENTS = [
 ] as const
 
 type Intent = (typeof INTENTS)[number]['id']
-
-const PASSWORD_RULES: { label: string; test: (value: string) => boolean }[] = [
-  { label: 'At least 8 characters', test: (value) => value.length >= 8 },
-  { label: 'An uppercase letter', test: (value) => /[A-Z]/.test(value) },
-  { label: 'A lowercase letter', test: (value) => /[a-z]/.test(value) },
-  { label: 'A number', test: (value) => /\d/.test(value) },
-]
 
 export default function RegisterPage() {
   const { register } = useAuth()
@@ -173,34 +165,7 @@ export default function RegisterPage() {
               </button>
             }
           />
-          {password.length > 0 ? (
-            <ul className="mt-2.5 grid gap-1.5 sm:grid-cols-2">
-              {PASSWORD_RULES.map((rule) => {
-                const met = rule.test(password)
-                return (
-                  <li
-                    key={rule.label}
-                    className={`flex items-center gap-2 text-xs transition duration-200 ease-soft ${
-                      met ? 'text-brand-700' : 'text-stone-500'
-                    }`}
-                  >
-                    <span
-                      className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ${
-                        met ? 'bg-brand-100 text-brand-700' : 'bg-stone-100 text-stone-400'
-                      }`}
-                    >
-                      <CheckIcon className="h-3 w-3" />
-                    </span>
-                    {rule.label}
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <p className="mt-1.5 text-xs text-stone-500">
-              At least 8 characters, with an uppercase letter, a lowercase letter and a number.
-            </p>
-          )}
+          <PasswordRules value={password} />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

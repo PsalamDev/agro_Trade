@@ -15,7 +15,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [capsLock, setCapsLock] = useState(false)
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState<{ title?: string; detail?: string } | null>(null)
+  const [error, setError] = useState<{
+    title?: string
+    detail?: string
+    fieldErrors?: Record<string, string[]>
+  } | null>(null)
 
   const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/dashboard'
 
@@ -27,7 +31,7 @@ export default function LoginPage() {
       await login({ email: email.trim(), password })
       navigate(from, { replace: true })
     } catch (err) {
-      setError(err as { title?: string; detail?: string })
+      setError(err as { title?: string; detail?: string; fieldErrors?: Record<string, string[]> })
     } finally {
       setPending(false)
     }
@@ -41,7 +45,7 @@ export default function LoginPage() {
       </p>
 
       <form onSubmit={handleSubmit} className="mt-7 space-y-4">
-        <ErrorAlert title={error?.title} detail={error?.detail} />
+        <ErrorAlert title={error?.title} detail={error?.detail} fieldErrors={error?.fieldErrors} />
         <Field
           label="Email"
           id="email"

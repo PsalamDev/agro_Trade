@@ -11,7 +11,11 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [pending, setPending] = useState(false)
   const [sent, setSent] = useState(false)
-  const [error, setError] = useState<{ title?: string; detail?: string } | null>(null)
+  const [error, setError] = useState<{
+    title?: string
+    detail?: string
+    fieldErrors?: Record<string, string[]>
+  } | null>(null)
 
   async function sendCode(target: string) {
     setPending(true)
@@ -44,7 +48,7 @@ export default function ForgotPasswordPage() {
 
       {sent ? (
         <div className="mt-7 space-y-4">
-          <ErrorAlert title={error?.title} detail={error?.detail} />
+          <ErrorAlert title={error?.title} detail={error?.detail} fieldErrors={error?.fieldErrors} />
           <div className="flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
             <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
             <div>
@@ -75,7 +79,7 @@ export default function ForgotPasswordPage() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="mt-7 space-y-4">
-          <ErrorAlert title={error?.title} detail={error?.detail} />
+          <ErrorAlert title={error?.title} detail={error?.detail} fieldErrors={error?.fieldErrors} />
           <Field
             label="Email"
             id="email"

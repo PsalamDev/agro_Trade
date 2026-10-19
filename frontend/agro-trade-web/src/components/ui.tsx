@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
-import { AlertCircleIcon, InboxIcon } from './icons'
+import { AlertCircleIcon, CheckIcon, InboxIcon } from './icons'
 
 /* -------------------------------------------------------------------------- */
 /* Buttons                                                                    */
@@ -159,6 +159,53 @@ export function Field({ label, id, icon, trailing, labelAction, hint, ...rest }:
       </div>
       {hint ? <span className="mt-1 block text-xs text-stone-500">{hint}</span> : null}
     </label>
+  )
+}
+
+/** Server password policy, mirrored on the client for instant feedback. */
+export const PASSWORD_RULES: { label: string; test: (value: string) => boolean }[] = [
+  { label: 'At least 8 characters', test: (value) => value.length >= 8 },
+  { label: 'An uppercase letter', test: (value) => /[A-Z]/.test(value) },
+  { label: 'A lowercase letter', test: (value) => /[a-z]/.test(value) },
+  { label: 'A number', test: (value) => /\d/.test(value) },
+]
+
+/**
+ * Live password checklist shown under a password field. Falls back to a plain
+ * hint until the user starts typing, so the rules are always discoverable.
+ */
+export function PasswordRules({ value }: { value: string }) {
+  if (!value) {
+    return (
+      <p className="mt-1.5 text-xs text-stone-500">
+        At least 8 characters, with an uppercase letter, a lowercase letter and a number.
+      </p>
+    )
+  }
+
+  return (
+    <ul className="mt-2.5 grid gap-1.5 sm:grid-cols-2">
+      {PASSWORD_RULES.map((rule) => {
+        const met = rule.test(value)
+        return (
+          <li
+            key={rule.label}
+            className={`flex items-center gap-2 text-xs transition duration-200 ease-soft ${
+              met ? 'text-brand-700' : 'text-stone-500'
+            }`}
+          >
+            <span
+              className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ${
+                met ? 'bg-brand-100 text-brand-700' : 'bg-stone-100 text-stone-400'
+              }`}
+            >
+              <CheckIcon className="h-3 w-3" />
+            </span>
+            {rule.label}
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
