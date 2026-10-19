@@ -10,6 +10,7 @@ using AgroTrade.Infrastructure.Email;
 using AgroTrade.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace AgroTrade.Infrastructure.Auth;
@@ -42,7 +43,8 @@ public sealed class AuthService(
     IAccessTokenService accessTokens,
     IOptions<JwtOptions> jwtOptions,
     IOptions<AuthOptions> authOptions,
-    IEmailSender emailSender) : IAuthService
+    IEmailSender emailSender,
+    ILogger<AuthService> logger) : IAuthService
 {
     private readonly JwtOptions _jwt = jwtOptions.Value;
     private readonly AuthOptions _auth = authOptions.Value;
@@ -304,11 +306,21 @@ public sealed class AuthService(
 
         var resetUrl = $"{_auth.AppBaseUrl}/reset-password?email={Uri.EscapeDataString(user.Email!)}&code={Uri.EscapeDataString(code)}&auto=1";
         var resetBody = EmailTemplates.PasswordResetCode(user.DisplayName, code, resetUrl, _auth.ResetCodeLifetimeMinutes);
-        await emailSender.SendAsync(new EmailMessage(
-            To: user.Email!,
-            Subject: resetBody.Subject,
-            HtmlBody: resetBody.Html,
-            PlainTextBody: resetBody.Text), ct);
+        try
+        {
+            await emailSender.SendAsync(new EmailMessage(
+                To: user.Email!,
+                Subject: resetBody.Subject,
+                HtmlBody: resetBody.Html,
+                PlainTextBody: resetBody.Text), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A transport failure must not change the response: returning 500 only for existing
+            // accounts would reveal which addresses have one. The code is still stored, so the
+            // trader can retry once delivery recovers.
+            logger.LogError(ex, "Failed to send the password-reset email to {Recipient}.", EmailRedaction.Mask(user.Email!));
+        }
     }
 
     public async Task VerifyResetCodeAsync(VerifyResetCodeRequest request, CancellationToken ct = default)
