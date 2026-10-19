@@ -28,11 +28,7 @@ public sealed class SmtpEmailSender(
         mime.From.Add(new MailboxAddress(_options.FromName, from));
         mime.To.Add(MailboxAddress.Parse(message.To));
         mime.Subject = message.Subject;
-        mime.Body = new BodyBuilder
-        {
-            HtmlBody = message.HtmlBody,
-            TextBody = message.PlainTextBody,
-        }.ToMessageBody();
+        mime.Body = EmailMimeBody.Build(message);
 
         using var client = new SmtpClient { Timeout = smtp.TimeoutSeconds * 1000 };
 

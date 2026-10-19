@@ -13,7 +13,7 @@ public sealed class EmailOptions
     public string? FromAddress { get; set; }
 
     /// <summary>Display name shown beside <see cref="FromAddress"/>.</summary>
-    public string FromName { get; set; } = "AgroTrade";
+    public string FromName { get; set; } = "Achievers Global Consult";
 
     public SmtpSettings Smtp { get; set; } = new();
 

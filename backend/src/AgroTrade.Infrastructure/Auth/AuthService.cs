@@ -158,7 +158,8 @@ public sealed class AuthService(
                 To: user.Email!,
                 Subject: emailBody.Subject,
                 HtmlBody: emailBody.Html,
-                PlainTextBody: emailBody.Text));
+                PlainTextBody: emailBody.Text,
+                InlineImages: emailBody.InlineImages));
         }
 
         return await IssueTokenPairAsync(user);
@@ -312,7 +313,8 @@ public sealed class AuthService(
                 To: user.Email!,
                 Subject: resetBody.Subject,
                 HtmlBody: resetBody.Html,
-                PlainTextBody: resetBody.Text), ct);
+                PlainTextBody: resetBody.Text,
+                InlineImages: resetBody.InlineImages), ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

@@ -31,4 +31,10 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The brand mark that heads every transactional email. Embedded so delivery needs no image
+         host; EmailTemplates reads it and attaches it as a cid: linked resource. -->
+    <EmbeddedResource Include="Email\Assets\brand-mark.png" />
+  </ItemGroup>
+
 </Project>
