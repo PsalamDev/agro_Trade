@@ -1,3 +1,4 @@
+using AgroTrade.Api.Configuration;
 using AgroTrade.Api.Middleware;
 using AgroTrade.Application;
 using AgroTrade.Infrastructure;
@@ -5,17 +6,30 @@ using AgroTrade.Infrastructure.Data;
 using AgroTrade.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
+using Serilog.Formatting.Json;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+if (!builder.Environment.IsDevelopment() && !builder.Environment.IsEnvironment("Testing"))
+{
+    var configurationErrors = ProductionConfigurationGuard.Validate(builder.Configuration);
+    if (configurationErrors.Count > 0)
+    {
+        throw new InvalidOperationException(
+            "Production configuration is not ready:" + Environment.NewLine +
+            string.Join(Environment.NewLine, configurationErrors.Select(error => $" - {error}")));
+    }
+}
 
 // Dev-only secrets (Jwt:Secret, ConnectionStrings:Default, Seed:*). Never committed.
 if (builder.Environment.IsDevelopment())
@@ -23,11 +37,25 @@ if (builder.Environment.IsDevelopment())
     builder.Configuration.AddUserSecrets<Program>();
 }
 
-builder.Host.UseSerilog((context, logger) => logger
-    .ReadFrom.Configuration(context.Configuration)
-    .Enrich.FromLogContext()
-    .WriteTo.Console()
-    .WriteTo.File("logs/agro-trade-.log", rollingInterval: RollingInterval.Day));
+builder.Host.UseSerilog((context, logger) =>
+{
+    logger
+        .ReadFrom.Configuration(context.Configuration)
+        .Enrich.FromLogContext();
+
+    if (context.HostingEnvironment.IsDevelopment())
+    {
+        logger
+            .WriteTo.Console()
+            .WriteTo.File("logs/agro-trade-.log", rollingInterval: RollingInterval.Day);
+    }
+    else
+    {
+        // The deployment platform captures stdout. JSON keeps the structured fields a log
+        // collector needs, and no runtime log is written to a local, disposable disk.
+        logger.WriteTo.Console(new JsonFormatter());
+    }
+});
 
 builder.Services
     .AddApplication()
@@ -169,6 +197,26 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+if (app.Configuration.GetValue("ForwardedHeaders:Enabled", false))
+{
+    // Enable this only when the API is reachable solely through a trusted reverse proxy.
+    // Clearing both lists trusts any X-Forwarded-* header, so a directly exposed API would let
+    // a caller spoof its IP and defeat the auth rate limiter.
+    var forwardedHeaders = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    };
+    forwardedHeaders.KnownIPNetworks.Clear();
+    forwardedHeaders.KnownProxies.Clear();
+    app.UseForwardedHeaders(forwardedHeaders);
+}
+
+if (!app.Environment.IsDevelopment())
+{
+    // HSTS is only emitted on HTTPS responses; TLS itself is terminated by the platform/proxy.
+    app.UseHsts();
+}
+
 // Startup data maintenance (migrations + roles/admin seed) in Development only.
 if (app.Environment.IsDevelopment())
 {
@@ -185,6 +233,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseCors("Frontend");
 app.UseRateLimiter();
 app.UseAuthentication();
