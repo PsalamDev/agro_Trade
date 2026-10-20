@@ -52,7 +52,9 @@ export default function NotificationsPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Notifications</h1>
-            <p className="mt-1 text-sm text-stone-500">RFQ, quotation, message, and verification updates.</p>
+            <p className="mt-1 text-sm text-stone-500">
+              Orders, shipments, payments, quotations and account activity — newest first.
+            </p>
           </div>
           <button
             type="button"

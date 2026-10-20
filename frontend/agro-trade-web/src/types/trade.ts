@@ -45,8 +45,8 @@ export const PAYMENT_TERM = { TtAdvance: 1, TtPartialDeposit: 2, LetterOfCredit:
 export const SHIPMENT_MODES = ['Road', 'Rail', 'Sea', 'Air', 'Multimodal'] as const
 export const SHIPMENT_MODE = { Road: 0, Rail: 1, Sea: 2, Air: 3, Multimodal: 4 } as const
 
-export const NOTIFICATION_TYPES = ['Order', 'RFQ', 'Quotation', 'Message', 'Payment', 'Shipment', 'Verification', 'Document', 'Dispute', 'System', 'Review', 'Refund'] as const
-export const NOTIFICATION_TYPE = { Order: 0, Rfq: 1, Quotation: 2, Message: 3, Payment: 4, Shipment: 5, Verification: 6, Document: 7, Dispute: 8, System: 9, Review: 10, Refund: 11 } as const
+export const NOTIFICATION_TYPES = ['Order', 'RFQ', 'Quotation', 'Message', 'Payment', 'Shipment', 'Verification', 'Document', 'Dispute', 'System', 'Review', 'Refund', 'Logistics'] as const
+export const NOTIFICATION_TYPE = { Order: 0, Rfq: 1, Quotation: 2, Message: 3, Payment: 4, Shipment: 5, Verification: 6, Document: 7, Dispute: 8, System: 9, Review: 10, Refund: 11, Logistics: 12 } as const
 
 export const MESSAGE_CONTEXT_TYPES = ['Order', 'RFQ', 'Business', 'General'] as const
 export const MESSAGE_CONTEXT_TYPE = { Order: 0, Rfq: 1, Business: 2, General: 3 } as const

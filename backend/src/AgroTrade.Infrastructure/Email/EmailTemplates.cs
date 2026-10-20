@@ -198,7 +198,7 @@ public static class EmailTemplates
             ],
             actionLabel: "View order",
             actionUrl: orderUrl,
-            outro: "The order is still outstanding. You can retry the payment from the order page.");
+            outro: "The order is still outstanding. A new payment can be started from the order page.");
 
     public static RenderedEmail PaymentRefunded(
         string displayName,
@@ -222,7 +222,7 @@ public static class EmailTemplates
             ],
             actionLabel: "View order",
             actionUrl: orderUrl,
-            outro: "Refunds return through the original payment route; your bank or gateway may take a few days to show it.");
+            outro: "Refunds return through the original payment route; the buyer's bank or gateway may take a few days to show it.");
 
     public static RenderedEmail AdminVerificationRequested(
         string displayName,

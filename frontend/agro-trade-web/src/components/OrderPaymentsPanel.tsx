@@ -119,8 +119,10 @@ export function OrderPaymentsPanel({ order, payments, onChanged }: Props) {
         <h2 className="text-lg font-semibold">Payments</h2>
         <p className="text-xs text-stone-500">
           {settled > 0
-            ? `${money(settled, order.currency)} of ${money(order.total, order.currency)} received`
-            : 'Nothing received yet'}
+            ? `${money(settled, order.currency)} of ${money(order.total, order.currency)} ${order.isBuyer ? 'paid' : 'received'}`
+            : order.isBuyer
+              ? 'Nothing paid yet'
+              : 'Nothing received yet'}
         </p>
       </div>
       <p className="mt-1 text-sm text-stone-500">
@@ -133,7 +135,9 @@ export function OrderPaymentsPanel({ order, payments, onChanged }: Props) {
           <ErrorAlert
             detail={
               error.code === 'CORRIDOR_UNSUPPORTED'
-                ? `No payment gateway settles ${order.currency} yet, so this order cannot be paid online. Record it as a bank transfer instead.`
+                ? order.isBuyer
+                  ? `No online payment method settles ${order.currency} yet. Arrange a bank transfer with your supplier — they will record it against this order.`
+                  : `No online payment method settles ${order.currency} yet. Record the bank transfer when the funds land.`
                 : error.code === 'ORDER_CLOSED'
                   ? 'This order is closed, so it cannot take a payment.'
                   : error.code === 'NOTHING_OUTSTANDING'
@@ -148,7 +152,9 @@ export function OrderPaymentsPanel({ order, payments, onChanged }: Props) {
 
       {payments.length === 0 ? (
         <p className="mt-3 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-6 text-center text-sm text-stone-500">
-          No payments raised against this order yet.
+          {order.isBuyer
+            ? 'No payments yet. Any payment you make will appear here.'
+            : 'No payments recorded against this order yet.'}
         </p>
       ) : (
         <ul className="mt-3 divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200">
@@ -176,8 +182,10 @@ export function OrderPaymentsPanel({ order, payments, onChanged }: Props) {
                   ) : null}
                   <p className="mt-0.5 text-xs text-stone-400">
                     {[
-                      `Raised ${formatDate(payment.initiatedAtUtc)}`,
-                      payment.paidAtUtc ? `Received ${formatDate(payment.paidAtUtc)}` : null,
+                      `${order.isBuyer ? 'Initiated' : 'Raised'} ${formatDate(payment.initiatedAtUtc)}`,
+                      payment.paidAtUtc
+                        ? `${order.isBuyer ? 'Paid' : 'Received'} ${formatDate(payment.paidAtUtc)}`
+                        : null,
                     ]
                       .filter(Boolean)
                       .join(' · ')}
@@ -190,9 +198,10 @@ export function OrderPaymentsPanel({ order, payments, onChanged }: Props) {
                   ) : null}
                 </div>
 
-                {/* Stands in for the payer's checkout page. Only meaningful while the charge is
-                    genuinely in flight, which is why it is hidden once it has settled. */}
-                {isSandbox && isPending ? (
+                {/* Stands in for the payer's checkout page, so only the payer sees it. It is also
+                    meaningful only while the charge is genuinely in flight, which is why it is
+                    hidden once it has settled. */}
+                {order.isBuyer && isSandbox && isPending ? (
                   <div className="flex shrink-0 items-center gap-2">
                     <Button
                       variant="ghost"
@@ -221,8 +230,8 @@ export function OrderPaymentsPanel({ order, payments, onChanged }: Props) {
         <div className="mt-5 rounded-xl border border-stone-200 bg-stone-50/60 p-4">
           <h3 className="text-sm font-semibold text-stone-700">Pay this order</h3>
           <p className="mt-1 text-xs text-stone-500">
-            Raises a card charge for the {money(outstanding, order.currency)} outstanding and takes
-            you to a checkout page. The order only counts as paid once the gateway confirms it.
+            Raises a card charge for the {money(outstanding, order.currency)} outstanding. The order
+            only counts as paid once the gateway confirms it.
           </p>
           <div className="mt-3">
             <Button disabled={busyId !== null} onClick={() => void handlePay()}>
