@@ -13,7 +13,7 @@
 | - | --- | --- | --- | --- |
 | D1 | **Payment gateway per corridor** | Paystack (NGN), Stripe (USD/EUR/GBP), Flutterwave (NGN+intl), Adyen (enterprise/CNY) behind one `IPaymentGateway` adapter | **Stripe (USD/EUR) as gateway #1** since MVP trade executes in USD; Paystack second; record off-platform transfers for corridors without gateways | Phase 2 (gateway #1) / Phase 3 (matrix) |
 | D2 | **File storage** | Local disk (dev) → Cloudinary / AWS S3 | `IFileStorage` with LocalDisk now; **Cloudinary** first (image transforms for product photos + doc previews) | Phase 1 uploads |
-| D3 | **Email / SMS provider** | SendGrid / Mailjet / resend / MailKit+SMTP; SMS later (Twilio, Termii) | MailKit + SMTP in dev; transactional API at first cloud deploy | Phase 0 (stub), Phase 3 (real) |
+| D3 | **Email / SMS provider** | SendGrid / Mailjet / resend / MailKit+SMTP; SMS later (Twilio, Termii) | **Resend** (transactional API, behind `IEmailSender`) for production; MailKit+SMTP as the fallback; console sink for local dev. SMS still later | Phase 0 (stub), Phase 3 (real) |
 | D4 | **Cloud deployment target** | Azure App Service + Azure SQL; AWS; containers | **Azure App Service + Azure SQL** (matched to the SQL Server stack) | Phase 5; optional containers earlier |
 | D5 | **Verification depth in MVP** | Manual admin review vs 3rd-party KYC/KYB (Smile ID, IdentityPass, Youverify) | Manual admin review in MVP; evaluate KYB provider at Phase 3 scale (cross-border fraud risk) | Phase 1 |
 | D6 | **Escrow / trade-finance partner** | Regulated financial institutions for escrow-style payments | **Do not build** until a partner exists; keep transaction ledger escrow-compatible (spec §15) | Phase 5 (legal) |

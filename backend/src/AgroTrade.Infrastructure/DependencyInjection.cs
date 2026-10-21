@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AgroTrade.Infrastructure;
 
@@ -78,22 +79,52 @@ public static class DependencyInjection
                 "Payments:SupportedCurrencies must name at least one corridor.")
             .ValidateOnStart();
 
+        // One transport, chosen in one place so the registration and the production configuration
+        // guard cannot disagree about which transport a deployment would actually use.
+        var emailTransport = EmailTransportSelector.Resolve(configuration);
+        if (emailTransport == EmailTransport.Unknown)
+        {
+            throw new InvalidOperationException(
+                $"Email:Provider '{configuration[$"{EmailOptions.SectionName}:Provider"]}' is not one of " +
+                "Auto, Resend, Smtp or Console.");
+        }
+
         services.AddOptions<EmailOptions>()
             .Bind(configuration.GetSection(EmailOptions.SectionName))
             .Validate(
-                o => string.IsNullOrWhiteSpace(o.Smtp.Host) || !string.IsNullOrWhiteSpace(o.FromAddress),
-                "Email:FromAddress must be set when Email:Smtp:Host is configured.")
+                o => emailTransport == EmailTransport.Console || !string.IsNullOrWhiteSpace(o.FromAddress),
+                "Email:FromAddress must be set when a mail transport is configured.")
+            .Validate(
+                o => emailTransport != EmailTransport.Resend || !string.IsNullOrWhiteSpace(o.Resend.ApiKey),
+                "Email:Resend:ApiKey must be set when Resend is the email transport.")
+            .Validate(
+                o => emailTransport != EmailTransport.Smtp || !string.IsNullOrWhiteSpace(o.Smtp.Host),
+                "Email:Smtp:Host must be set when SMTP is the email transport.")
+            .Validate(
+                o => emailTransport != EmailTransport.Resend
+                    || Uri.TryCreate(o.Resend.BaseUrl, UriKind.Absolute, out _),
+                "Email:Resend:BaseUrl must be an absolute URL.")
             .ValidateOnStart();
 
-        // MailKit when a server is configured, the console sink otherwise, so a developer with no
-        // mail server still sees confirmation/reset messages in the log (plan D3).
-        if (!string.IsNullOrWhiteSpace(configuration[$"{EmailOptions.SectionName}:Smtp:Host"]))
+        // Resend when its key is present, MailKit when a server is configured, the console sink
+        // otherwise, so a developer with no mail account still sees confirmation/reset messages
+        // in the log (plan D3).
+        switch (emailTransport)
         {
-            services.AddScoped<IEmailSender, SmtpEmailSender>();
-        }
-        else
-        {
-            services.AddScoped<IEmailSender, ConsoleEmailSender>();
+            case EmailTransport.Resend:
+                services.AddHttpClient<IEmailSender, ResendEmailSender>((sp, client) =>
+                {
+                    var email = sp.GetRequiredService<IOptions<EmailOptions>>().Value;
+                    client.BaseAddress = new Uri(email.Resend.BaseUrl.TrimEnd('/') + "/");
+                    client.Timeout = TimeSpan.FromSeconds(email.Resend.TimeoutSeconds);
+                });
+                break;
+            case EmailTransport.Smtp:
+                services.AddScoped<IEmailSender, SmtpEmailSender>();
+                break;
+            default:
+                services.AddScoped<IEmailSender, ConsoleEmailSender>();
+                break;
         }
 
         // Event mail (shipment, quotation, payment, admin alerts) rides the same transport and the

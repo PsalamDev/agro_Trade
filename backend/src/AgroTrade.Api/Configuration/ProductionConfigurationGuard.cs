@@ -1,3 +1,4 @@
+using AgroTrade.Infrastructure.Email;
 using Microsoft.Extensions.Configuration;
 
 namespace AgroTrade.Api.Configuration;
@@ -14,16 +15,49 @@ public static class ProductionConfigurationGuard
     {
         var errors = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(configuration["Email:Smtp:Host"]))
+        var provider = configuration[$"{EmailOptions.SectionName}:Provider"];
+        if (!EmailTransportSelector.IsKnownProvider(provider))
         {
             errors.Add(
-                "Email:Smtp:Host must be set outside Development. Without it the API silently uses " +
-                "the console email sender and users cannot confirm their accounts.");
+                $"Email:Provider '{provider}' is not one of Auto, Resend, Smtp or Console.");
+        }
+        else
+        {
+            switch (EmailTransportSelector.Resolve(configuration))
+            {
+                case EmailTransport.Resend:
+                    if (string.IsNullOrWhiteSpace(configuration["Email:Resend:ApiKey"]))
+                    {
+                        errors.Add(
+                            "Email:Resend:ApiKey must be set outside Development when Resend is the " +
+                            "mail transport.");
+                    }
+                    break;
+                case EmailTransport.Smtp:
+                    if (string.IsNullOrWhiteSpace(configuration["Email:Smtp:Host"]))
+                    {
+                        errors.Add(
+                            "Email:Smtp:Host must be set outside Development when SMTP is the mail " +
+                            "transport.");
+                    }
+                    break;
+                default:
+                    errors.Add(
+                        "No mail transport is configured outside Development. Set Email:Resend:ApiKey " +
+                        "(preferred) or Email:Smtp:Host; without one every message is only written to " +
+                        "the log and users never receive their confirmation.");
+                    break;
+            }
         }
 
-        if (string.IsNullOrWhiteSpace(configuration["Email:FromAddress"]))
+        var fromAddress = configuration["Email:FromAddress"];
+        if (string.IsNullOrWhiteSpace(fromAddress))
         {
             errors.Add("Email:FromAddress must be set outside Development.");
+        }
+        else if (!fromAddress.Contains('@'))
+        {
+            errors.Add("Email:FromAddress must be an email address.");
         }
 
         if (configuration.GetValue("Auth:AutoConfirmEmail", false))
